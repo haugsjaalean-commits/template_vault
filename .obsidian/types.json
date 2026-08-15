@@ -7,6 +7,10 @@
     "characteristics": "multitext",
     "related": "multitext",
     "note rating": "number",
-    "rating": "number"
+    "rating": "number",
+    "children": "multitext",
+    "relation to me": "multitext",
+    "location": "multitext",
+    "domain": "multitext"
   }
 }

@@ -1,0 +1,14 @@
+filters:
+  and:
+    - file.inFolder("Obsidian/Templates")
+views:
+  - type: table
+    name: All
+  - type: table
+    name: Architypes
+    filters:
+      and:
+        - file.name.contains("architype")
+    order:
+      - file.name
+      - is a

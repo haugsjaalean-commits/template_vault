@@ -1,0 +1,10 @@
+filters:
+  and:
+    - file.inFolder("Obsidian/Notes")
+views:
+  - type: table
+    name: Table
+    order:
+      - file.name
+      - is a
+      - characteristics

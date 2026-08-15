@@ -1,0 +1,4 @@
+---
+is a:
+  - Daily Note
+---

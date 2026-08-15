@@ -12,6 +12,10 @@
     {
       "folder": "Obsidian/Notes",
       "template": "Obsidian/Templates/Note Template.md"
+    },
+    {
+      "folder": "Obsidian/Characteristics",
+      "template": "Obsidian/Templates/Characteristic Template.md"
     }
   ],
   "file_templates": [],
