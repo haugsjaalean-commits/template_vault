@@ -1,0 +1,21 @@
+filters:
+  and:
+    - file.inFolder("Obsidian/Characteristics")
+views:
+  - type: table
+    name: Table
+    groupBy:
+      property: is base characteristic
+      direction: ASC
+    order:
+      - file.name
+      - characteristic meaning
+      - property type
+      - file.backlinks
+    sort:
+      - property: file.backlinks
+        direction: ASC
+      - property: property type
+        direction: ASC
+    columnSize:
+      file.name: 124

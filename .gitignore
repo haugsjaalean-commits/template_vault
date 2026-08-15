@@ -1,0 +1,35 @@
+# Ignore everything...
+*
+# ...but still descend into folders to look for content
+!*/
+# ...and keep markdown files
+!*.md
+# ...and images, so note embeds work
+!*.png
+!*.jpg
+!*.jpeg
+!*.gif
+!*.webp
+!*.svg
+# ...and canvases and base dashboards
+!*.canvas
+!*.base
+# ...and this file itself
+!.gitignore
+# ...and .gitattributes, which the `*` rule above would otherwise swallow
+!.gitattributes
+
+# Unlike public_vault, .obsidian IS tracked here. The point of this vault is to
+# be a starting point you can clone and open, so the setup ships with it:
+# the enabled plugins, the Templater config and its folder template.
+!*.json
+!*.js
+!*.css
+
+# ...except the view state, which Obsidian rewrites just from looking at a
+# pane. Same reason .base and .canvas are untracked in master_vault.
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# Dropbox sync artifacts
+*conflicted copy*
