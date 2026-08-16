@@ -11,6 +11,9 @@
     "children": "multitext",
     "relation to me": "multitext",
     "location": "multitext",
-    "domain": "multitext"
+    "domain": "multitext",
+    "created date": "date",
+    "created time": "datetime",
+    "created": "datetime"
   }
 }

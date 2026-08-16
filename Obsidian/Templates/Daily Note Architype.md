@@ -1,4 +1,4 @@
 ---
 is a:
-  - Daily Note
+  - "[[Daily Note]]"
 ---
