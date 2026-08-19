@@ -1,5 +1,12 @@
 [
   "templater-obsidian",
   "periodic-notes",
-  "calendar"
+  "calendar",
+  "bases-formulas",
+  "oof-objects",
+  "recent-files-obsidian",
+  "homepage",
+  "bases-graph",
+  "graph-focus",
+  "bases-word-count"
 ]

@@ -1,0 +1,316 @@
+/* Bases Graph View */
+
+/* The Bases view container scrolls and pads its content; the graph wants
+   neither — it fills the space and handles its own panning. */
+.bases-view[data-view-type='graph'] {
+	--bases-view-padding: 0;
+	--bases-embed-padding: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	min-height: 0;
+	padding: 0;
+}
+
+/* Embedded bases have no height of their own to give. */
+.markdown-preview-view .bases-view[data-view-type='graph'],
+.markdown-source-view .bases-view[data-view-type='graph'] {
+	min-height: 400px;
+}
+
+.bases-graph-host {
+	position: relative;
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+	min-height: 240px;
+}
+
+/* The graph is a real ItemView, so it arrives with a tab header we do not
+   want. .view-content sizes itself as 100% minus that header, so the height
+   has to be corrected once the header is gone. */
+.bases-graph-host > .workspace-leaf-content > .view-header {
+	display: none;
+}
+
+.bases-graph-host > .workspace-leaf-content > .view-content {
+	height: 100%;
+	padding: 0;
+}
+
+/* Panel shown when a property or value node is clicked. Sits opposite the
+   graph's own controls, which are inset-inline-end. */
+.bases-graph-panel {
+	position: absolute;
+	inset-inline-start: var(--size-4-3);
+	top: var(--size-4-3);
+	z-index: var(--layer-popover);
+	display: flex;
+	flex-direction: column;
+	width: 260px;
+	max-height: calc(100% - var(--size-4-6));
+	padding: var(--size-4-2);
+	border-radius: var(--menu-radius);
+	background-color: var(--menu-background);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+}
+
+.bases-graph-panel-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--size-4-1);
+}
+
+.bases-graph-panel-title {
+	flex: 1 1 auto;
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+	overflow-wrap: anywhere;
+}
+
+.bases-graph-panel-close {
+	flex: 0 0 auto;
+}
+
+.bases-graph-panel-subtitle {
+	margin-bottom: var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.bases-graph-panel-list {
+	overflow-y: auto;
+	min-height: 0;
+}
+
+.bases-graph-panel-row {
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) var(--size-4-1);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+}
+
+.bases-graph-panel-row.is-clickable:hover {
+	background-color: var(--background-modifier-hover);
+	cursor: var(--cursor-link);
+}
+
+.bases-graph-panel-row-label {
+	flex: 1 1 auto;
+	overflow-wrap: anywhere;
+}
+
+.bases-graph-panel-row-count {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.bases-graph-panel-note {
+	padding-top: var(--size-4-2);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* The timelapse button. Obsidian keeps it visible even when the controls panel
+   is collapsed, so this selector is deliberately more specific than that rule. */
+.bases-graph-host.is-hiding-animate .graph-controls .graph-controls-button.mod-animate {
+	display: none;
+}
+
+/* What the hovered note is, pinned above the node itself. One line per thing the
+   graph says about it: a source of colour, or the value its ring is sized from. */
+.bases-graph-tooltip {
+	position: absolute;
+	z-index: var(--layer-tooltip);
+	display: none;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--size-2-1);
+	max-width: 260px;
+	padding: var(--size-2-2) var(--size-4-2);
+	border-radius: var(--radius-s);
+	background-color: var(--background-secondary);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	pointer-events: none;
+}
+
+.bases-graph-tooltip.is-visible {
+	display: flex;
+}
+
+.bases-graph-tooltip-line {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.bases-graph-tooltip-line.is-empty-group {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+/* Naming a colour group means showing its search query, which reads as code —
+   the same treatment its legend row gets. */
+.bases-graph-tooltip-line.is-color-group {
+	font-family: var(--font-monospace);
+	color: var(--text-muted);
+}
+
+/* The sorted value's marker: a hollow ring where the other lines carry a filled
+   swatch, so the line reads as "this is the property the rings are sized from".
+   Same 10px box, so both kinds of line align in one column.
+
+   currentColor rather than a fixed colour, so it dims and italicises along with
+   the "(none)" line instead of staying brighter than the text it belongs to. */
+/* A line whose marker is switched off still keeps the column, so the lines do
+   not start in two different places when only one marker is on. */
+.bases-graph-tooltip-line.is-unmarked {
+	padding-inline-start: calc(10px + var(--size-4-2));
+}
+
+.bases-graph-tooltip-ring {
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	width: 10px;
+	height: 10px;
+	border: 1px solid currentColor;
+	border-radius: 50%;
+}
+
+/* Which colour is which group. Bottom-left, opposite the graph's own controls. */
+.bases-graph-legend {
+	position: absolute;
+	inset-inline-start: var(--size-4-3);
+	bottom: var(--size-4-3);
+	z-index: var(--layer-popover);
+	display: flex;
+	flex-direction: column;
+	max-width: 240px;
+	max-height: 45%;
+	padding: var(--size-4-2);
+	border-radius: var(--menu-radius);
+	background-color: var(--menu-background);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-smaller);
+	pointer-events: none;
+}
+
+.bases-graph-legend-header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	pointer-events: auto;
+	cursor: var(--cursor);
+	color: var(--text-muted);
+	font-weight: var(--font-semibold);
+}
+
+.bases-graph-legend-header:hover {
+	color: var(--text-normal);
+}
+
+/* Some contexts hide .collapse-icon by default; this one is always shown. */
+.bases-graph-legend-header .collapse-icon {
+	display: flex;
+}
+
+.bases-graph-legend-title {
+	flex: 1 1 auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.bases-graph-legend:not(.is-collapsed) .bases-graph-legend-header {
+	margin-bottom: var(--size-2-2);
+}
+
+.bases-graph-legend-list {
+	overflow-y: auto;
+	min-height: 0;
+	pointer-events: auto;
+}
+
+.bases-graph-legend-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) 0;
+}
+
+.bases-graph-legend-swatch {
+	flex: 0 0 auto;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+}
+
+.bases-graph-legend-label {
+	flex: 1 1 auto;
+	color: var(--text-normal);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.bases-graph-legend-row.is-empty-group .bases-graph-legend-label {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+/* Separates the graph's own colour groups from the base's groups. Matches the
+   header's weight and colour, since it is a second heading rather than a row. */
+.bases-graph-legend-heading {
+	margin-top: var(--size-2-3);
+	padding: var(--size-2-1) 0;
+	border-top: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-weight: var(--font-semibold);
+}
+
+/* A colour group's label is a search query, which is code rather than prose. */
+.bases-graph-legend-row.is-color-group .bases-graph-legend-label {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+/* The group matched notes here, but the base's own colouring outranked it
+   everywhere — still listed, so flipping the precedence does not look broken. */
+.bases-graph-legend-row.is-outranked {
+	opacity: 0.5;
+}
+
+.bases-graph-legend-count {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.bases-graph-legend-note {
+	padding-top: var(--size-2-2);
+	color: var(--text-faint);
+}
+
+.bases-graph-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	padding: var(--size-4-4);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-align: center;
+}

@@ -1,0 +1,9 @@
+{
+	"id": "bases-formulas",
+	"name": "Bases Formulas",
+	"version": "1.0.0",
+	"minAppVersion": "1.10.0",
+	"description": "A panel over the formulas of every base. One list, shared by all of them: writing a formula once makes it available everywhere, and a formula can be limited to chosen bases.",
+	"author": "Claude",
+	"isDesktopOnly": false
+}

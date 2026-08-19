@@ -1,0 +1,56 @@
+{
+  "settings": {
+    "autoSync": true,
+    "adoptFromBases": true,
+    "manageDisplayNames": true,
+    "basesFolder": "",
+    "syncDelay": 900
+  },
+  "formulas": [
+    {
+      "name": "word count",
+      "expression": "file.WordCount()",
+      "displayName": "word count",
+      "scope": "all",
+      "bases": []
+    }
+  ],
+  "snapshots": {
+    "Obsidian/Bases/Artist Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Characteristics Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Local Graph Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Location Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Person Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Project Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Structure Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Templates Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Todo Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Visual Artist Base.base": {
+      "word count": "file.WordCount()"
+    },
+    "Obsidian/Bases/Obsidian Note Base.base": {
+      "word count": "file.WordCount()"
+    }
+  },
+  "pendingDeletes": [],
+  "pendingRenames": [],
+  "pendingColumns": []
+}

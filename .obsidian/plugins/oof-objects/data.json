@@ -1,0 +1,31 @@
+{
+  "settings": {
+    "notesFolder": "Obsidian/Notes",
+    "characteristicsFolder": "Obsidian/Characteristics",
+    "templatesFolder": "Obsidian/Templates",
+    "inheritsProperty": "type of",
+    "isAProperty": "is a",
+    "characteristicsProperty": "characteristics",
+    "characteristicPrefix": "∘ ",
+    "classTag": "class",
+    "sortClasses": "descent",
+    "followActiveNote": true,
+    "classIsItsOwnInstance": false,
+    "deleteUnusedCharacteristics": true,
+    "logicProperties": [
+      "is a",
+      "characteristics",
+      "type of"
+    ],
+    "retiredLogicProperties": [],
+    "templateSuffix": " Template",
+    "createBases": true,
+    "basesFolder": "Obsidian/Bases",
+    "baseSuffix": " Base",
+    "baseColumns": "all"
+  },
+  "drafts": {},
+  "baseRefreshes": [],
+  "expanded": [],
+  "dismissed": []
+}

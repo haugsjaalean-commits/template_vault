@@ -1,0 +1,9 @@
+{
+	"id": "bases-word-count",
+	"name": "Bases Word Count",
+	"version": "1.0.0",
+	"minAppVersion": "1.10.0",
+	"description": "Adds file.wordCount(), file.charCount() and file.readingTime() to Bases formulas, filters and sorts.",
+	"author": "Claude",
+	"isDesktopOnly": false
+}

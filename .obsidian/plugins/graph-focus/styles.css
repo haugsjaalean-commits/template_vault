@@ -1,0 +1,253 @@
+/* Graph Focus — panel styling. Written by Claude for Leander.
+   Everything here is expressed in Obsidian's own CSS variables so the panel
+   follows whatever theme is active rather than pinning its own colours. */
+
+/* The mirror image of Obsidian's own graph controls, which sit at the top-right
+   with `inset-inline-end: var(--size-4-3)`. Same inset, same width, same menu
+   surface — so the two read as a matched pair in opposite corners. */
+.graph-focus-panel {
+	position: absolute;
+	top: var(--size-4-3);
+	inset-inline-start: var(--size-4-3);
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	width: var(--graph-controls-width, 250px);
+	max-width: calc(100% - var(--size-4-4));
+	max-height: calc(100% - var(--size-4-4));
+	overflow: hidden;
+	background-color: var(--menu-background);
+	border: var(--menu-border-width) solid var(--menu-border-color);
+	border-radius: var(--menu-radius);
+	corner-shape: var(--menu-corner-shape);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-smaller);
+}
+
+.graph-focus-panel-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-weight: var(--font-medium);
+	user-select: none;
+}
+
+.graph-focus-panel-header:hover {
+	color: var(--text-normal);
+}
+
+/* Some contexts hide .collapse-icon by default; this one is always shown.
+   Obsidian's own rule rotates it when `is-collapsed` is set. */
+.graph-focus-panel-header .collapse-icon {
+	display: flex;
+}
+
+.graph-focus-panel-title {
+	flex: 1 1 auto;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.graph-focus-panel-count {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.graph-focus-panel.is-collapsed .graph-focus-panel-body {
+	display: none;
+}
+
+.graph-focus-panel-body {
+	padding: 0 8px 8px;
+	overflow-y: auto;
+}
+
+.graph-focus-section-title {
+	margin: 8px 0 4px;
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+/* A section title that folds, with an action on the right. */
+.graph-focus-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	cursor: var(--cursor);
+}
+
+.graph-focus-section-header .collapse-icon {
+	display: flex;
+	color: var(--text-faint);
+}
+
+.graph-focus-section-header:hover .collapse-icon,
+.graph-focus-section-header:hover .graph-focus-section-title {
+	color: var(--text-muted);
+}
+
+.graph-focus-section-header .graph-focus-section-title {
+	flex: 1 1 auto;
+}
+
+.graph-focus-section-action {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+}
+
+.graph-focus-section-action:hover {
+	color: var(--text-normal);
+	text-decoration: underline;
+}
+
+.graph-focus-item-action.is-interactive:hover {
+	color: var(--text-error);
+}
+
+/* Scoped to the section body itself: `.collapse-icon` carries `is-collapsed` as
+   well, and a looser selector would hide the very arrow that folds it. */
+.graph-focus-section-list.is-collapsed {
+	display: none;
+}
+
+.graph-focus-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 5px;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.graph-focus-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.graph-focus-item-name {
+	flex: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* A match that is not one of this pane's nodes — a local graph only holds the
+   neighbourhood, so most of the vault cannot be highlighted in it. */
+.graph-focus-item.is-absent .graph-focus-item-name {
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+.graph-focus-item.is-focused .graph-focus-item-name {
+	color: var(--text-accent);
+}
+
+.graph-focus-item-action {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.graph-focus-item:hover .graph-focus-item-action {
+	color: var(--text-normal);
+}
+
+.graph-focus-empty,
+.graph-focus-note {
+	padding: 3px 5px;
+	color: var(--text-faint);
+}
+
+.graph-focus-panel input[type='search'] {
+	width: 100%;
+	font-size: var(--font-ui-smaller);
+}
+
+/* Bottom-right, opposite the focus panel and matching the graph controls'
+   inset, with the popover opening upward so it never leaves the pane. */
+.graph-focus-quick {
+	position: absolute;
+	bottom: var(--size-4-3);
+	inset-inline-end: var(--size-4-3);
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: var(--size-2-2);
+	max-height: calc(100% - var(--size-4-4));
+}
+
+.graph-focus-quick-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	flex: 0 0 auto;
+	order: 2;
+	color: var(--text-muted);
+	background-color: var(--menu-background);
+	border: var(--menu-border-width) solid var(--menu-border-color);
+	border-radius: var(--menu-radius);
+	box-shadow: var(--shadow-s);
+	cursor: var(--cursor);
+}
+
+.graph-focus-quick-button:hover {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+}
+
+.graph-focus-quick-body {
+	order: 1;
+	width: var(--graph-controls-width, 250px);
+	max-width: calc(100vw - var(--size-4-4));
+	overflow-y: auto;
+	padding: var(--size-2-2) var(--size-4-2);
+	background-color: var(--menu-background);
+	border: var(--menu-border-width) solid var(--menu-border-color);
+	border-radius: var(--menu-radius);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-smaller);
+}
+
+.graph-focus-quick-body.is-hidden {
+	display: none;
+}
+
+/* Settings rows are built for a full-width tab; stack them to fit the popover. */
+.graph-focus-quick-body .setting-item {
+	display: block;
+	padding: var(--size-2-2) 0;
+	border-top: none;
+}
+
+.graph-focus-quick-body .setting-item-info {
+	margin-right: 0;
+}
+
+.graph-focus-quick-body .setting-item-name {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.graph-focus-quick-body .setting-item-control {
+	justify-content: flex-start;
+	margin-top: var(--size-2-1);
+}
+
+.graph-focus-quick-body .setting-item-control input[type='range'],
+.graph-focus-quick-body .setting-item-control select {
+	width: 100%;
+}
+
+/* Settings that belong to the one above them. */
+.graph-focus-subsettings {
+	margin-left: var(--size-4-4);
+	padding-left: var(--size-4-3);
+	border-left: 2px solid var(--background-modifier-border);
+}

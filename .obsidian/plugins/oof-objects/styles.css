@@ -1,0 +1,669 @@
+.oof-objects {
+	padding: 0 12px 24px;
+}
+
+/* ----- the header ----- */
+
+/*
+ * Nothing painted at rest, so it sits on whatever the theme's sidebar is rather
+ * than laying a band over it; `is-scrolled` comes from the view. It bleeds past
+ * the panel's own padding so no card slides up the side of it unfrosted, and
+ * rounds at the bottom only, since the top edge is flush with the pane once stuck.
+ */
+.oof-header {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	margin: 0 -12px 10px;
+	padding: 8px 24px 12px;
+	border-radius: 0 0 var(--radius-l) var(--radius-l);
+	background: transparent;
+	transition: background-color 120ms ease-out;
+}
+
+/* Frosted once a card is behind it — readable without being a slab. */
+.oof-header.is-scrolled {
+	background: var(--background-secondary);
+	background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+	-webkit-backdrop-filter: blur(12px) saturate(140%);
+	backdrop-filter: blur(12px) saturate(140%);
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.oof-header-title {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+
+/*
+ * The Calendar plugin's title, down to borrowing its `--color-text-title`, so a
+ * theme that styles Calendar's month styles this too.
+ */
+.oof-title {
+	margin: 0;
+	font-size: 1.5em;
+	line-height: 1.15;
+	color: var(--color-text-title, var(--text-normal));
+}
+
+.oof-title-name {
+	font-weight: 500;
+}
+
+/* Set apart the way Calendar sets the year apart from the month. */
+.oof-title-count {
+	margin-left: 0.35em;
+	color: var(--interactive-accent);
+	font-variant-numeric: tabular-nums;
+}
+
+.oof-search {
+	width: 100%;
+	margin-top: 8px;
+	padding: 5px 10px;
+	border-radius: var(--radius-l);
+	background: var(--background-modifier-form-field);
+	font-size: var(--font-ui-smaller);
+}
+
+.oof-header-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px;
+	margin: 4px 0 0 -6px;
+}
+
+/*
+ * Calendar's `reset-button`: uppercase, letter-spaced, no chrome. Obsidian's own
+ * button look has to be undone property by property.
+ */
+.oof-header-buttons button {
+	height: auto;
+	margin: 0;
+	padding: 3px 6px;
+	border: none;
+	border-radius: var(--radius-s);
+	box-shadow: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.7em;
+	font-weight: 600;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+.oof-header-buttons button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* Update is the only one of these that writes to the vault. */
+.oof-header-buttons button.mod-cta {
+	background: transparent;
+	color: var(--interactive-accent);
+}
+
+.oof-header-buttons button.mod-cta:hover {
+	background: var(--background-modifier-hover);
+	color: var(--interactive-accent-hover);
+}
+
+.oof-header-buttons button[disabled] {
+	opacity: 0.4;
+	cursor: default;
+	background: transparent;
+	color: var(--text-faint);
+}
+
+/*
+ * Fold all / unfold all: VS Code's pair of squares, at the end of the title row
+ * where VS Code keeps them. `align-self` because that row aligns on the baseline
+ * — right for a title and a badge, wrong for a pair of icons.
+ */
+.oof-fold-buttons {
+	display: flex;
+	align-items: center;
+	align-self: center;
+	gap: 0;
+	margin-left: auto;
+}
+
+button.oof-header-icon {
+	height: auto;
+	margin: 0;
+	padding: 3px;
+	border: none;
+	border-radius: var(--radius-s);
+	box-shadow: none;
+	background: transparent;
+	color: var(--text-muted);
+	line-height: 0;
+	cursor: pointer;
+}
+
+button.oof-header-icon:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+button.oof-header-icon[disabled] {
+	opacity: 0.4;
+	cursor: default;
+	background: transparent;
+	color: var(--text-faint);
+}
+
+button.oof-header-icon .svg-icon {
+	width: 15px;
+	height: 15px;
+}
+
+/*
+ * New class, at the other end: a plus against the count, so it reads as one more
+ * of those. Pulled back off the title row's 8px gap — it belongs to the number,
+ * not to the row. After the shared rule above, which zeroes the margin at the
+ * same specificity.
+ */
+button.oof-new-class {
+	align-self: center;
+	margin-left: -5px;
+	color: var(--interactive-accent);
+}
+
+button.oof-new-class:hover {
+	color: var(--interactive-accent-hover);
+}
+
+/*
+ * Sized to the digit beside it, not to the fold pair across the row. Lucide
+ * draws the plus 16 units wide in a 24 box, so a 24px icon puts ~16px of ink
+ * against the ~17px cap height of a 24px digit; the padding comes down to 2px so
+ * the button still fits the title's line box.
+ */
+button.oof-new-class {
+	padding: 2px;
+}
+
+button.oof-new-class .svg-icon {
+	width: 24px;
+	height: 24px;
+}
+
+.oof-object {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	margin-bottom: 6px;
+	background: var(--background-primary);
+}
+
+/* Closed, a card is just its row - so the list of classes reads as a list. */
+.oof-object.is-closed {
+	background: transparent;
+}
+
+/* The class the open note is about. */
+.oof-object-active {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+/* The base characteristics sit apart from the objects they apply to. */
+.oof-base {
+	background: var(--background-secondary-alt);
+	border-style: dashed;
+	margin-bottom: 16px;
+}
+
+.oof-base-note {
+	margin: 4px 0 2px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+/*
+ * The whole row is the dropdown's handle, so it takes the card's padding and the
+ * card itself has none — otherwise the clickable area would stop short of the
+ * edges it looks like it reaches.
+ */
+.oof-object-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 10px;
+	cursor: pointer;
+	border-radius: var(--radius-m);
+}
+
+.oof-object-title:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* The base characteristics card has no dropdown, so its row is not a handle. */
+.oof-title-static,
+.oof-title-static:hover {
+	cursor: default;
+	background: transparent;
+}
+
+.oof-object-name {
+	font-weight: 600;
+	font-size: var(--font-ui-medium);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Points right when closed, down when open, the way every twisty does. */
+.oof-twisty {
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-faint);
+	flex: 0 0 auto;
+	transition: transform 100ms ease-out;
+}
+
+.oof-object.is-open > .oof-object-title > .oof-twisty {
+	transform: rotate(90deg);
+}
+
+.oof-twisty .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+/* The file icons, pushed to the end of the row. */
+.oof-object-actions {
+	display: flex;
+	align-items: center;
+	gap: 1px;
+	margin-left: auto;
+	flex: 0 0 auto;
+}
+
+.oof-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: var(--radius-s);
+	color: var(--text-faint);
+	cursor: pointer;
+	flex: 0 0 auto;
+}
+
+.oof-icon:hover {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.oof-icon .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+/* The file does not exist yet; clicking says so rather than doing nothing. */
+.oof-icon-pending {
+	opacity: 0.4;
+}
+
+/* A queued base refresh will replace his own edits, so it says so. */
+.oof-icon-warning {
+	color: var(--text-warning);
+}
+
+.oof-icon-warning:hover {
+	color: var(--text-warning);
+}
+
+.oof-object-body {
+	padding: 0 12px 10px;
+}
+
+/*
+ * Rename sits beside the name rather than with the file icons, so it is nudged
+ * back against it and given a smaller glyph than they have.
+ */
+.oof-rename {
+	margin-left: -2px;
+}
+
+.oof-rename .svg-icon {
+	width: 12px;
+	height: 12px;
+}
+
+/*
+ * New instance ends the row and is the one thing there that creates rather than
+ * opens, so it is a step bigger and a step less faint than its neighbours.
+ */
+.oof-new-instance {
+	width: 24px;
+	height: 24px;
+	color: var(--text-muted);
+}
+
+.oof-new-instance:hover {
+	color: var(--interactive-accent);
+}
+
+.oof-new-instance .svg-icon {
+	width: 16px;
+	height: 16px;
+}
+
+.oof-badge {
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+/*
+ * The variants belong here, directly after the base. They used to sit further
+ * up, where — being the same one class deep — the base overrode them and every
+ * badge came out the same grey.
+ */
+
+/* Quiet, like the buttons beside it: an outlined word, not a filled pill. */
+.oof-badge-dirty {
+	background: transparent;
+	border: 1px solid var(--text-warning);
+	color: var(--text-warning);
+	font-weight: 600;
+	letter-spacing: 1px;
+}
+
+/*
+ * The other half of that phrase: prose, so it takes the accent as *text* and no
+ * fill. The chip beside it is `is a` — a property name, and it looks like one.
+ */
+.oof-active-label {
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--interactive-accent);
+	white-space: nowrap;
+	flex: 0 0 auto;
+}
+
+.oof-badge-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.oof-badge-root {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/*
+ * `.oof-links`, `.oof-link-warning` and `.oof-pending` were the row of words under
+ * each class - note / template / base / refresh base / + instance. Those are icons
+ * on the name row now, so their rules are gone. `.oof-link` survives for the one
+ * text link left in the app: "open" beside a conflict in the Update plan.
+ */
+.oof-link {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-accent);
+	cursor: pointer;
+}
+
+.oof-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	margin-top: 6px;
+}
+
+.oof-row-label {
+	flex: 0 0 auto;
+	min-width: 88px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	padding-top: 3px;
+}
+
+.oof-row-muted .oof-row-label {
+	color: var(--text-faint);
+}
+
+.oof-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.oof-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 4px 1px 7px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+}
+
+/* An anchor, so it reads as a link rather than as decoration. */
+.oof-chip-text {
+	color: var(--text-accent);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.oof-chip:hover .oof-chip-text {
+	text-decoration: underline;
+}
+
+.oof-chip-muted .oof-chip-text {
+	color: var(--text-muted);
+}
+
+/* No note behind it yet — Update will create one. */
+.oof-chip-missing .oof-chip-text {
+	color: var(--text-faint);
+	text-decoration: underline dotted;
+}
+
+.oof-chip-remove {
+	cursor: pointer;
+	color: var(--text-faint);
+	padding: 0 3px;
+	border-radius: var(--radius-s);
+}
+
+.oof-chip-remove:hover {
+	color: var(--text-error);
+	background: var(--background-modifier-error-hover);
+}
+
+.oof-chip-muted {
+	background: transparent;
+	border: 1px dashed var(--background-modifier-border);
+	padding: 0 6px;
+}
+
+.oof-add {
+	width: 3.5em;
+	min-width: 3.5em;
+	padding: 1px 6px;
+	font-size: var(--font-ui-smaller);
+	background: transparent;
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.oof-add:focus {
+	width: 10em;
+	min-width: 10em;
+	border-style: solid;
+}
+
+.oof-empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+/* ----- the update modal ----- */
+
+.oof-modal-lede {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+/* The only actions that remove a whole file. */
+.oof-plan-destructive .oof-plan-label {
+	color: var(--text-error);
+}
+
+.oof-plan-destructive .oof-plan-detail {
+	border-left-color: var(--text-error);
+}
+
+.oof-modal-warning {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-warning);
+	border-left: 2px solid var(--text-warning);
+	padding-left: 8px;
+}
+
+.oof-plan,
+.oof-conflicts {
+	max-height: 40vh;
+	overflow-y: auto;
+	padding-left: 18px;
+	margin: 6px 0 14px;
+}
+
+.oof-plan li,
+.oof-conflicts li {
+	margin-bottom: 10px;
+}
+
+.oof-plan-label {
+	font-weight: 600;
+}
+
+.oof-plan-path,
+.oof-conflict-reason {
+	display: block;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+.oof-plan-path {
+	font-family: var(--font-monospace);
+}
+
+/* One line per thing that will change in this file. */
+.oof-plan-detail {
+	display: block;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	padding-left: 10px;
+	border-left: 2px solid var(--background-modifier-border);
+	margin-top: 2px;
+}
+
+.oof-conflict-name {
+	font-weight: 600;
+}
+
+.oof-conflicts li {
+	border-left: 2px solid var(--text-warning);
+	padding-left: 8px;
+	list-style: none;
+	margin-left: -18px;
+}
+
+.oof-modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+/* ----- discrepancies -----------------------------------------------------
+ *
+ * One card, both kinds, under one caution symbol: from where he is sitting they
+ * are one question, and only the answer to "who fixes it?" differs.
+ */
+.oof-discrepancies {
+	border-color: var(--text-warning);
+	margin-bottom: 16px;
+}
+
+/* Something in here is stopping Update, so the card says so at a glance. */
+.oof-discrepancies-blocking {
+	box-shadow: 0 0 0 1px var(--text-warning);
+}
+
+.oof-caution {
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-warning);
+	flex: 0 0 auto;
+}
+
+.oof-caution .svg-icon {
+	width: 15px;
+	height: 15px;
+}
+
+/* Solvable is not a warning — it is just work Update has not done yet. */
+.oof-badge-solvable {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.oof-badge-insolvable {
+	background: var(--text-warning);
+	color: var(--background-primary);
+	font-weight: 600;
+}
+
+.oof-discrepancy-list {
+	list-style: none;
+	margin: 2px 0 10px;
+	padding: 0;
+}
+
+.oof-discrepancy {
+	border-left: 2px solid var(--background-modifier-border);
+	padding: 2px 0 2px 8px;
+	margin-bottom: 8px;
+}
+
+.oof-discrepancy-insolvable {
+	border-left-color: var(--text-warning);
+}
+
+.oof-discrepancy-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.oof-discrepancy-label {
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.oof-discrepancy-detail {
+	display: block;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
