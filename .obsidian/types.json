@@ -10,10 +10,20 @@
     "rating": "number",
     "children": "multitext",
     "relation to me": "multitext",
-    "location": "multitext",
+    "location": "text",
     "domain": "multitext",
     "created date": "date",
     "created time": "datetime",
-    "created": "datetime"
+    "created": "datetime",
+    "possible values": "multitext",
+    "visual domain": "multitext",
+    "urgency": "number",
+    "type of": "multitext",
+    "payoff": "number",
+    "medium": "multitext",
+    "done": "checkbox",
+    "status": "text",
+    "art domain": "multitext",
+    "map link": "text"
   }
 }

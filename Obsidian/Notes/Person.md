@@ -1,10 +1,12 @@
 ---
-rating:
-note rating:
-related:
-is a:
+tags:
+  - class
 characteristics:
-  - "[[children]]"
-  - "[[location]]"
-  - "[[relation to me]]"
+  - "[[∘ children]]"
+  - "[[∘ relation to me]]"
+  - "[[∘ location]]"
+  - "[[∘ birth day]]"
+is a:
+type of:
+  - "[[Obsidian Note]]"
 ---

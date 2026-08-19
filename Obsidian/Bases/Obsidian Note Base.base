@@ -1,0 +1,17 @@
+filters:
+  and:
+    - file.isA("Note")
+    - '!file.inFolder("Obsidian/Templates")'
+formulas:
+  word count: file.WordCount()
+properties:
+  formula.word count:
+    displayName: word count
+views:
+  - type: table
+    name: Table
+    order:
+      - file.name
+      - related
+      - note rating
+      - rating

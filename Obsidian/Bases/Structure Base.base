@@ -1,0 +1,46 @@
+filters:
+  and:
+    - or:
+        - file.inFolder("Obsidian/Characteristics")
+        - file.hasTag("class")
+formulas:
+  word count: file.WordCount()
+properties:
+  formula.word count:
+    displayName: word count
+views:
+  - type: graph
+    name: Graph
+    groupBy:
+      property: file.tags
+      direction: ASC
+    order:
+      - file.name
+    sort:
+      - property: is base characteristic
+        direction: DESC
+    graphOptions:
+      collapse-filter: true
+      search: ""
+      showTags: false
+      showAttachments: false
+      hideUnresolved: false
+      showOrphans: true
+      collapse-color-groups: true
+      colorGroups: []
+      collapse-display: false
+      showArrow: true
+      textFadeMultiplier: 0
+      nodeSizeMultiplier: 1
+      lineSizeMultiplier: 1
+      collapse-forces: false
+      centerStrength: 0.566048780487805
+      repelStrength: 20
+      linkStrength: 1
+      linkDistance: 30
+      scale: 0.3213363860503489
+      close: true
+    ringRank: value
+    ringSpread: 1.5
+  - type: table
+    name: Table

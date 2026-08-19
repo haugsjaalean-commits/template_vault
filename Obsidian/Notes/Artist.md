@@ -1,12 +1,9 @@
 ---
-rating:
-note rating:
-related:
-is a:
-  - "[[Person]]"
+tags:
+  - class
 characteristics:
-  - "[[domain]]"
-children:
-location:
-relation to me:
+  - "[[∘ domain]]"
+is a:
+type of:
+  - "[[Person]]"
 ---

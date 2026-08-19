@@ -1,6 +1,11 @@
 filters:
   and:
     - file.inFolder("Obsidian/Characteristics")
+formulas:
+  word count: file.WordCount()
+properties:
+  formula.word count:
+    displayName: word count
 views:
   - type: table
     name: Table
@@ -11,6 +16,7 @@ views:
       - file.name
       - characteristic meaning
       - property type
+      - possible values
       - file.backlinks
     sort:
       - property: file.backlinks
@@ -19,3 +25,4 @@ views:
         direction: ASC
     columnSize:
       file.name: 124
+      note.possible values: 329
