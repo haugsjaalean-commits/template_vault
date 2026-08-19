@@ -1,4 +1,7 @@
 ---
+birth day:
+death day:
+created:
 children:
 domain:
 is a:
@@ -8,5 +11,4 @@ relation to me:
 note rating:
 rating:
 location:
-birth day:
 ---

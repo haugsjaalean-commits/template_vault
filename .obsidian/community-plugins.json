@@ -8,5 +8,6 @@
   "homepage",
   "bases-graph",
   "graph-focus",
-  "bases-word-count"
+  "bases-word-count",
+  "graph-rotator"
 ]

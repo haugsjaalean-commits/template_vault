@@ -1,4 +1,7 @@
 ---
+birth day:
+death day:
+created:
 art domain:
 children:
 domain:
@@ -11,5 +14,4 @@ visual domain:
 note rating:
 rating:
 location:
-birth day:
 ---

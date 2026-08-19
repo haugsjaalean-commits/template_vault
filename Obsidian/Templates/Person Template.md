@@ -1,4 +1,7 @@
 ---
+birth day:
+death day:
+created:
 children:
 is a:
   - "[[Person]]"
@@ -7,5 +10,4 @@ relation to me:
 note rating:
 rating:
 location:
-birth day:
 ---

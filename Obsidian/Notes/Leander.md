@@ -1,4 +1,6 @@
 ---
+birth day:
+death day:
 created: 2026-08-16 14:43
 children:
 is a:
@@ -8,5 +10,4 @@ relation to me:
 note rating:
 rating:
 location:
-birth day:
 ---

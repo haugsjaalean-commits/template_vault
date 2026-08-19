@@ -1,0 +1,9 @@
+{
+  "id": "graph-rotator",
+  "name": "Graph Rotator",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Hold a modifier and scroll the mouse wheel to rotate a graph pane, keeping hover, dragging, culling and labels correct at any angle.",
+  "author": "Claude (written for Leander)",
+  "isDesktopOnly": false
+}

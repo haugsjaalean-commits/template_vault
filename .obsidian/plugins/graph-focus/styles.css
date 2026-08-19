@@ -251,3 +251,33 @@
 	padding-left: var(--size-4-3);
 	border-left: 2px solid var(--background-modifier-border);
 }
+
+/* Connexions — one card per rule in the settings tab. */
+.graph-focus-rules {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-3);
+	margin-bottom: var(--size-4-3);
+}
+
+.graph-focus-rule {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: 0 var(--size-4-3);
+	background: var(--background-secondary);
+}
+
+/* The first row of a card carries the title and the reordering buttons, so it
+   loses the divider the rows below it keep. */
+.graph-focus-rule .setting-item {
+	border-top: none;
+	padding: var(--size-4-2) 0;
+}
+
+.graph-focus-rule-header .setting-item-name {
+	font-weight: var(--font-semibold);
+}
+
+.graph-focus-rule-off {
+	opacity: 0.55;
+}

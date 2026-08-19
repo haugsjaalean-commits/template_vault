@@ -24,6 +24,8 @@
     "done": "checkbox",
     "status": "text",
     "art domain": "multitext",
-    "map link": "text"
+    "map link": "text",
+    "death day": "date",
+    "birth day": "date"
   }
 }

@@ -11,7 +11,7 @@
   "folder_templates": [
     {
       "folder": "Obsidian/Notes",
-      "template": "Obsidian/Templates/Note Template.md"
+      "template": "Obsidian/Templates/Obsidian Note Template.md"
     },
     {
       "folder": "Obsidian/Characteristics",

@@ -1,7 +1,7 @@
 {
 	"id": "oof-objects",
 	"name": "OOF Classes",
-	"version": "2.0.0",
+	"version": "2.4.0",
 	"minAppVersion": "1.10.0",
 	"description": "A panel over the vault's classes: edit a class's characteristics and parents in one place, and push the consequences to the notes, templates and characteristic notes. Adds file.isA(), file.inheritsFrom(), file.ancestors() and file.isADistance() to bases.",
 	"author": "Claude",

@@ -1,32 +1,144 @@
 {
   "recentFiles": [
     {
-      "basename": "Classes plugin UI",
-      "path": "Obsidian/Notes/Classes plugin UI.md"
+      "basename": "Classes Plugin",
+      "path": "Obsidian/Notes/Classes Plugin.md"
+    },
+    {
+      "basename": "Structure Base",
+      "path": "Obsidian/Bases/Structure Base.base"
+    },
+    {
+      "basename": "∘ created",
+      "path": "Obsidian/Characteristics/∘ created.md"
+    },
+    {
+      "basename": "Obsidian Note Template",
+      "path": "Obsidian/Templates/Obsidian Note Template.md"
+    },
+    {
+      "basename": "Obsidian Note",
+      "path": "Obsidian/Notes/Obsidian Note.md"
+    },
+    {
+      "basename": "Graph Rotator",
+      "path": "Obsidian/Notes/Graph Rotator.md"
     },
     {
       "basename": "Local Graph Base",
       "path": "Obsidian/Bases/Local Graph Base.base"
     },
     {
-      "basename": "Classes Plugin",
-      "path": "Obsidian/Notes/Classes Plugin.md"
+      "basename": "Visual Artist",
+      "path": "Obsidian/Notes/Visual Artist.md"
+    },
+    {
+      "basename": "Root Note",
+      "path": "Obsidian/Notes/Root Note.md"
     },
     {
       "basename": "Classes plugin coding logic",
       "path": "Obsidian/Notes/Classes plugin coding logic.md"
     },
     {
-      "basename": "Person",
-      "path": "Obsidian/Notes/Person.md"
+      "basename": "O",
+      "path": "O.md"
+    },
+    {
+      "basename": "Obsidian Note Base",
+      "path": "Obsidian/Bases/Obsidian Note Base.base"
     },
     {
       "basename": "Characteristics Base",
       "path": "Obsidian/Bases/Characteristics Base.base"
     },
     {
-      "basename": "Structure Base",
-      "path": "Obsidian/Bases/Structure Base.base"
+      "basename": "Connexion Changer",
+      "path": "Obsidian/Notes/Connexion Changer.md"
+    },
+    {
+      "basename": "Classes plugin UI",
+      "path": "Obsidian/Notes/Classes plugin UI.md"
+    },
+    {
+      "basename": "old issues",
+      "path": "Obsidian/Notes/old issues.md"
+    },
+    {
+      "basename": "old improvement ideas",
+      "path": "Obsidian/Notes/old improvement ideas.md"
+    },
+    {
+      "basename": "Location",
+      "path": "Obsidian/Notes/Location.md"
+    },
+    {
+      "basename": "Over all thoughts on the plugin and its meaning",
+      "path": "Obsidian/Notes/Over all thoughts on the plugin and its meaning.md"
+    },
+    {
+      "basename": "Part of",
+      "path": "Obsidian/Notes/Part of.md"
+    },
+    {
+      "basename": "Person",
+      "path": "Obsidian/Notes/Person.md"
+    },
+    {
+      "basename": "Project",
+      "path": "Obsidian/Notes/Project.md"
+    },
+    {
+      "basename": "Sheng Lam",
+      "path": "Obsidian/Notes/Sheng Lam.md"
+    },
+    {
+      "basename": "test todo",
+      "path": "Obsidian/Notes/test todo.md"
+    },
+    {
+      "basename": "Todo",
+      "path": "Obsidian/Notes/Todo.md"
+    },
+    {
+      "basename": "Graph Focus Plugin",
+      "path": "Obsidian/Notes/Graph Focus Plugin.md"
+    },
+    {
+      "basename": "formulas tab",
+      "path": "Obsidian/Notes/formulas tab.md"
+    },
+    {
+      "basename": "Doubts for the system",
+      "path": "Obsidian/Notes/Doubts for the system.md"
+    },
+    {
+      "basename": "Daily Note",
+      "path": "Obsidian/Notes/Daily Note.md"
+    },
+    {
+      "basename": "Dad's thoughts on the system",
+      "path": "Obsidian/Notes/Dad's thoughts on the system.md"
+    },
+    {
+      "basename": "Person Base",
+      "path": "Obsidian/Bases/Person Base.base"
+    },
+    {
+      "basename": "Person Template",
+      "path": "Obsidian/Templates/Person Template.md"
+    },
+    {
+      "basename": "∘ death day",
+      "path": "Obsidian/Characteristics/∘ death day.md"
+    },
+    {
+      "basename": "∘ birth day",
+      "path": "Obsidian/Characteristics/∘ birth day.md"
+    },
+    {
+      "basename": "Handling properties",
+      "path": "Obsidian/Notes/Handling properties.md"
     },
     {
       "basename": "Ideas for plugins",
@@ -45,40 +157,16 @@
       "path": "Obsidian/Bases/Project Base.base"
     },
     {
-      "basename": "Obsidian Note",
-      "path": "Obsidian/Notes/Obsidian Note.md"
-    },
-    {
       "basename": "Base Formulas Plugin",
       "path": "Obsidian/Notes/Base Formulas Plugin.md"
-    },
-    {
-      "basename": "Over all thoughts on the plugin and its meaning",
-      "path": "Obsidian/Notes/Over all thoughts on the plugin and its meaning.md"
-    },
-    {
-      "basename": "Doubts for the system",
-      "path": "Obsidian/Notes/Doubts for the system.md"
     },
     {
       "basename": "Ideas for taking the Classes plugin further",
       "path": "Obsidian/Notes/Ideas for taking the Classes plugin further.md"
     },
     {
-      "basename": "old issues",
-      "path": "Obsidian/Notes/old issues.md"
-    },
-    {
       "basename": "∘ urgency",
       "path": "Obsidian/Characteristics/∘ urgency.md"
-    },
-    {
-      "basename": "Dad's thoughts on the system",
-      "path": "Obsidian/Notes/Dad's thoughts on the system.md"
-    },
-    {
-      "basename": "O",
-      "path": "O.md"
     },
     {
       "basename": "Artist Base",
@@ -89,20 +177,8 @@
       "path": "Obsidian/Characteristics/∘ location.md"
     },
     {
-      "basename": "Todo",
-      "path": "Obsidian/Notes/Todo.md"
-    },
-    {
-      "basename": "Part of",
-      "path": "Obsidian/Notes/Part of.md"
-    },
-    {
       "basename": "Leander",
       "path": "Obsidian/Notes/Leander.md"
-    },
-    {
-      "basename": "Sheng Lam",
-      "path": "Obsidian/Notes/Sheng Lam.md"
     },
     {
       "basename": "Graphs for Bases Plugin",
@@ -113,10 +189,6 @@
       "path": "Obsidian/Characteristics/∘ map link.md"
     },
     {
-      "basename": "Graph Focus Plugin",
-      "path": "Obsidian/Notes/Graph Focus Plugin.md"
-    },
-    {
       "basename": "∘ children",
       "path": "Obsidian/Characteristics/∘ children.md"
     },
@@ -125,40 +197,8 @@
       "path": "Obsidian/Characteristics/∘ related.md"
     },
     {
-      "basename": "formulas tab",
-      "path": "Obsidian/Notes/formulas tab.md"
-    },
-    {
-      "basename": "Obsidian Note Template",
-      "path": "Obsidian/Templates/Obsidian Note Template.md"
-    },
-    {
       "basename": "∘ type of",
       "path": "Obsidian/Characteristics/∘ type of.md"
-    },
-    {
-      "basename": "∘ done",
-      "path": "Obsidian/Characteristics/∘ done.md"
-    },
-    {
-      "basename": "test todo",
-      "path": "Obsidian/Notes/test todo.md"
-    },
-    {
-      "basename": "∘ note rating",
-      "path": "Obsidian/Characteristics/∘ note rating.md"
-    },
-    {
-      "basename": "Characteristic Template",
-      "path": "Obsidian/Templates/Characteristic Template.md"
-    },
-    {
-      "basename": "Pasted image 20260816211259",
-      "path": "Attachments/Pasted image 20260816211259.png"
-    },
-    {
-      "basename": "Artist",
-      "path": "Obsidian/Notes/Artist.md"
     }
   ],
   "omittedPaths": [],

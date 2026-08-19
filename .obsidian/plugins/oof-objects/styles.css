@@ -667,3 +667,54 @@ button.oof-new-class .svg-icon {
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 }
+
+/* ----- the base reset, and its code ------------------------------------- */
+
+/*
+ * The reset icon looks like every other icon on the row. It was red briefly and
+ * he took the colour back off - the typed code is the protection, and a red icon
+ * sitting on every class card all day is a warning that stops being read. The
+ * alarm is in the modal, where the act actually happens.
+ */
+.oof-danger-modal .oof-danger-line {
+	margin: 4px 0;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	border-left: 2px solid var(--text-error);
+	padding-left: 8px;
+}
+
+/* The code itself: monospace and spaced out, so it is read character by character. */
+.oof-code {
+	font-family: var(--font-monospace);
+	font-size: 1.6em;
+	font-weight: 600;
+	letter-spacing: 0.3em;
+	text-align: center;
+	padding: 10px 0 10px 0.3em;
+	margin-bottom: 8px;
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	color: var(--text-error);
+	user-select: none;
+}
+
+.oof-code-input {
+	width: 100%;
+	padding: 6px 10px;
+	border-radius: var(--radius-m);
+	font-family: var(--font-monospace);
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	background: var(--background-modifier-form-field);
+}
+
+.oof-danger-button {
+	background: var(--text-error);
+	color: var(--background-primary);
+}
+
+.oof-danger-button[disabled] {
+	opacity: 0.4;
+	cursor: default;
+}

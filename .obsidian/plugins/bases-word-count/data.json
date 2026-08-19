@@ -11,20 +11,20 @@
     "Obsidian/Templates/Visual Artist Template.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161919077,
-      "size": 158
+      "mtime": 1787168107290,
+      "size": 178
     },
     "Obsidian/Templates/Todo Template.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1786942425131,
-      "size": 82
+      "mtime": 1787168107314,
+      "size": 91
     },
     "Obsidian/Templates/Person Template.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161919096,
-      "size": 108
+      "mtime": 1787168107339,
+      "size": 128
     },
     "Obsidian/Templates/Characteristic Template.md": {
       "words": 95,
@@ -35,55 +35,55 @@
     "Obsidian/Templates/Artist Template.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161919086,
-      "size": 116
+      "mtime": 1787168107302,
+      "size": 136
     },
     "Obsidian/Notes/Visual Artist.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1786985224706,
-      "size": 178
+      "mtime": 1787168107190,
+      "size": 232
     },
     "Obsidian/Notes/Todo.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161989996,
-      "size": 168
+      "mtime": 1787168107221,
+      "size": 222
     },
     "Obsidian/Notes/test todo.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161990021,
+      "mtime": 1787168107360,
       "size": 132
     },
     "Obsidian/Notes/Sheng Lam.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161919111,
-      "size": 142
+      "mtime": 1787168107371,
+      "size": 153
     },
     "Obsidian/Notes/Person.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161989983,
-      "size": 179
+      "mtime": 1787168107269,
+      "size": 266
     },
     "Obsidian/Notes/Leander.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161919121,
-      "size": 134
+      "mtime": 1787168107422,
+      "size": 145
     },
     "Obsidian/Notes/Ideas for plugins.md": {
       "words": 2,
       "chars": 12,
-      "mtime": 1787161989950,
+      "mtime": 1787168107440,
       "size": 116
     },
     "Obsidian/Notes/formulas tab.md": {
       "words": 63,
       "chars": 340,
-      "mtime": 1787161990001,
+      "mtime": 1787168107479,
       "size": 437
     },
     "Obsidian/Notes/Daily Note.md": {
@@ -95,19 +95,19 @@
     "Obsidian/Notes/Artist.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1786984768172,
-      "size": 94
+      "mtime": 1787168107198,
+      "size": 157
     },
     "O.md": {
-      "words": 17,
-      "chars": 129,
-      "mtime": 1786983632332,
-      "size": 168
+      "words": 21,
+      "chars": 165,
+      "mtime": 1787165737419,
+      "size": 208
     },
     "Obsidian/Notes/Project.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161989988,
+      "mtime": 1787168107255,
       "size": 179
     },
     "Obsidian/Templates/Project Template.md": {
@@ -119,31 +119,31 @@
     "Obsidian/Notes/Base Formulas Plugin.md": {
       "words": 15,
       "chars": 95,
-      "mtime": 1787161989844,
+      "mtime": 1787168107568,
       "size": 220
     },
     "Obsidian/Notes/Classes Plugin.md": {
-      "words": 1020,
-      "chars": 5925,
-      "mtime": 1787161989854,
-      "size": 6079
+      "words": 45,
+      "chars": 290,
+      "mtime": 1787169729917,
+      "size": 402
     },
     "Obsidian/Notes/Graph Focus Plugin.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161989935,
+      "mtime": 1787168107472,
       "size": 104
     },
     "Obsidian/Notes/Graphs for Bases Plugin.md": {
       "words": 130,
       "chars": 732,
-      "mtime": 1787161989944,
+      "mtime": 1787168107462,
       "size": 838
     },
     "Obsidian/Notes/Location.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161989964,
+      "mtime": 1787168107278,
       "size": 159
     },
     "Obsidian/Templates/Location Template.md": {
@@ -263,68 +263,110 @@
     "Obsidian/Notes/Ideas for taking the Classes plugin further.md": {
       "words": 2,
       "chars": 7,
-      "mtime": 1787161989955,
+      "mtime": 1787168107430,
       "size": 113
     },
     "Obsidian/Notes/Part of.md": {
       "words": 128,
       "chars": 687,
-      "mtime": 1787161989978,
+      "mtime": 1787168107385,
       "size": 788
     },
     "Obsidian/Notes/Dad's thoughts on the system.md": {
       "words": 103,
       "chars": 542,
-      "mtime": 1787161989889,
+      "mtime": 1787168107517,
       "size": 643
     },
     "Obsidian/Notes/old issues.md": {
-      "words": 1335,
-      "chars": 7530,
-      "mtime": 1787161990014,
-      "size": 7627
+      "words": 1338,
+      "chars": 7554,
+      "mtime": 1787168107405,
+      "size": 7652
     },
     "Obsidian/Notes/Doubts for the system.md": {
       "words": 27,
       "chars": 126,
-      "mtime": 1787161989928,
+      "mtime": 1787168107490,
       "size": 229
     },
     "Obsidian/Notes/Over all thoughts on the plugin and its meaning.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161989970,
+      "mtime": 1787168107393,
       "size": 94
     },
     "Obsidian/Notes/Classes plugin coding logic.md": {
-      "words": 531,
-      "chars": 3176,
-      "mtime": 1787162278041,
-      "size": 3282
+      "words": 413,
+      "chars": 2498,
+      "mtime": 1787168107555,
+      "size": 2602
     },
     "Obsidian/Notes/Classes plugin UI.md": {
-      "words": 17,
-      "chars": 114,
-      "mtime": 1787162511056,
-      "size": 213
+      "words": 44,
+      "chars": 245,
+      "mtime": 1787168107542,
+      "size": 348
     },
     "Obsidian/Characteristics/∘ birth day.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161919331,
-      "size": 94
+      "mtime": 1787163194117,
+      "size": 99
     },
     "Obsidian/Notes/Obsidian Note.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1786984767972,
-      "size": 151
+      "mtime": 1787168113005,
+      "size": 147
     },
     "Obsidian/Templates/Obsidian Note Template.md": {
+      "words": 16,
+      "chars": 113,
+      "mtime": 1787168654877,
+      "size": 192
+    },
+    "Obsidian/Notes/Handling properties.md": {
       "words": 0,
       "chars": 0,
-      "mtime": 1787161990043,
-      "size": 115
+      "mtime": 1787162987750,
+      "size": 8
+    },
+    "Obsidian/Characteristics/∘ death day.md": {
+      "words": 0,
+      "chars": 0,
+      "mtime": 1787163200396,
+      "size": 99
+    },
+    "Obsidian/Notes/Connexion Changer.md": {
+      "words": 195,
+      "chars": 1115,
+      "mtime": 1787168107494,
+      "size": 1218
+    },
+    "Obsidian/Notes/old improvement ideas.md": {
+      "words": 957,
+      "chars": 5555,
+      "mtime": 1787164747991,
+      "size": 5602
+    },
+    "Obsidian/Notes/Graph Rotator.md": {
+      "words": 46,
+      "chars": 281,
+      "mtime": 1787168433180,
+      "size": 361
+    },
+    "Obsidian/Characteristics/∘ created.md": {
+      "words": 0,
+      "chars": 0,
+      "mtime": 1787168730404,
+      "size": 103
+    },
+    "Obsidian/Notes/Root Note.md": {
+      "words": 29,
+      "chars": 165,
+      "mtime": 1787168107348,
+      "size": 247
     }
   }
 }

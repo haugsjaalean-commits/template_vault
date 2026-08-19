@@ -6,7 +6,7 @@ related:
 note rating:
 rating:
 ---
-
+[[old improvement ideas]]
 
 ## Thoughts
 

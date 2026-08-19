@@ -154,10 +154,10 @@ shuffled. They keep their relative order and stay in front of the managed block.
 
 ## The panel
 
-Classes are listed **by descent, then by name**: everything a class descends
-from sits above it, and within one generation the names run alphabetically. So
-`Person` and `Zebra` come first, then `Artist`, then `Aardvark`. Switch *Order
-in the panel* to **By name** for plain alphabetical.
+Classes are listed **alphabetically**, all of them together, in one run from A to
+Z. Switch *Order in the panel* to **By descent** to group them by generation
+instead — everything a class descends from above it, alphabetically within each
+generation, so `Person` and `Zebra` come first, then `Artist`, then `Aardvark`.
 
 A **Find a class…** box at the top filters the list as you type,
 case-insensitively. Escape clears it; the base-characteristics card steps out of
@@ -219,7 +219,7 @@ underneath it.
 | **📄** note | opens the class note |
 | **▤** template | opens `<Class> Template.md` |
 | **▦** base | opens `<Class> Base.base` |
-| **⟳** refresh | queues that base to be regenerated — see *Generated bases* |
+| **⟳** reset | queues that base to be regenerated, losing your edits — asks for a typed code |
 | **＋** new note, ending the row | creates an instance from the template |
 
 Three of them **open** a file, and they are grouped together for that reason.
@@ -296,8 +296,20 @@ would generate today, and Update never lists it.
 
 ### …unless you ask for it back
 
-Each class with a base has a **⟳ refresh** icon on its row. Clicking it queues
-that base to be regenerated: it appears in the next Update plan as *"Rewrite base for
+Each class with a base has a **⟳ reset** icon on its row. It is the one control
+in the panel that destroys work nothing else holds a copy of — the views, sorts,
+group-bys and filters you built on a base by hand.
+
+**It asks for a typed code.** A five-character code is shown; the confirm button
+stays dead until you type it. The code is random rather than the class's own name
+on purpose: you have typed "Artist" a hundred times and would type it again
+without reading, while five characters you have never seen cannot be entered
+without reading the sentence above them. No `0`/`O` or `1`/`I`/`L` appear in it.
+
+Cancelling a queued reset needs no code — that is the safe direction, and a gate
+in front of the way out would be safety theatre.
+
+Clicking it queues that base to be regenerated: it appears in the next Update plan as *"Rewrite base for
 X — replaces your edits"*, and nothing happens until you apply that plan. Click
 again to cancel, or press **Discard** to drop every queued request.
 
@@ -568,9 +580,50 @@ that property. The rule:
   **conflict** for you to resolve
 
 Properties with no characteristic note behind them — `cover image`, `tags`,
-anything of your own — are never touched at all. That holds for **templates**
-too: a `created: <% tp.date.now() %>` line in a template's frontmatter survives
-a rewrite, because no characteristic note claims it.
+anything of your own — are never touched on an ordinary note.
+
+**Templates are the exception, and deliberately so.** A template is not a note
+about something; it is the *shape* of one, and its shape is its class's to decide.
+So a key in a template that no characteristic claims does not belong there:
+
+| in a template | what happens |
+|---|---|
+| a Templater expression — any value containing `<%` | left alone, never reported. It is machinery, not data |
+| a key nothing claims, **empty** | removed on Update, and the plan names it |
+| a key nothing claims, **holding a value** | reported as a conflict, left untouched |
+| a value that breaks its characteristic's `property type` or `possible values` | reported — a default in a template reaches every instance made from it |
+
+That is why `created: <% tp.date.now() %>` survives while `poopoo:` does not.
+
+### And the same on ordinary notes
+
+A note is what its class says it is, so a field its class does not declare is
+reported there too — same split: empty is removed, populated is reported and left
+alone.
+
+**`ignoredProperties`** holds the properties the class system has no opinion
+about. Nothing in it is ever flagged, and it is deliberately short:
+
+```
+tags, aliases, cssclasses, cssclass, publish, permalink
+```
+
+Obsidian owns all six.
+
+**Everything else is reported, `created` included.** A timestamp your template
+wrote is still a property your class does not declare, and the model says what to
+do about it: declare it. Adding `created` to the root class settles every note
+that inherits from it at once. Silencing it would be hiding an incomplete model
+rather than a nuisance.
+
+The same goes for fields of your own like `cover image` — under this model, a
+property every Artist carries **is** a characteristic of Artist. If you disagree
+in a particular case, the setting takes a comma-separated list.
+
+> A class note is not an instance of anything unless it says so, so it inherits
+> nothing — which means a `created:` on a *class* note is reported even after the
+> class declares `created` for its instances. Give the class an
+> `is a: "[[Note]]"` if you want it to carry what its own notes carry.
 
 ## Settings
 

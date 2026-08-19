@@ -8,6 +8,10 @@
  *      keep the cursor on it. Alt+click a node, or use the hotkey.
  *   2. Depth gradient — nodes two, three and four hops away fade out
  *      progressively instead of all dropping to Obsidian's flat 0.2 dim.
+ *   3. Connexions — draw a link by the property it was written in, so `type of`
+ *      and `related` and a body link stop looking like the same grey stick.
+ *      Ordered rules, first match wins, each giving a symbol, a line and a
+ *      colour. See linkKinds() and styleLink().
  *
  * How it works (Obsidian 1.13.x internals — see README.md)
  *   The graph renderer decides brightness from `renderer.getHighlightNode()`,
@@ -75,6 +79,14 @@ const DEFAULT_SETTINGS = {
 	maxAliases: 3,
 	// Take each arrow's colour from its own link rather than colors.arrow.
 	arrowMatchLinks: true,
+	// Draw links differently depending on which property they were written in.
+	connexions: false,
+	// Ordered, and the first one that matches a link decides all three of its
+	// styles — so precedence lives in the order of this list, not in the order
+	// the properties happen to appear in a note.
+	connexionRules: [],
+	// On-screen length of one dash and its gap, in pixels.
+	dashPeriod: 14,
 	// How much arrows shrink as the graph is zoomed out. 0 is Obsidian's own
 	// behaviour (constant on screen), 0.5 matches how nodes shrink, 1 pins them
 	// to the graph so they shrink with everything else.
@@ -173,11 +185,77 @@ const QUICK_OPTIONS = [
 	{ key: 'arrowDensity', name: 'Arrows per link', type: 'slider', min: 0, max: 1, step: 0.05 },
 	{ key: 'doubleArrows', name: 'Double arrows both ways', type: 'toggle' },
 	{ key: 'arrowMatchLinks', name: 'Arrows match link colour', type: 'toggle' },
+	{ key: 'connexions', name: 'Style links by property', type: 'toggle' },
 	{ key: 'arrowZoom', name: 'Arrow shrink with zoom', type: 'slider', min: 0, max: 1, step: 0.05 },
 ];
 
 /** Ceiling on repeated arrows, so a long link cannot become a dotted line. */
 const MAX_ARROWS_PER_LINK = 12;
+
+/**
+ * Connexions — styling a link by the property it was written in.
+ *
+ * A rule matches on a *kind*: either a real frontmatter property name, or one of
+ * the four below for the links that have no property behind them. `(any)` is the
+ * catch-all, and since the first matching rule wins it is only useful last.
+ */
+const KIND_ANY = '(any)';
+const KIND_BODY = '(body)';
+const KIND_EMBED = '(embed)';
+const KIND_TAG = '(tag)';
+
+const KIND_LABELS = {
+	[KIND_ANY]: 'Any link',
+	[KIND_BODY]: 'Written in the body',
+	[KIND_EMBED]: 'Embedded (![[…]])',
+	[KIND_TAG]: 'To a tag',
+};
+
+const SYMBOL_OPTIONS = {
+	inherit: 'Leave the arrow alone',
+	chevron: 'Chevron',
+	triangle: 'Solid triangle',
+	hollow: 'Hollow triangle',
+	harpoon: 'Half arrow',
+	double: 'Double chevron',
+	none: 'No arrow',
+};
+
+const LINE_OPTIONS = {
+	inherit: 'Leave the line alone',
+	solid: 'Solid',
+	dashed: 'Dashed',
+	dotted: 'Dotted',
+	hidden: 'Hidden, and pulling nothing',
+};
+
+const COLOR_OPTIONS = {
+	inherit: 'Leave the colour alone',
+	source: 'The note it starts from',
+	target: 'The note it points to',
+	custom: 'A colour of its own',
+};
+
+/** Fraction of one dash-and-gap that is actually drawn. */
+const DASH_DUTY = { dashed: 0.6, dotted: 0.34 };
+/** Dots run closer together than dashes, so one slider sets both. */
+const DOT_PERIOD_RATIO = 0.45;
+/** Ceiling on dashes per link, so a long one cannot cost hundreds of rectangles. */
+const MAX_DASHES = 60;
+
+const DEFAULT_RULE_COLOR = '#7c8cff';
+
+/** Empty stand-in, so a missing row needs no branch at every call site. */
+const NO_KINDS = [];
+
+/** `#rrggbb` (or `#rgb`) to the 0xRRGGBB the renderer wants. Null if unparseable. */
+function parseHexColor(text) {
+	if (typeof text !== 'string') return null;
+	let hex = text.trim().replace(/^#/, '');
+	if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+	if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+	return parseInt(hex, 16);
+}
 
 /**
  * Inside the hanger the renderer uses: link containers 0, node circles and
@@ -281,8 +359,19 @@ class GraphFocusPlugin extends Plugin {
 		 * recomputed then rather than on every frame.
 		 */
 		this.aliasEpoch = 0;
-		this.registerEvent(this.app.metadataCache.on('resolved', () => { this.aliasEpoch++; }));
-		this.registerEvent(this.app.metadataCache.on('changed', () => { this.aliasEpoch++; }));
+		/**
+		 * The same idea for the link-kind index, but bumped *only* by the metadata
+		 * cache. aliasEpoch also moves on every settings change, and rebuilding the
+		 * whole vault's index because a slider moved would be absurd.
+		 */
+		this.metaEpoch = 0;
+		/** path -> Map(target id -> kinds), built lazily. See linkKinds(). */
+		this.linkKindMap = null;
+		this.linkKindEpoch = -1;
+		this.linkKindProps = [];
+		const onMetaChange = () => { this.aliasEpoch++; this.metaEpoch++; };
+		this.registerEvent(this.app.metadataCache.on('resolved', onMetaChange));
+		this.registerEvent(this.app.metadataCache.on('changed', onMetaChange));
 
 		this.addSettingTab(new GraphFocusSettingTab(this.app, this));
 
@@ -368,7 +457,12 @@ class GraphFocusPlugin extends Plugin {
 					state.lockIds = [];
 					renderer.highlightNode = null;
 				}
+				this.dropDashes(renderer);
 				for (const undo of state.cleanups) undo();
+				// setData is unwrapped by the line above, so this puts back any link
+				// a rule was hiding rather than leaving the graph short of edges
+				// until something else happens to rebuild it.
+				if (state.rawData && state.hideSig) renderer.setData(state.rawData);
 				renderer.changed();
 			} catch (e) {
 				console.error('Graph Focus: failed to detach cleanly', e);
@@ -383,8 +477,16 @@ class GraphFocusPlugin extends Plugin {
 		// shape them live here — cheaper to recompute them once after any change
 		// than to work out which settings could have mattered.
 		this.aliasEpoch++;
+		const hideSig = this.hideSignature();
 		for (const [renderer, state] of this.attached) {
 			this.syncPanel(renderer, state);
+			// Hiding a link changes the data the layout runs on, so it needs a
+			// rebuild — but only when the set of hidden links actually changed.
+			// setData restarts the simulation, which would be an appalling thing
+			// to do on every tick of a slider.
+			if (state.rawData && state.hideSig !== hideSig) {
+				this.guard(() => renderer.setData(state.rawData));
+			}
 			renderer.changed();
 		}
 	}
@@ -527,8 +629,10 @@ class GraphFocusPlugin extends Plugin {
 		// renderer reads either, then repaint the deeper rings once it has
 		// finished drawing.
 		this.wrapProperty(renderer, 'renderCallback', (original) => function () {
-			// Not gated on a focus: arrows are a plain rendering option.
-			if (self.settings.midArrows) self.guard(() => self.patchLinkRender(renderer));
+			// Not gated on a focus: arrows and connexions are plain rendering options.
+			if (self.settings.midArrows || self.settings.connexions) {
+				self.guard(() => self.patchLinkRender(renderer));
+			}
 			if (state.lockIds.length) self.guard(() => self.assertLock(renderer, state));
 			if (state.lockIds.length || self.settings.showAliases) {
 				self.guard(() => self.patchNodeRender(renderer));
@@ -539,6 +643,22 @@ class GraphFocusPlugin extends Plugin {
 			const result = original.apply(this, arguments);
 			if (state.lockIds.length) self.guard(() => self.paintGradient(renderer, state));
 			return result;
+		}, state.cleanups);
+
+		// A link a rule hides has to be gone from the data, not merely invisible:
+		// the layout worker only knows what setData hands it, so a hidden line
+		// left in place would keep pulling its two notes together. The raw data is
+		// kept so the filter can be re-applied when the rules change.
+		this.wrapProperty(renderer, 'setData', (original) => function (data) {
+			state.rawData = data;
+			state.hideSig = self.hideSignature();
+			let filtered = data;
+			try {
+				filtered = self.hideLinks(data);
+			} catch (e) {
+				console.error('Graph Focus: could not hide links, showing them all', e);
+			}
+			return original.call(this, filtered);
 		}, state.cleanups);
 
 		// Pointer handlers set highlightNode / mouseX / mouseY. Let them run so
@@ -676,6 +796,305 @@ class GraphFocusPlugin extends Plugin {
 	 * frame before the single draw at the end of renderCallback, so this has to
 	 * happen inside the link's own render, not after the frame.
 	 */
+	/**
+	 * Which properties every link in the vault was written in.
+	 *
+	 * `metadataCache` already holds this: `frontmatterLinks` records a `key` for
+	 * each link found in the frontmatter — `related.0`, or `contact.email.0` for
+	 * a nested one — so the property is the first segment. Nothing is read from
+	 * disk and there is no index to persist; the whole vault is a few Map writes
+	 * per note, done once per change to the cache and only when a graph asks.
+	 */
+	linkKinds() {
+		if (this.linkKindMap && this.linkKindEpoch === this.metaEpoch) return this.linkKindMap;
+
+		const map = new Map();
+		const props = new Set();
+		const cache = this.app.metadataCache;
+
+		const add = (from, to, kind) => {
+			if (!to) return;
+			let row = map.get(from);
+			if (!row) { row = new Map(); map.set(from, row); }
+			let kinds = row.get(to);
+			if (!kinds) { kinds = []; row.set(to, kinds); }
+			if (kinds.indexOf(kind) === -1) kinds.push(kind);
+		};
+
+		// Node ids are file paths, so a link has to be resolved the way Obsidian
+		// resolved it. An unresolved one is a node too, under the text written —
+		// which is what getFirstLinkpathDest returning null leaves us with.
+		const resolve = (link, from) => {
+			if (!link) return null;
+			const target = String(link).split('#')[0].split('|')[0].trim();
+			// A bare `#heading` points back at the note itself: no edge.
+			if (!target) return null;
+			const dest = cache.getFirstLinkpathDest(target, from);
+			return dest ? dest.path : target;
+		};
+
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			const meta = cache.getFileCache(file);
+			if (!meta) continue;
+			for (const entry of meta.frontmatterLinks || []) {
+				const prop = String(entry.key || '').split('.')[0];
+				if (!prop) continue;
+				props.add(prop);
+				add(file.path, resolve(entry.link, file.path), prop);
+			}
+			for (const entry of meta.links || []) {
+				add(file.path, resolve(entry.link, file.path), KIND_BODY);
+			}
+			for (const entry of meta.embeds || []) {
+				add(file.path, resolve(entry.link, file.path), KIND_EMBED);
+			}
+		}
+
+		this.linkKindMap = map;
+		this.linkKindProps = Array.from(props).sort((a, b) => a.localeCompare(b));
+		this.linkKindEpoch = this.metaEpoch;
+		return map;
+	}
+
+	/** Every frontmatter property that holds a link somewhere in the vault. */
+	linkProperties() {
+		this.linkKinds();
+		return this.linkKindProps;
+	}
+
+	/**
+	 * The kinds behind one edge, both ways round.
+	 *
+	 * Deliberately undirected. A line is one object however many links produced
+	 * it, and for a mutual link the renderer keeps whichever of the two edges
+	 * sorts first — so reading only the forward direction would give the same
+	 * pair of notes a different look depending on which edge survived. The cost
+	 * is that a rule for `type of` also catches the link when it is the *other*
+	 * note that declares it, which is the right answer for a line neither end
+	 * owns.
+	 */
+	kindsFor(sourceId, targetId) {
+		// Tag nodes are not files and have no frontmatter behind them.
+		if (typeof targetId === 'string' && targetId.charAt(0) === '#') return [KIND_TAG];
+		const map = this.linkKinds();
+		const out = map.get(sourceId);
+		const forward = out ? out.get(targetId) : null;
+		const back = map.get(targetId);
+		const reverse = back ? back.get(sourceId) : null;
+		if (!reverse) return forward || NO_KINDS;
+		if (!forward) return reverse;
+		return forward.concat(reverse.filter((kind) => forward.indexOf(kind) === -1));
+	}
+
+	/** The rule governing an edge, or null. First match in the list wins. */
+	connexionFor(edge) {
+		if (!edge.source || !edge.target) return null;
+		return this.ruleForIds(edge.source.id, edge.target.id);
+	}
+
+	/**
+	 * Apply a rule's colour and line pattern. Runs inside the link's own render,
+	 * after the renderer has drawn it, so anything written here survives the
+	 * frame; `styleArrow` runs immediately after and reads `edge.gfConn`.
+	 */
+	styleLink(renderer, edge) {
+		const rule = this.connexionFor(edge);
+		edge.gfConn = rule;
+		const line = edge.line;
+		if (!line) return;
+
+		// Native eases the tint toward colors.line every frame, so this is a snap
+		// rather than a set — same as the depth gradient does.
+		let tint = null;
+		if (rule && rule.color && rule.color !== 'inherit') {
+			if (rule.color === 'custom') {
+				tint = parseHexColor(rule.customColor);
+			} else {
+				const node = rule.color === 'target' ? edge.target : edge.source;
+				const fill = node && typeof node.getFillColor === 'function' ? node.getFillColor() : null;
+				if (fill && typeof fill.rgb === 'number') tint = fill.rgb;
+			}
+		}
+		edge.gfConnTint = tint;
+		if (tint !== null) line.tint = tint;
+
+		const pattern = rule && DASH_DUTY[rule.line] ? rule.line : null;
+		this.styleDashes(renderer, edge, pattern);
+	}
+
+	/**
+	 * Dashes, drawn as one PIXI.Graphics per patterned link, in the unit space
+	 * the link's own container already provides.
+	 *
+	 * `edge.line` is a `PIXI.Sprite(Texture.WHITE)` — a stretched rectangle, so
+	 * no pattern can be drawn into it. It is hidden and this is drawn over it
+	 * instead. The trick that keeps it cheap is the one the repeated arrows use:
+	 * the geometry is one rectangle per dash in a space where a dash-and-gap is
+	 * exactly one unit wide and the line is one unit tall, then scaled to the
+	 * link. So it only has to be rebuilt when the *number* of dashes changes,
+	 * not as the link moves or the zoom changes.
+	 */
+	styleDashes(renderer, edge, pattern) {
+		const line = edge.line;
+		const dash = edge.gfDash;
+		if (!pattern) {
+			// No restoring to do: the renderer rewrites line.visible every frame.
+			edge.gfLineShown = line.visible;
+			if (dash) dash.visible = false;
+			return;
+		}
+
+		// What the renderer decided about this link, before we hide it. The arrow
+		// follows the line, and would otherwise disappear along with it.
+		const wanted = line.visible;
+		edge.gfLineShown = wanted;
+		line.visible = false;
+		if (!wanted) {
+			if (dash) dash.visible = false;
+			return;
+		}
+
+		const graphics = dash || this.makeDashGraphics(edge);
+		// Nothing to draw with: better a solid line than no line.
+		if (!graphics) { line.visible = true; return; }
+
+		const length = Math.max(0, line.width);
+		const scale = renderer.scale || 1;
+		const period = clamp(this.settings.dashPeriod || 14, 4, 60)
+			* (pattern === 'dotted' ? DOT_PERIOD_RATIO : 1);
+		// From the length it *looks*, so the pattern holds its size on screen.
+		const count = clamp(Math.round(length * scale / period), 1, MAX_DASHES);
+		const duty = DASH_DUTY[pattern];
+		if (edge.gfDashCount !== count || edge.gfDashDuty !== duty) {
+			this.drawDashes(graphics, count, duty);
+			edge.gfDashCount = count;
+			edge.gfDashDuty = duty;
+		}
+
+		// The container is already placed at the source node and rotated along the
+		// link, and the native line runs from x = 0 to x = width inside it.
+		graphics.visible = true;
+		graphics.x = 0;
+		graphics.y = 0;
+		graphics.scale.x = length / count;
+		graphics.scale.y = line.height || 1;
+		graphics.tint = line.tint;
+		graphics.alpha = line.alpha;
+	}
+
+	drawDashes(graphics, count, duty) {
+		graphics.clear();
+		graphics.beginFill(0xffffff);
+		for (let i = 0; i < count; i++) graphics.drawRect(i, -0.5, duty, 1);
+		graphics.endFill();
+	}
+
+	/**
+	 * A Graphics object for one link's dashes, borrowing the class from the arrow
+	 * the renderer already made — PIXI is not exported anywhere a plugin can
+	 * reach, but every link carries an instance of the class we need.
+	 */
+	makeDashGraphics(edge) {
+		const template = edge.arrow;
+		const container = edge.px;
+		if (!template || !container || typeof container.addChild !== 'function') return null;
+		const Graphics = Object.getPrototypeOf(template).constructor;
+		let graphics;
+		try {
+			graphics = new Graphics();
+		} catch (e) {
+			console.error('Graph Focus: could not make a dashed line', e);
+			return null;
+		}
+		graphics.eventMode = 'none';
+		container.addChild(graphics);
+		edge.gfDash = graphics;
+		return graphics;
+	}
+
+	/** Destroy the dash objects belonging to one renderer's links. */
+	dropDashes(renderer) {
+		for (const edge of renderer.links || []) {
+			if (!edge.gfDash) continue;
+			try {
+				if (edge.gfDash.parent) edge.gfDash.parent.removeChild(edge.gfDash);
+				edge.gfDash.destroy();
+			} catch (e) {
+				console.error('Graph Focus: could not remove a dashed line', e);
+			}
+			edge.gfDash = null;
+			delete edge.gfDashCount;
+			delete edge.gfDashDuty;
+			if (edge.line) edge.line.visible = true;
+		}
+	}
+
+	/**
+	 * Which links the rules currently hide, as a string. Comparing this is what
+	 * decides whether a settings change is worth a graph rebuild.
+	 */
+	hideSignature() {
+		if (!this.settings.connexions) return '';
+		const rules = this.settings.connexionRules;
+		if (!Array.isArray(rules)) return '';
+		const hidden = [];
+		for (const rule of rules) {
+			if (!rule || rule.enabled === false) continue;
+			// Order matters: an earlier rule matching the same property takes the
+			// link, so it is only hidden if the hiding rule is the one that wins.
+			hidden.push(rule.line === 'hidden' ? rule.property : `~${rule.property}`);
+		}
+		return hidden.join('|');
+	}
+
+	/**
+	 * A copy of the graph data with the hidden links taken out.
+	 *
+	 * Hiding is done here rather than by setting `visible = false` because the
+	 * layout worker is fed from this object: a link left in it goes on pulling
+	 * its two notes together whether or not anything is drawn. Copied rather than
+	 * mutated — the engine keeps this object, and a link removed from its copy
+	 * would never come back when the rule does.
+	 */
+	hideLinks(data) {
+		if (!this.hideSignature()) return data;
+		const nodes = data && data.nodes;
+		if (!nodes) return data;
+
+		let touched = false;
+		const out = Object.create(null);
+		for (const id of Object.keys(nodes)) {
+			const node = nodes[id];
+			const links = node && node.links;
+			if (!links) { out[id] = node; continue; }
+
+			let kept = null;
+			for (const target of Object.keys(links)) {
+				const rule = this.ruleForIds(id, target);
+				if (!rule || rule.line !== 'hidden') continue;
+				if (!kept) kept = Object.assign(Object.create(null), links);
+				delete kept[target];
+			}
+			if (!kept) { out[id] = node; continue; }
+			out[id] = Object.assign({}, node, { links: kept });
+			touched = true;
+		}
+
+		return touched ? Object.assign({}, data, { nodes: out }) : data;
+	}
+
+	/** The rule governing the link between two node ids, or null. */
+	ruleForIds(sourceId, targetId) {
+		const rules = this.settings.connexionRules;
+		if (!this.settings.connexions || !Array.isArray(rules) || !rules.length) return null;
+		const kinds = this.kindsFor(sourceId, targetId);
+		for (const rule of rules) {
+			if (!rule || rule.enabled === false) continue;
+			if (rule.property === KIND_ANY || kinds.indexOf(rule.property) !== -1) return rule;
+		}
+		return null;
+	}
+
 	patchLinkRender(renderer) {
 		if (this.linkRenderRestore) return;
 		const sample = renderer.links[0];
@@ -687,7 +1106,13 @@ class GraphFocusPlugin extends Plugin {
 		proto.render = function () {
 			const result = original.apply(this, arguments);
 			// Runs whether or not the option is on, so that switching it off can
-			// put the original single-chevron geometry back.
+			// put the original single-chevron geometry back. styleLink comes
+			// first: it settles which rule applies, and the arrow reads it.
+			try {
+				self.styleLink(this.renderer, this);
+			} catch (e) {
+				console.error('Graph Focus: could not style a link', e);
+			}
 			try {
 				self.styleArrow(this.renderer, this);
 			} catch (e) {
@@ -713,18 +1138,56 @@ class GraphFocusPlugin extends Plugin {
 	 * the two placed tip-outward and tail-to-tail so the pair straddles the
 	 * position and reads as one double-headed arrow rather than two crossing
 	 * ones. The single-head case keeps its tip exactly on the position.
+	 *
+	 * `shape` picks the head a connexion rule asked for. Every one of them is
+	 * asymmetric along the link, so it still says which way the link runs — a
+	 * symbol that reads the same both ways would throw the direction away.
 	 */
-	drawChevrons(arrow, count, step, both) {
+	drawChevrons(arrow, count, step, both, shape) {
+		const kind = shape || 'chevron';
+		const hollow = kind === 'hollow';
 		arrow.clear();
-		arrow.beginFill(0xffffff);
+		// A hollow head is the outline of the solid one. Width is in the arrow's
+		// own units, which its scale then takes to screen size along with the rest.
+		if (hollow) arrow.lineStyle(0.7, 0xffffff, 1);
+		else arrow.beginFill(0xffffff);
+
 		// `dir` 1 points along the link, -1 back down it; the body always runs
-		// four units behind the tip.
-		const head = (tip, dir) => {
+		// behind the tip.
+		const chevron = (tip, dir) => {
 			arrow.moveTo(tip, 0);
 			arrow.lineTo(tip - 4 * dir, -2);
 			arrow.lineTo(tip - 3 * dir, 0);
 			arrow.lineTo(tip - 4 * dir, 2);
 		};
+		const triangle = (tip, dir) => {
+			arrow.moveTo(tip, 0);
+			arrow.lineTo(tip - 4.5 * dir, -2.4);
+			arrow.lineTo(tip - 4.5 * dir, 2.4);
+			arrow.lineTo(tip, 0);
+		};
+		const head = (tip, dir) => {
+			switch (kind) {
+				case 'triangle':
+				case 'hollow':
+					triangle(tip, dir);
+					break;
+				// Half a head: one barb only, so it reads as a lighter link
+				// without losing the direction.
+				case 'harpoon':
+					arrow.moveTo(tip, 0);
+					arrow.lineTo(tip - 5 * dir, -2.8);
+					arrow.lineTo(tip - 3.4 * dir, 0);
+					break;
+				case 'double':
+					chevron(tip, dir);
+					chevron(tip - 3.2 * dir, dir);
+					break;
+				default:
+					chevron(tip, dir);
+			}
+		};
+
 		for (let i = 0; i < count; i++) {
 			const x = i * step;
 			if (both) {
@@ -734,21 +1197,34 @@ class GraphFocusPlugin extends Plugin {
 				head(x, 1);
 			}
 		}
-		arrow.endFill();
+		if (!hollow) arrow.endFill();
 	}
 
 	styleArrow(renderer, edge) {
 		const arrow = edge.arrow;
 		if (!arrow || !renderer) return;
 
+		// The head a connexion rule asked for, if any. Kept separate from where
+		// the arrow is drawn: a rule can change the symbol whether or not the
+		// mid-link placement is on.
+		const rule = edge.gfConn;
+		const symbol = rule && rule.symbol && rule.symbol !== 'inherit' ? rule.symbol : null;
+		if (symbol === 'none') {
+			arrow.visible = false;
+			return;
+		}
+		const shape = symbol || 'chevron';
+
 		// Switched off: put the single chevron back, since the renderer draws that
-		// geometry once at creation and would never restore it itself.
+		// geometry once at creation and would never restore it itself. A rule's
+		// symbol still applies, in Obsidian's own position.
 		if (!this.settings.midArrows) {
-			if (edge.gfArrowCount !== undefined) {
-				this.drawChevrons(arrow, 1, 0, false);
+			if (edge.gfArrowCount !== undefined || edge.gfArrowShape !== shape) {
+				this.drawChevrons(arrow, 1, 0, false, shape);
 				delete edge.gfArrowCount;
 				delete edge.gfArrowStep;
 				delete edge.gfArrowBoth;
+				edge.gfArrowShape = shape;
 			}
 			if (arrow.zIndex !== ARROW_Z_NATIVE) arrow.zIndex = ARROW_Z_NATIVE;
 			return;
@@ -818,11 +1294,13 @@ class GraphFocusPlugin extends Plugin {
 		// every link every frame as the simulation nudges things about.
 		const settled = edge.gfArrowStep > 0
 			&& Math.abs(step - edge.gfArrowStep) / edge.gfArrowStep < 0.02;
-		if (edge.gfArrowCount !== count || edge.gfArrowBoth !== both || !settled) {
-			this.drawChevrons(arrow, count, step, both);
+		if (edge.gfArrowCount !== count || edge.gfArrowBoth !== both
+			|| edge.gfArrowShape !== shape || !settled) {
+			this.drawChevrons(arrow, count, step, both, shape);
 			edge.gfArrowCount = count;
 			edge.gfArrowStep = step;
 			edge.gfArrowBoth = both;
+			edge.gfArrowShape = shape;
 		}
 
 		const lead = 0.5 / count;
@@ -841,9 +1319,11 @@ class GraphFocusPlugin extends Plugin {
 		}
 
 		// Follow the line: same fade, same culling, same bidirectional de-duping
-		// the renderer already worked out for it.
+		// the renderer already worked out for it. gfLineShown rather than
+		// line.visible, because a dashed link's line is hidden on purpose and its
+		// arrow must not go with it.
 		if (edge.line) {
-			arrow.visible = edge.line.visible;
+			arrow.visible = edge.gfLineShown !== undefined ? edge.gfLineShown : edge.line.visible;
 			arrow.alpha = edge.line.alpha;
 		} else {
 			arrow.visible = true;
@@ -1677,7 +2157,13 @@ class GraphFocusPlugin extends Plugin {
 				edge.line.alpha = alpha * (nearAlpha + (farAlpha - nearAlpha) * t);
 				// Native eases the tint toward colors.line each frame; we snap it
 				// back after, so it settles where we put it.
-				if (recolor) edge.line.tint = mixRgb(near.rgb, far.rgb, t);
+				//
+				// A link a connexion rule has coloured keeps that colour: the two
+				// carry different information, and depth is already saying its
+				// piece through the opacity, which still applies here.
+				const ruled = this.settings.connexions
+					&& edge.gfConnTint !== null && edge.gfConnTint !== undefined;
+				if (recolor && !ruled) edge.line.tint = mixRgb(near.rgb, far.rgb, t);
 			}
 			// Arrows have no highlight colour in Obsidian, so only the alpha moves.
 			if (edge.arrow) edge.arrow.alpha = alpha * arrowFade * alphaOf('arrow');
@@ -2709,6 +3195,8 @@ class GraphFocusSettingTab extends PluginSettingTab {
 					}));
 		}
 
+		this.displayConnexions(containerEl);
+
 		new Setting(containerEl)
 			.setName('Display settings in the graph')
 			.setDesc('A settings button in the bottom-right of every graph pane, opposite the focus '
@@ -2911,6 +3399,213 @@ class GraphFocusSettingTab extends PluginSettingTab {
 				+ 'In a local graph pane, open the filter controls and raise Depth to 3 or 4.',
 			cls: 'setting-item-description',
 		});
+	}
+
+	/**
+	 * The Connexions section: an ordered list of rules, each matching links by
+	 * the property they were written in and giving them a symbol, a line and a
+	 * colour.
+	 */
+	displayConnexions(containerEl) {
+		const plugin = this.plugin;
+
+		new Setting(containerEl).setName('Connexions').setHeading();
+
+		containerEl.createEl('p', {
+			text: 'Draw links differently depending on the property they were written in, so the '
+				+ 'graph shows what kind of relation each one is instead of one identical line for '
+				+ 'all of them. Rules are tried in order and the first one that matches a link '
+				+ 'decides all three of its styles — so put the specific ones above the general '
+				+ 'ones, and “Any link” last.',
+			cls: 'setting-item-description',
+		});
+
+		new Setting(containerEl)
+			.setName('Style links by property')
+			.setDesc('Off leaves every link exactly as Obsidian draws it, rules and all.')
+			.addToggle((t) => t
+				.setValue(plugin.settings.connexions)
+				.onChange(async (v) => {
+					plugin.settings.connexions = v;
+					await plugin.saveSettings();
+					this.display();
+				}));
+
+		if (!plugin.settings.connexions) return;
+
+		const rules = Array.isArray(plugin.settings.connexionRules)
+			? plugin.settings.connexionRules
+			: [];
+
+		// Every property in the vault that holds a link, plus the four kinds that
+		// have no property behind them. A rule pointing at something no longer
+		// present is kept in the list rather than silently switched to another.
+		const options = {};
+		for (const kind of [KIND_ANY, KIND_BODY, KIND_EMBED, KIND_TAG]) options[kind] = KIND_LABELS[kind];
+		for (const prop of plugin.linkProperties()) options[prop] = prop;
+		for (const rule of rules) {
+			if (rule && rule.property && !options[rule.property]) {
+				options[rule.property] = `${rule.property} (not in the vault)`;
+			}
+		}
+
+		const save = async (redraw) => {
+			plugin.settings.connexionRules = rules;
+			await plugin.saveSettings();
+			if (redraw) this.display();
+		};
+
+		const list = containerEl.createDiv('graph-focus-rules');
+
+		rules.forEach((rule, index) => {
+			const row = list.createDiv('graph-focus-rule');
+
+			const header = new Setting(row)
+				.setName(`Links in ${options[rule.property] || rule.property}`)
+				.addExtraButton((b) => b
+					.setIcon('chevron-up')
+					.setTooltip('Move up — earlier rules win')
+					.setDisabled(index === 0)
+					.onClick(() => {
+						rules.splice(index - 1, 0, rules.splice(index, 1)[0]);
+						save(true);
+					}))
+				.addExtraButton((b) => b
+					.setIcon('chevron-down')
+					.setTooltip('Move down')
+					.setDisabled(index === rules.length - 1)
+					.onClick(() => {
+						rules.splice(index + 1, 0, rules.splice(index, 1)[0]);
+						save(true);
+					}))
+				.addExtraButton((b) => b
+					.setIcon('trash-2')
+					.setTooltip('Remove this rule')
+					.onClick(() => {
+						rules.splice(index, 1);
+						save(true);
+					}));
+			header.settingEl.addClass('graph-focus-rule-header');
+			if (rule.enabled === false) header.settingEl.addClass('graph-focus-rule-off');
+
+			new Setting(row)
+				.setName('Property')
+				.addToggle((t) => t
+					.setTooltip('Use this rule')
+					.setValue(rule.enabled !== false)
+					.onChange((v) => {
+						rule.enabled = v;
+						save(true);
+					}))
+				.addDropdown((d) => d
+					.addOptions(options)
+					.setValue(rule.property)
+					.onChange((v) => {
+						rule.property = v;
+						save(true);
+					}));
+
+			new Setting(row)
+				.setName('Symbol')
+				.addDropdown((d) => d
+					.addOptions(SYMBOL_OPTIONS)
+					.setValue(rule.symbol || 'inherit')
+					.onChange((v) => {
+						rule.symbol = v;
+						save(false);
+					}));
+
+			new Setting(row)
+				.setName('Line')
+				.addDropdown((d) => d
+					.addOptions(LINE_OPTIONS)
+					.setValue(rule.line || 'inherit')
+					.onChange((v) => {
+						rule.line = v;
+						save(true);
+					}));
+
+			const color = new Setting(row)
+				.setName('Colour')
+				.addDropdown((d) => d
+					.addOptions(COLOR_OPTIONS)
+					.setValue(rule.color || 'inherit')
+					.onChange((v) => {
+						rule.color = v;
+						save(true);
+					}));
+
+			if ((rule.color || 'inherit') === 'custom') {
+				color.addColorPicker((c) => c
+					.setValue(rule.customColor || DEFAULT_RULE_COLOR)
+					.onChange((v) => {
+						rule.customColor = v;
+						save(false);
+					}));
+			}
+		});
+
+		if (!rules.length) {
+			list.createEl('p', {
+				text: 'No rules yet — nothing is styled until you add one.',
+				cls: 'setting-item-description',
+			});
+		}
+
+		new Setting(containerEl)
+			.addButton((b) => b
+				.setButtonText('Add a rule')
+				.setCta()
+				.onClick(() => {
+					const props = plugin.linkProperties();
+					rules.push({
+						property: props.length ? props[0] : KIND_BODY,
+						enabled: true,
+						symbol: 'inherit',
+						line: 'inherit',
+						color: 'custom',
+						customColor: DEFAULT_RULE_COLOR,
+					});
+					save(true);
+				}));
+
+		const patterned = rules.some((rule) => rule && rule.enabled !== false
+			&& (rule.line === 'dashed' || rule.line === 'dotted'));
+		if (patterned) {
+			new Setting(containerEl)
+				.setName('Dash length')
+				.setDesc('How long one dash and its gap are on screen, in pixels — so the pattern '
+					+ 'holds its size however far you zoom. Dots run at a little under half this.')
+				.addSlider((s) => s
+					.setLimits(4, 40, 1)
+					.setValue(plugin.settings.dashPeriod)
+					.setDynamicTooltip()
+					.onChange(async (v) => {
+						plugin.settings.dashPeriod = v;
+						await plugin.saveSettings();
+					}));
+		}
+
+		const hides = rules.some((rule) => rule && rule.enabled !== false && rule.line === 'hidden');
+		if (hides) {
+			containerEl.createEl('p', {
+				text: 'A hidden link is taken out of the graph’s data rather than just left '
+					+ 'undrawn, so it stops pulling its two notes together. Changing which links '
+					+ 'are hidden restarts the layout, which is why the graph jumps when you do it.',
+				cls: 'setting-item-description',
+			});
+		}
+
+		const symbols = rules.some((rule) => rule && rule.enabled !== false
+			&& rule.symbol && rule.symbol !== 'inherit' && rule.symbol !== 'none');
+		if (symbols && !plugin.settings.midArrows) {
+			containerEl.createEl('p', {
+				text: 'Symbols are drawn where Obsidian puts arrows — against the target note, and '
+					+ 'faded out below a zoom of 0.3. Turn on “Arrows in the middle of links” above '
+					+ 'to see them at any zoom.',
+				cls: 'setting-item-description',
+			});
+		}
 	}
 }
 

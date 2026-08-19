@@ -34,7 +34,7 @@ views:
       repelStrength: 20
       linkStrength: 1
       linkDistance: 30
-      scale: 0.3823010968769937
+      scale: 0.27268599173600194
       close: true
     neighbourDepth: 0
     ringSpread: 19

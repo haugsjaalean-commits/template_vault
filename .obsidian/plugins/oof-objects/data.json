@@ -7,8 +7,16 @@
     "isAProperty": "is a",
     "characteristicsProperty": "characteristics",
     "characteristicPrefix": "∘ ",
+    "ignoredProperties": [
+      "tags",
+      "aliases",
+      "cssclasses",
+      "cssclass",
+      "publish",
+      "permalink"
+    ],
     "classTag": "class",
-    "sortClasses": "descent",
+    "sortClasses": "name",
     "followActiveNote": true,
     "classIsItsOwnInstance": false,
     "deleteUnusedCharacteristics": true,
@@ -26,6 +34,14 @@
   },
   "drafts": {},
   "baseRefreshes": [],
-  "expanded": [],
-  "dismissed": []
+  "expanded": [
+    "::discrepancies",
+    "Obsidian Note"
+  ],
+  "dismissed": [
+    "conflict::Obsidian Note"
+  ],
+  "migrations": [
+    "sort-alphabetical"
+  ]
 }

@@ -48,6 +48,13 @@ const { Plugin, PluginSettingTab, Setting, ItemView, Modal, TFile, Notice, setIc
 
 const VIEW_TYPE = 'oof-objects-panel';
 
+/*
+ * The ignore list as it shipped in 2.3.0, kept only so a stored copy of it can be
+ * recognised and replaced. See `loadSettings`.
+ */
+const RETIRED_IGNORED_DEFAULT = ['tags', 'aliases', 'cssclasses', 'cssclass',
+	'publish', 'permalink', 'created', 'updated'];
+
 /* The discrepancy card is expanded like a class, under a name no class can take. */
 const DISCREPANCY_CARD = '::discrepancies';
 
@@ -66,6 +73,19 @@ const DEFAULT_SETTINGS = {
 	 * convention off.
 	 */
 	characteristicPrefix: '∘ ',
+	/*
+	 * Properties Obsidian itself owns, so an unclaimed-field check must not sweep
+	 * them up. Anything else a note carries that its class does not declare is
+	 * reported, which is the whole point of the check.
+	 *
+	 * `created` was on this list for a day and he took it off: *"created should
+	 * not be hidden I don't think."* He is right, and it is his own model that
+	 * says so - a property every note carries is a characteristic of Note, so
+	 * hiding it would be hiding an incomplete model rather than a nuisance. The
+	 * honest fix is to declare it, not to silence it.
+	 */
+	ignoredProperties: ['tags', 'aliases', 'cssclasses', 'cssclass', 'publish',
+		'permalink'],
 	/* The tag that flags a note as a class. */
 	classTag: 'class',
 	/*
@@ -73,7 +93,7 @@ const DEFAULT_SETTINGS = {
 	 * it descends from, then sorts alphabetically within a generation; 'name'
 	 * is plain alphabetical.
 	 */
-	sortClasses: 'descent',
+	sortClasses: 'name',
 	/* Whether the panel follows whatever note is open. */
 	followActiveNote: true,
 	/*
@@ -200,6 +220,20 @@ function isEmptyValue(value) {
 	if (typeof value === 'string') return value.trim() === '';
 	if (Array.isArray(value)) return value.length === 0;
 	return false;
+}
+
+/*
+ * A Templater expression, not a value: `created: <% tp.date.now() %>`.
+ *
+ * This is the one thing in a template's frontmatter that is neither a
+ * characteristic nor a mistake, and it is self-evidently deliberate - nobody
+ * types `<%` by accident. Recognising it by shape is what lets everything *else*
+ * unaccounted for be treated as an inconsistency, which is the whole point of
+ * checking templates at all.
+ */
+function isTemplaterExpression(value) {
+	if (Array.isArray(value)) return value.some(isTemplaterExpression);
+	return typeof value === 'string' && value.indexOf('<%') !== -1;
 }
 
 /* Was this `possible values` entry written as a link, rather than as a word? */
@@ -365,6 +399,15 @@ class OofClassesPlugin extends Plugin {
 		this.invalidateClosures();
 
 		await this.loadSettings();
+		/*
+		 * A migration that never reaches disk runs again next time, and this one
+		 * overrules a setting - so it is written out immediately, before he has a
+		 * chance to change it back and have it changed for him a second time.
+		 */
+		if (this.migrationPending) {
+			this.migrationPending = false;
+			await this.persist();
+		}
 		await this.loadRegisteredTypes();
 
 		/* file.isA() and friends, for bases and formulas. */
@@ -1303,6 +1346,8 @@ class OofClassesPlugin extends Plugin {
 
 				const value = values[key];
 				if (isEmptyValue(value)) continue;
+				/* Machinery, not data: it is not a date yet, it is the code for one. */
+				if (isTemplaterExpression(value)) continue;
 
 				const shape = this.shapeComplaint(characteristic, value);
 				if (shape) {
@@ -1324,6 +1369,19 @@ class OofClassesPlugin extends Plugin {
 		for (const klass of picture.classes.values()) {
 			if (!klass.file || !klass.frontmatter) continue;
 			check(klass.file, Array.from(klass.keys), klass.frontmatter);
+		}
+
+		/*
+		 * Templates too. A default written into one - `domain: visual` on every
+		 * Visual Artist - is a real value that reaches every instance made from
+		 * it, so it has to satisfy the same characteristic as any other.
+		 */
+		for (const name of picture.classes.keys()) {
+			const template = this.app.vault.getFileByPath(this.templatePathFor(name));
+			if (!(template instanceof TFile)) continue;
+			const frontmatter = this.frontmatterOf(template);
+			if (!frontmatter) continue;
+			check(template, Object.keys(frontmatter), frontmatter);
 		}
 
 		return found;
@@ -1835,8 +1893,29 @@ class OofClassesPlugin extends Plugin {
 				return !seenInherited.has(key);
 			});
 
-			const shedEmpty = foreignToClass.filter(
+			/*
+			 * And keys nothing accounts for at all - not a characteristic of
+			 * anything, anywhere. `foreignToClass` above catches a real
+			 * characteristic on the wrong note; this catches a field that simply
+			 * should not exist.
+			 */
+			const unclaimed = this.unclaimedKeys(
+				object.frontmatter, inherited, characteristics);
+
+			const shedEmpty = foreignToClass.concat(unclaimed).filter(
 				(key) => isEmptyValue(object.frontmatter[key]));
+
+			for (const key of unclaimed) {
+				if (shedEmpty.includes(key)) continue;
+				conflicts.push({
+					file: object.file,
+					property: key,
+					value: object.frontmatter[key],
+					reason: 'Nothing declares this: no characteristic note defines it and '
+						+ name + ' does not carry it. It holds a value, so it is left '
+						+ 'alone — give it a characteristic note, or remove it.',
+				});
+			}
 
 			for (const key of foreignToClass) {
 				if (shedEmpty.includes(key)) continue;
@@ -1888,6 +1967,12 @@ class OofClassesPlugin extends Plugin {
 					described.push(property + ' (retired)');
 					detail.push(property + ' — no longer a base characteristic, and empty '
 						+ 'here, so the property is removed.');
+				}
+
+				const shedUnclaimed = shedEmpty.filter((key) => unclaimed.includes(key));
+				if (shedUnclaimed.length > 0) {
+					detail.push('Remove: ' + shedUnclaimed.join(', ')
+						+ ' — nothing declares this, and it is empty here.');
 				}
 
 				if (shedEmpty.length > 0) {
@@ -1966,7 +2051,37 @@ class OofClassesPlugin extends Plugin {
 				? Object.keys(current).filter(managed)
 				: null;
 
+			/*
+			 * Everything else the template carries. This used to be filtered away
+			 * and forgotten, which meant any field at all could be added to a
+			 * template and nothing would ever say so - the one place in the vault
+			 * the plugin was not actually checking.
+			 *
+			 * A template is the shape of an instance, and its shape is the class's
+			 * to decide, so a key no characteristic claims does not belong. Same
+			 * rule as everywhere else about *how* it goes: empty is removed, and
+			 * anything holding a value is reported rather than touched.
+			 */
+			const stray = current
+				? Object.keys(current).filter((key) =>
+					!managed(key) && !isTemplaterExpression(current[key]))
+				: [];
+			const strayEmpty = stray.filter((key) => isEmptyValue(current[key]));
+			const strayFilled = stray.filter((key) => !isEmptyValue(current[key]));
+
+			for (const key of strayFilled) {
+				conflicts.push({
+					file: file,
+					property: key,
+					value: current[key],
+					reason: 'Not a characteristic of ' + name + ', and not a Templater '
+						+ 'expression, but it holds a value. Left untouched — give it a '
+						+ 'characteristic note, or remove it.',
+				});
+			}
+
 			if (currentKeys && sameNameList(wantedKeys, currentKeys)
+				&& strayEmpty.length === 0
 				&& toArray(current[this.settings.isAProperty]).map(linkName)[0] === name) {
 				continue;
 			}
@@ -1978,8 +2093,12 @@ class OofClassesPlugin extends Plugin {
 					+ 'characteristics, because it is the only one with a value here.',
 			];
 			if (file) {
-				detail.push('Anything else already in this template — a Templater '
-					+ 'expression, say — is left exactly as it is.');
+				detail.push('A Templater expression already in this template is left '
+					+ 'exactly as it is.');
+			}
+			if (strayEmpty.length > 0) {
+				detail.push('Remove: ' + strayEmpty.join(', ') + ' — not a characteristic of '
+					+ name + ', and empty here.');
 			}
 
 			actions.push({
@@ -1991,6 +2110,8 @@ class OofClassesPlugin extends Plugin {
 				properties: wantedKeys,
 				/* What apply() is allowed to clear before laying the properties out. */
 				managed: Array.from(characteristics.keys()).concat(wantedKeys),
+				/* Keys that belong to nothing, and are empty, so nothing is lost. */
+				remove: strayEmpty,
 				types: expected.map((c) => (characteristics.get(c) || {}).propertyType || ''),
 				detail: detail,
 			});
@@ -2075,7 +2196,26 @@ class OofClassesPlugin extends Plugin {
 				(property) => (property in instance.frontmatter)
 					&& isEmptyValue(instance.frontmatter[property]));
 
+			/*
+			 * Fields nothing accounts for. Empty ones join the removals; ones
+			 * holding a value are reported instead, the same rule as everywhere
+			 * else - a value he typed is his, even when it belongs nowhere.
+			 */
+			const unclaimed = this.unclaimedKeys(instance.frontmatter, expected, characteristics);
+			for (const key of unclaimed.filter((k) => !isEmptyValue(instance.frontmatter[k]))) {
+				conflicts.push({
+					file: instance.file,
+					property: key,
+					value: instance.frontmatter[key],
+					reason: 'Nothing declares this: ' + instance.classes.join(', ')
+						+ ' does not carry it, and no characteristic note defines it. It '
+						+ 'holds a value, so it is left alone — add it to '
+						+ instance.classes.join(' or ') + ', or remove it.',
+				});
+			}
+
 			const removable = stale.filter((key) => isEmptyValue(instance.frontmatter[key]))
+				.concat(unclaimed.filter((key) => isEmptyValue(instance.frontmatter[key])))
 				.concat(blankBase.filter((key) => !stale.includes(key)));
 			const populated = stale.filter((key) => !isEmptyValue(instance.frontmatter[key]));
 
@@ -2107,11 +2247,18 @@ class OofClassesPlugin extends Plugin {
 			}
 			if (removable.length > 0) {
 				const base = removable.filter((key) => blankBase.includes(key));
-				const rest = removable.filter((key) => !blankBase.includes(key));
+				const stray = removable.filter((key) => unclaimed.includes(key));
+				const rest = removable.filter(
+					(key) => !blankBase.includes(key) && !unclaimed.includes(key));
 				if (rest.length > 0) {
 					detail.push('Remove: ' + rest.join(', ')
 						+ ' — no longer a characteristic of ' + instance.classes.join(', ')
 						+ ', and empty here.');
+				}
+				/* Never a characteristic at all, which is a different sentence. */
+				if (stray.length > 0) {
+					detail.push('Remove: ' + stray.join(', ')
+						+ ' — nothing declares this, and it is empty here.');
 				}
 				if (base.length > 0) {
 					detail.push('Remove: ' + base.join(', ')
@@ -2294,6 +2441,53 @@ class OofClassesPlugin extends Plugin {
 	 */
 	isManagedElsewhere(key, characteristics) {
 		return characteristics.has(key);
+	}
+
+	/*
+	 * A property the class system has no opinion about: Obsidian's own, his
+	 * template machinery, or anything he has added to the ignore list. Never
+	 * flagged, never removed.
+	 */
+	isIgnoredProperty(key) {
+		/*
+		 * A list in `data.json`, but a comma-separated string once he has edited
+		 * it in the settings tab, because that field is a text box. Both shapes
+		 * are read, so editing it cannot quietly turn the whole list into one
+		 * entry that matches nothing.
+		 */
+		const raw = this.settings.ignoredProperties;
+		const list = Array.isArray(raw) ? raw : String(raw || '').split(',');
+		const wanted = String(key).toLowerCase();
+		return list.some((ignored) => String(ignored).trim().toLowerCase() === wanted);
+	}
+
+	/*
+	 * Keys on a note that nothing accounts for: not declared by its classes, not
+	 * a base characteristic, not a characteristic note anywhere, not ignored, and
+	 * not a Templater expression.
+	 *
+	 * This is the same hole templates had. `isManagedElsewhere` answers "does a
+	 * characteristic note claim this?", and a key nothing claims used to fall
+	 * straight through every filter - so any field at all could be added to a
+	 * note and nothing would say so.
+	 */
+	unclaimedKeys(frontmatter, expected, characteristics) {
+		const declared = new Set(toArray(expected));
+		return Object.keys(frontmatter).filter((key) => {
+			if (declared.has(key)) return false;
+			if (this.settings.logicProperties.includes(key)) return false;
+			if (toArray(this.settings.retiredLogicProperties).includes(key)) return false;
+			if (this.isIgnoredProperty(key)) return false;
+			if (isTemplaterExpression(frontmatter[key])) return false;
+			/*
+			 * A key some characteristic note *does* define is a different problem -
+			 * the class dropped it, or it belongs to another class - and the pass
+			 * that handles that already owns it. Counting it here as well put it
+			 * in the removal list twice.
+			 */
+			if (characteristics && characteristics.has(key)) return false;
+			return true;
+		});
 	}
 
 	/* ----------------------------------------------------------- applying -- */
@@ -2701,8 +2895,11 @@ class OofClassesPlugin extends Plugin {
 				 * order. Anything else in the template is his and stays put -
 				 * a Templater expression in the frontmatter, most of all.
 				 */
+				const stray = new Set(action.remove || []);
 				for (const key of Object.keys(fm)) {
 					if (key === this.settings.isAProperty || managed.has(key)) delete fm[key];
+					/* Empty, claimed by nothing, and not a Templater expression. */
+					else if (stray.has(key) && !isTemplaterExpression(fm[key])) delete fm[key];
 				}
 				/* `properties` already opens with the base characteristics, in order. */
 				for (const property of action.properties) {
@@ -2949,8 +3146,13 @@ class OofClassesPlugin extends Plugin {
 	 * two ideas are genuinely different - one is a scratchpad, one is a commit.
 	 */
 	async loadSettings() {
+		this.migrations = new Set();
 		const data = await this.loadData();
-		if (!data) return;
+		/* A fresh install starts with the current defaults, so nothing to migrate. */
+		if (!data) {
+			this.migrations.add('sort-alphabetical');
+			return;
+		}
 
 		if (data.settings) {
 			const stored = Object.assign({}, data.settings);
@@ -2970,6 +3172,36 @@ class OofClassesPlugin extends Plugin {
 					(property) => (property === 'inherits from'
 						? DEFAULT_SETTINGS.inheritsProperty
 						: property));
+			}
+
+			/*
+			 * `created` and `updated` were on the shipped ignore list for one
+			 * version, and he took them off. A stored copy of that old default
+			 * would go on hiding them for ever - settings are merged over the
+			 * defaults, so a value saved once outranks every default that follows.
+			 *
+			 * Only an *untouched* list is migrated: if it matches the old default
+			 * exactly he never chose it, and the new default is what he asked for.
+			 * If he has edited it at all, it is his and stays as it is.
+			 */
+			if (sameNameList(toArray(stored.ignoredProperties), RETIRED_IGNORED_DEFAULT)) {
+				stored.ignoredProperties = DEFAULT_SETTINGS.ignoredProperties.slice();
+			}
+
+			/*
+			 * One-shot migrations, recorded by name so each runs exactly once.
+			 *
+			 * The list above can be recognised as an untouched default and replaced
+			 * safely; this one cannot - `descent` was both the old default *and* a
+			 * legitimate choice, so rewriting it on every load would overrule him
+			 * for ever. Running it once and remembering that it ran leaves him free
+			 * to set it straight back.
+			 */
+			this.migrations = new Set(toArray(data.migrations));
+			if (!this.migrations.has('sort-alphabetical')) {
+				stored.sortClasses = 'name';
+				this.migrations.add('sort-alphabetical');
+				this.migrationPending = true;
 			}
 
 			Object.assign(this.settings, stored);
@@ -3006,6 +3238,7 @@ class OofClassesPlugin extends Plugin {
 			baseRefreshes: Array.from(this.baseRefreshes),
 			expanded: Array.from(this.expanded),
 			dismissed: Array.from(this.dismissed),
+			migrations: Array.from(this.migrations || []),
 		});
 	}
 
@@ -3683,17 +3916,52 @@ class ClassesView extends ItemView {
 			 */
 			if (baseFile) {
 				const queued = plugin.baseRefreshes.has(draft.name);
+
+				/*
+				 * The one control here that destroys work of his that nothing else
+				 * holds a copy of - the views, sorts and filters he built on a base
+				 * by hand. So it asks for a typed code first.
+				 *
+				 * It looks like its neighbours, though. It was red for a while and
+				 * he took the colour back off: the code is the protection, and a
+				 * red icon on every class card is a warning worn down by being
+				 * always there. The alarm belongs at the moment of the act.
+				 *
+				 * Only *arming* it asks. Cancelling a queued reset is the safe
+				 * direction, and putting a gate in front of the way out would be
+				 * safety theatre rather than safety.
+				 */
 				this.iconButton(actions, queued ? 'rotate-ccw' : 'refresh-cw', {
 					cls: queued ? 'oof-icon-warning' : '',
-					label: queued ? 'Cancel the queued base refresh' : 'Refresh base',
+					label: queued ? 'Cancel the queued base reset' : 'Reset base',
 					tooltip: queued
 						? 'Queued. Update will regenerate this base, replacing your edits. '
 							+ 'Click to cancel.'
-						: 'Queue this base to be regenerated on the next Update, replacing '
-							+ 'your edits.',
+						: 'Reset this base to what the plugin would generate — replacing any '
+							+ 'views, sorts and filters you added. Asks for a code first.',
 					onClick: async () => {
-						await plugin.toggleBaseRefresh(draft.name);
-						this.render();
+						if (queued) {
+							await plugin.toggleBaseRefresh(draft.name);
+							this.render();
+							return;
+						}
+
+						new ConfirmCodeModal(this.app, {
+							title: 'Reset the base for "' + draft.name + '"?',
+							lines: [
+								baseFile.path + ' will be rebuilt from scratch on the next '
+									+ 'Update, exactly as the plugin would generate it today.',
+								'Any views, sorts, group-bys and filters you added to it are '
+									+ 'lost. Nothing else keeps a copy of them.',
+								'Nothing is written yet — this queues it, and the Update plan '
+									+ 'will show it once more before it happens.',
+							],
+							confirmText: 'Queue the reset',
+							onConfirm: async () => {
+								await plugin.toggleBaseRefresh(draft.name);
+								this.render();
+							},
+						}).open();
 					},
 				});
 			}
@@ -4133,6 +4401,93 @@ class RenameClassModal extends Modal {
 	onClose() { this.contentEl.empty(); }
 }
 
+/*
+ * A typed code before something destructive happens.
+ *
+ * The code is random and shown on screen rather than being the thing's own name:
+ * a name is muscle memory - he has typed "Artist" a hundred times - while five
+ * characters he has never seen cannot be typed without reading the sentence
+ * above them, which is the entire point of the gate.
+ *
+ * No 0/O or 1/I/L, so nothing turns on a glyph he cannot tell apart.
+ */
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function confirmationCode(length) {
+	let code = '';
+	for (let i = 0; i < (length || 5); i += 1) {
+		code += CODE_ALPHABET.charAt(Math.floor(Math.random() * CODE_ALPHABET.length));
+	}
+	return code;
+}
+
+class ConfirmCodeModal extends Modal {
+	constructor(app, options) {
+		super(app);
+		this.options = options;
+		this.code = confirmationCode(5);
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('oof-danger-modal');
+
+		contentEl.createEl('h3', { text: this.options.title });
+
+		for (const line of this.options.lines || []) {
+			contentEl.createEl('p', { text: line, cls: 'oof-danger-line' });
+		}
+
+		contentEl.createEl('p', {
+			cls: 'oof-modal-lede',
+			text: 'Type this code to confirm:',
+		});
+		contentEl.createEl('div', { text: this.code, cls: 'oof-code' });
+
+		let typed = '';
+		const buttons = contentEl.createDiv({ cls: 'oof-modal-buttons' });
+
+		const cancel = buttons.createEl('button', { text: 'Cancel' });
+		cancel.onclick = () => this.close();
+
+		const confirm = buttons.createEl('button', {
+			text: this.options.confirmText || 'Confirm',
+			cls: 'mod-warning oof-danger-button',
+		});
+		confirm.setAttribute('disabled', 'true');
+
+		const matches = () => typed.trim().toUpperCase() === this.code;
+		const sync = () => {
+			if (matches()) confirm.removeAttribute('disabled');
+			else confirm.setAttribute('disabled', 'true');
+		};
+
+		const input = contentEl.createEl('input', {
+			cls: 'oof-code-input',
+			attr: { type: 'text', placeholder: this.code.length + ' characters', spellcheck: 'false' },
+		});
+		/* Above the buttons, whatever order the elements were created in. */
+		contentEl.insertBefore(input, buttons);
+		window.setTimeout(() => input.focus(), 0);
+
+		input.oninput = () => { typed = input.value; sync(); };
+		input.onkeydown = (event) => {
+			if (event.key !== 'Enter' || !matches()) return;
+			this.options.onConfirm();
+			this.close();
+		};
+
+		confirm.onclick = () => {
+			if (!matches()) return;
+			this.options.onConfirm();
+			this.close();
+		};
+	}
+
+	onClose() { this.contentEl.empty(); }
+}
+
 class NewInstanceModal extends Modal {
 	constructor(app, objectName, onSubmit) {
 		super(app);
@@ -4190,6 +4545,14 @@ class OofClassesSettingTab extends PluginSettingTab {
 		this.addText(containerEl, 'Characteristics folder', 'Where characteristic notes live.', 'characteristicsFolder');
 		this.addText(containerEl, 'Templates folder', 'Where the generated templates go.', 'templatesFolder');
 		this.addText(containerEl, 'Template suffix', 'Appended to a class name to name its template.', 'templateSuffix');
+		this.addText(containerEl, 'Ignored properties',
+			'Comma-separated properties the class system has no opinion about, so they '
+				+ 'are never flagged as unaccounted for on a note: the ones Obsidian '
+				+ 'owns (tags, aliases, cssclasses) and the ones your templates write '
+				+ '(created). Everything else a note carries that its class does not '
+				+ 'declare is reported.',
+			'ignoredProperties');
+
 		this.addText(containerEl, 'Characteristic prefix',
 			'Begins the file name of every characteristic note, the way • begins a name. '
 				+ 'The property it defines is never prefixed. Update renames any that lack it; '
@@ -4209,10 +4572,11 @@ class OofClassesSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Order in the panel')
-			.setDesc('How the classes are listed.')
+			.setDesc('How the classes are listed. Alphabetical by default; by descent '
+				+ 'groups each generation together, alphabetically within it.')
 			.addDropdown((dropdown) => dropdown
+				.addOption('name', 'Alphabetical')
 				.addOption('descent', 'By descent, then name — children below their parents')
-				.addOption('name', 'By name')
 				.setValue(this.plugin.settings.sortClasses)
 				.onChange(async (value) => {
 					this.plugin.settings.sortClasses = value;

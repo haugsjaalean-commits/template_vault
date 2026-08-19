@@ -277,6 +277,49 @@ Matches that are not among the pane's own nodes are shown greyed and italic. A
 local graph only holds the neighbourhood, so most of the vault cannot be
 highlighted in one — the search is at its most useful in the global graph.
 
+## Connexions
+
+Draw a link by the property it was written in. Your notes already distinguish
+`type of` from `is a` from `related` from a link in the body; the graph draws all
+four as the same grey stick. Turn on **Style links by property** and each one can
+have its own symbol, line and colour.
+
+Rules are an ordered list, and **the first one that matches a link decides all
+three of its styles** — so the specific ones go above the general ones, and
+*Any link* goes last. Precedence lives in the order of the list, not in the order
+the properties happen to appear in a note, which is the only way to settle a link
+that was written in two of them at once.
+
+| | |
+| --- | --- |
+| **Property** | Any frontmatter property in the vault that holds a link, or one of *Written in the body*, *Embedded*, *To a tag*, *Any link* |
+| **Symbol** | Chevron, solid triangle, hollow triangle, half arrow, double chevron, or no arrow at all. Every one of them is asymmetric, so it still says which way the link runs |
+| **Line** | Solid, dashed, dotted, or hidden |
+| **Colour** | A colour of its own, or the colour of the note the link starts from, or of the note it points to |
+
+Anything left on *Leave … alone* is not touched, so a rule can change only the
+colour and let the arrow stay as it was.
+
+Three things worth knowing:
+
+- **A link is read both ways round.** A line is one object however many links
+  produced it, and for a mutual link Obsidian keeps whichever of the two edges
+  sorts first — so reading only the forward direction would give the same pair of
+  notes a different look depending on which edge happened to survive. The cost is
+  that a rule for `type of` also catches the link when it is the *other* note
+  that declares it, which is the right answer for a line neither end owns.
+- **Hidden means gone, not invisible.** A hidden link is removed from the data
+  the layout runs on, so it stops pulling its two notes together — which is the
+  point of hiding it. That means changing which links are hidden restarts the
+  layout, and the graph jumps. Nothing else in the plugin does that.
+- **A rule's colour beats the depth fade.** The two say different things, and
+  depth is already speaking through the opacity, which still applies. Turn a rule's
+  colour to *Leave the colour alone* to get the fade's colour drift back.
+
+Symbols are drawn wherever arrows are drawn, so Obsidian's own **Arrows** toggle
+still has to be on. With **Arrows in the middle of links** off they sit against
+the target note and fade out below a zoom of 0.3, exactly as Obsidian does it.
+
 ## How it works
 
 Obsidian exposes no public API for graph view, so this reads and writes internal
@@ -298,6 +341,24 @@ searchable as ASCII despite being minified):
   `colors.lineHighlight` only when the link touches the focus node, then applied
   as `line.tint = t$(line.tint, h.rgb)` — an easing lerp, which is why snapping
   the tint back after each frame settles cleanly on the highlight colour.
+- `edge.line` is a `PIXI.Sprite(PIXI.Texture.WHITE)` — a stretched rectangle, so
+  no dash pattern can be drawn into it. A dashed link hides it and draws a
+  `PIXI.Graphics` over it instead, in the link container's own space. The
+  geometry is one rectangle per dash in a space where a dash-and-gap is one unit
+  wide and the line one unit tall, then scaled to the link — so it is rebuilt
+  only when the *number* of dashes changes, not as the link moves or the zoom
+  changes. Same trick as the repeated arrows.
+- PIXI is not exported anywhere a plugin can reach, so the `Graphics` class is
+  taken from the arrow object the renderer already made for that link.
+- Which property a link came from is read from `metadataCache`, which already
+  records it: `frontmatterLinks` carries a `key` per link — `related.0`, or
+  `contact.email.0` for a nested one — so the property is the first segment.
+  Nothing is read from disk and no index is persisted; the whole vault is a few
+  Map writes per note, rebuilt when the cache changes and only when a graph asks.
+- Hiding a link happens in `setData`, not in the render: the layout worker is fed
+  from that object, so a link left in it goes on pulling whether or not anything
+  is drawn. The data is copied rather than mutated — the engine keeps its own
+  object, and a link deleted from it would never come back.
   Links are repainted from depth 1 rather than 2, because a link between two
   direct neighbours is depth 1 by `max()` and would otherwise be stranded at
   `0.2` while the depth-2 links around it sit at `0.6`. Arrows have no highlight

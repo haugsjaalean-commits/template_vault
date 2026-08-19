@@ -1,6 +1,6 @@
 ---
 characteristic meaning:
-property type: date
+property type: datetime
 is base characteristic: false
 possible values:
 ---
