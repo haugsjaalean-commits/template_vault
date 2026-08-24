@@ -1,0 +1,18 @@
+---
+tags:
+  - class
+is a:
+characteristics:
+  - "[[∘ creation domain]]"
+  - "[[∘ masetery]]"
+type of:
+  - "[[Person]]"
+created: 2026-08-15 12:57
+ext links:
+related:
+note rating:
+rating:
+garden:
+life stage:
+maturity:
+---

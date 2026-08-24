@@ -1,9 +1,9 @@
 {
   "id": "graph-rotator",
   "name": "Graph Rotator",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "minAppVersion": "1.0.0",
-  "description": "Hold a modifier and scroll the mouse wheel to rotate a graph pane, keeping hover, dragging, culling and labels correct at any angle.",
+  "description": "Hold a modifier and scroll the mouse wheel to rotate a graph pane — around the pointer, the centre of the graph or the active note — keeping hover, dragging, culling and labels correct at any angle.",
   "author": "Claude (written for Leander)",
   "isDesktopOnly": false
 }

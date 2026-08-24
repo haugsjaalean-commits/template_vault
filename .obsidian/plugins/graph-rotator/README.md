@@ -4,9 +4,9 @@ Hold a modifier and scroll the mouse wheel over a graph pane: the graph turns.
 
 That is the whole feature, and it is what `Graph Rotator.md` asks for. The work
 is not in the turning — one PIXI container holds the entire camera, so the angle
-is a single assignment — but in the three places Obsidian's renderer converts
-between screen and world coordinates by hand, each of which quietly assumes the
-graph is level.
+is a single assignment — but in everything that is computed from a node's
+position by hand, each of which quietly assumes the graph is level. There turned
+out to be five of those, across this plugin and its two siblings.
 
 ## Enabling it
 
@@ -18,6 +18,11 @@ Community plugins → **Graph Rotator**.
 **Alt + wheel** over any graph pane. A plain wheel still zooms; the modifier is
 what makes it a rotation, and it can be changed to Shift or Ctrl in the
 settings.
+
+**One modifier gives both directions.** Scrolling down turns the graph one way
+and scrolling up turns it back — there is no second key and no mode to switch.
+*Reverse the direction* swaps which way is which; it does not pick a single
+direction to be stuck with.
 
 It works in the global graph, in a local graph, and in the graph layout the
 **Bases Graph View** plugin adds — the same three places Graph Focus attaches
@@ -31,6 +36,7 @@ reopening the pane, gives you a level graph again.
 | Turn a pane | Alt + wheel over it |
 | Turn it from the keyboard | *Rotate graph clockwise* / *counter-clockwise*, one step per press |
 | Straighten it | *Reset graph rotation*, or the **Reset** button in the settings |
+| Change what it turns around | *What stays put* in the settings — the pointer, the centre of the graph, or the active note |
 
 The commands act on the graph pane you are in. Run from the palette with a note
 focused instead of a graph, they act on every graph pane at once — which is also
@@ -51,11 +57,27 @@ deltas than a notched wheel and so turns proportionally more finely; a
 line-mode or page-mode wheel is normalised the same way Obsidian normalises it
 before zooming, so all three agree.
 
-**Reverse the direction** — by default scrolling down turns clockwise.
+**Reverse the direction** — by default scrolling down turns clockwise and
+scrolling up turns counter-clockwise. This swaps the pair over. It is not a
+choice of one direction: both are always available under the one modifier.
 
-**What stays put** — the pointer, or the centre of the pane. Anchoring on the
-pointer is the same behaviour the wheel already has when it zooms. The commands
-always use the centre, having no pointer to work from.
+**What stays put** — the point the graph turns around. Three choices:
+
+| | |
+|---|---|
+| **The pointer** | The same anchoring the wheel already gives you when it zooms. |
+| **The centre of the graph** | The middle of the nodes themselves, so the graph spins in place wherever it happens to sit on screen. |
+| **The active note** | That one note stays put and everything else swings around it. In a local graph it is the note the pane is built on, not whatever the workspace calls active — clicking into a graph pane makes *it* the active leaf without changing which note it is showing. |
+
+Each falls through to the centre of the graph when it cannot be had: the pointer
+when a *command* started the turn and there is no pointer, the active note when
+it is not a node in this pane — the ordinary case in a Bases graph, or in a local
+graph of some other note. With nothing laid out yet, the middle of the pane is
+the floor.
+
+"The centre of the graph" is the middle of the **box** the nodes occupy, not
+their average position. The average gets dragged around by whichever cluster
+happens to be densest, which is not where the graph looks like its middle is.
 
 **Ease into the turn** — slide to the new angle over a few frames rather than
 jumping, matching the easing of Obsidian's own zoom. Off means the graph is at
@@ -101,12 +123,27 @@ Two consequences worth stating, because they are why this is a small plugin:
   `c` still across a turn of `d` is `pan' = c + R(d)·(pan - c)`, with no scale
   term to carry.
 
+- **A world pivot needs no second formula.** Two of the three choices — the
+  graph's centre and the active note — name a point in the *graph*, not on the
+  screen. But converting that world point to its current screen position and
+  holding *that* pixel still is the same thing: substituting
+  `c = pan + R(angle)·(scale·W)` into the line above leaves
+  `pan' + R(angle + d)·(scale·W) = c`, so `W` comes out under the pixel it went
+  in under, at any angle and any zoom. So there is one pivot formula, and the
+  world choices differ only in resolving `c` again on every frame instead of
+  once — which is what keeps a note truly still while the angle eases, rather
+  than merely at the start and the end of it.
+
+  The world point itself is frozen when the gesture starts. Recomputing the
+  graph's centre every frame would be an O(n) sweep, and a centre that shifted
+  under the ease would make the graph crawl rather than spin.
+
 ### What does break, and how it is corrected
 
-Three places convert screen to world by hand. All three are inside closures
-built during `initGraphics()`, so none of them can be patched. Two are fixed by
-intercepting the *properties they read* instead — a getter can lie about a
-number without anyone having to reach the code doing the reading.
+Two places inside the renderer convert screen to world by hand, both inside
+closures built during `initGraphics()`, so neither can be patched. They are
+fixed by intercepting the *properties they read* instead — a getter can lie
+about a number without anyone having to reach the code doing the reading.
 
 - **The culling rectangle.** Each frame sets `renderer.viewport` to an
   axis-aligned world rectangle derived from the pan and scale alone, and both
@@ -128,12 +165,20 @@ number without anyone having to reach the code doing the reading.
   against the previous frame's other half, which is a real bug and was caught by
   the harness.
 
-- **Graph Focus's pan-to-node.** `stepPan()` centres a focused note with
-  `pan = width/2·dpr - node.x·scale`, which is the same rotation-free reasoning
-  and lands off-centre while the pane is turned. That one belongs to another
-  plugin, so this plugin only publishes what it would need: `app.__graphRotator`
-  with an `angleOf(renderer)`. Graph Focus does not read it yet — centring a
-  focused note in a turned pane is off by the rotation until it does.
+- **Two more live in the sibling plugins**, and both now read the angle from
+  `app.__graphRotator.angleOf(renderer)`, which this plugin publishes for them
+  and which returns 0 when it is not installed:
+  - Graph Focus's `stepPan()` centres a focused note with
+    `pan = width/2·dpr - node.x·scale`, and without the rotation it aims at
+    where the note would sit if the graph were level — and settles there
+    (fixed in Graph Focus 1.36.0).
+  - Bases Graph View's `nodeAnchor()` places the hover tooltip over a node the
+    same way, putting it most of the pane away at 90° (fixed in 1.46.0).
+
+  Note that grepping for `panX` finds these two and misses the labels entirely,
+  because a label's position is written in world coordinates with no pan in it.
+  The sweep that matters is "what is computed from `node.x`", not "what touches
+  the pan".
 
 ### The labels
 
@@ -150,9 +195,24 @@ re-derived, and it is re-derived from the value the renderer just wrote
 (`text.y - node.y`). That is only meaningful for a label the renderer actually
 drew this frame, which is what the `text.visible` check means.
 
-The correction is applied *after* the frame, so it lands one frame late. The
-renderer keeps rendering for roughly 60 frames after any `changed()`, so it is
-never visible.
+**It has to happen before the draw, and that is the whole difficulty.** A frame
+positions every label from scratch — `text.x` is *assigned* `node.x`, not
+adjusted — and only then calls `px.render()`. A correction applied after the
+callback is therefore overwritten by the next frame's positioning pass before it
+has ever been drawn. The `rotation` survives, because nothing else writes it, so
+getting this wrong does not look like no effect: it looks like level names
+sitting at the un-turned offset, sticking out from their nodes at the angle of
+the turn. That was the 1.0.x bug.
+
+So the hook is `px.render()` itself — the draw, called from inside the callback
+on the PIXI Application its closure captured. Shadowing that one method, per
+instance, is the only moment between the node renders and the frame reaching the
+screen. It also means nothing runs on a frame the renderer skipped as idle, so
+there is no half-laid-out frame to read an offset from.
+
+Coming back to 0° releases *every* label rather than only the visible ones: one
+that happened to be hidden on that frame would otherwise keep its
+counter-rotation for good and reappear later as a single tilted name.
 
 ### The gesture
 
@@ -162,6 +222,14 @@ never visible.
 at bind time. A capture-phase listener on `containerEl`, one element up, runs
 before it and can stop it with `stopPropagation()`. Without the modifier the
 listener returns immediately and the zoom is untouched.
+
+**Either axis turns the graph** (1.0.1). Holding Shift makes the platform report
+a vertical wheel as a *horizontal* scroll: `deltaY` is 0 and the movement
+arrives on `deltaX`. Reading `deltaY` alone therefore left the Shift modifier
+doing nothing at all, in either direction — the one modifier of the three that
+looked like the obvious choice. A tilt wheel and a trackpad's sideways swipe
+land on the same axis, so both now turn as well. `deltaY` still wins when both
+are present, so a diagonal trackpad gesture cannot turn twice as far.
 
 ### Everything else
 
@@ -187,6 +255,11 @@ event first, or the modifier is not the one in the settings. The commands
 *Rotate graph clockwise* / *counter-clockwise* do not go through the wheel at
 all, so if those work and Alt+wheel does not, it is the gesture and not the
 rotation.
+
+**It only turns one way.** It should not: up and down are the two directions.
+If one of them does nothing, the wheel is sending an asymmetric delta — worth
+checking in the console with
+`addEventListener('wheel', e => console.log(e.deltaX, e.deltaY, e.deltaMode))`.
 
 **A pane is turned and you cannot turn it back.** *Reset graph rotation* from
 the palette. Run with a note focused rather than a graph, it straightens every

@@ -5,3 +5,7 @@ property type: number
 possible values:
   - "[0, 10]"
 ---
+
+| Default location | Default value | Strict default value |
+| ---------------- | ------------- | -------------------- |
+| All notes        |               |                      |

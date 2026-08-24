@@ -1,11 +1,15 @@
 ---
 tags:
   - class
+is a:
 characteristics:
   - "[[∘ related]]"
   - "[[∘ note rating]]"
   - "[[∘ rating]]"
   - "[[∘ created]]"
-is a:
+  - "[[∘ garden]]"
+  - "[[∘ life stage]]"
+  - "[[∘ ext links]]"
+  - "[[∘ maturity]]"
 type of:
 ---

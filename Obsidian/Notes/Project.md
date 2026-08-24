@@ -1,14 +1,18 @@
 ---
 tags:
   - class
-created: 2026-08-17 12:07
-characteristics:
-  - "[[∘ status]]"
-  - "[[∘ urgency]]"
 is a:
-  - "[[Obsidian Note]]"
-related:
+characteristics:
+  - "[[∘ activity]]"
+  - "[[∘ importance]]"
+  - "[[∘ status]]"
 type of:
+created: 2026-08-17 12:07
+ext links:
+related:
 note rating:
 rating:
+garden:
+life stage:
+maturity:
 ---

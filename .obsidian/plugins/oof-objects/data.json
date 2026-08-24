@@ -17,8 +17,18 @@
     ],
     "classTag": "class",
     "sortClasses": "name",
+    "classLayout": "brackets",
+    "treeRailSide": "left",
+    "treeDotTone": "line",
+    "treeDotFill": "transparent",
+    "treeCorners": "rounded",
+    "treeWireDash": "solid",
+    "treeLitPaths": "all",
+    "pendingPropertyRenames": [],
     "followActiveNote": true,
     "classIsItsOwnInstance": false,
+    "inheritCarried": false,
+    "rootClass": "Obsidian Note",
     "deleteUnusedCharacteristics": true,
     "logicProperties": [
       "is a",
@@ -30,18 +40,46 @@
     "createBases": true,
     "basesFolder": "Obsidian/Bases",
     "baseSuffix": " Base",
-    "baseColumns": "all"
+    "baseColumns": "all",
+    "propertyOrder": "class",
+    "collapsedGroups": [],
+    "hideAddProperty": true,
+    "nameSectionsAsCharacteristics": true,
+    "allNotesCarryBase": true,
+    "strictOverridesValues": false,
+    "seedDefaultsTable": true
   },
   "drafts": {},
   "baseRefreshes": [],
   "expanded": [
     "::discrepancies",
-    "Obsidian Note"
+    "Style",
+    "Art"
   ],
   "dismissed": [
-    "conflict::Obsidian Note"
+    "conflict::Obsidian Note",
+    "conflict::Base Formulas Plugin",
+    "conflict::Graph Focus Plugin",
+    "conflict::Class Manager",
+    "conflict::Connexion Changer",
+    "conflict::Graphs for Bases Plugin",
+    "conflict::Sheng Lam::created::Obsidian/Notes/Sheng Lam.md",
+    "conflict::Graphs for Bases Plugin::created::Obsidian/Notes/Graphs for Bases Plugin.md",
+    "conflict::Leander::created::Obsidian/Notes/Leander.md",
+    "conflict::Graph Focus Plugin::created::Obsidian/Notes/Graph Focus Plugin.md",
+    "conflict::Connexion Changer::created::Obsidian/Notes/Connexion Changer.md",
+    "conflict::Class Manager::created::Obsidian/Notes/Class Manager.md",
+    "conflict::Base Formulas Plugin::created::Obsidian/Notes/Base Formulas Plugin.md",
+    "conflict::Base Formulas Plugin::related::Obsidian/Notes/Base Formulas Plugin.md",
+    "conflict::Visual Artist::created::Obsidian/Notes/Visual Artist.md",
+    "conflict::Todo::created::Obsidian/Notes/Todo.md",
+    "conflict::Project::created::Obsidian/Notes/Project.md",
+    "conflict::Location::created::Obsidian/Notes/Location.md",
+    "conflict::Base Formulas Plugin::status::Obsidian/Notes/Base Formulas Plugin.md",
+    "conflict::Global graph views::status::Obsidian/Notes/Global graph views.md"
   ],
   "migrations": [
-    "sort-alphabetical"
+    "sort-alphabetical",
+    "defaults-table-on"
   ]
 }

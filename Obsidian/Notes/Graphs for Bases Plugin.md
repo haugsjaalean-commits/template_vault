@@ -1,10 +1,19 @@
 ---
-created: 2026-08-17 12:19
 is a:
-  - "[[Obsidian Note]]"
+  - "[[Obsidian Plugin]]"
+characteristics:
+type of:
+created: 2026-08-17 12:19
+ext links:
 related:
 note rating:
 rating:
+garden:
+life stage:
+maturity:
+importance:
+activity: simmering
+status: implemented
 ---
 
 

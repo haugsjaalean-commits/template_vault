@@ -19,6 +19,8 @@
   "groupTooltip": true,
   "tooltipEmptyGroup": true,
   "sortTooltip": true,
+  "tooltipSwatch": true,
+  "tooltipRing": true,
   "colorEmptyGroup": true,
   "colorGroupTooltip": false,
   "ringGrowth": 5,

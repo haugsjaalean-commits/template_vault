@@ -10,6 +10,16 @@ properties:
 views:
   - type: table
     name: Table
+    groupBy:
+      property: activity
+      direction: ASC
     order:
       - file.name
       - status
+      - activity
+    sort:
+      - property: status
+        direction: ASC
+    columnSize:
+      file.name: 321
+      note.status: 122

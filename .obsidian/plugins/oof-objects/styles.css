@@ -355,6 +355,26 @@ button.oof-new-class .svg-icon {
 	height: 16px;
 }
 
+/*
+ * Applying the class to the open note sits beside it and matches it, because the
+ * two are the same act from either end: one makes a note that is an instance,
+ * the other makes an instance of a note.
+ */
+.oof-apply-class {
+	width: 24px;
+	height: 24px;
+	color: var(--text-muted);
+}
+
+.oof-apply-class:hover {
+	color: var(--interactive-accent);
+}
+
+.oof-apply-class .svg-icon {
+	width: 15px;
+	height: 15px;
+}
+
 .oof-badge {
 	font-size: var(--font-ui-smaller);
 	text-transform: uppercase;
@@ -493,9 +513,37 @@ button.oof-new-class .svg-icon {
 	padding: 0 6px;
 }
 
-.oof-add {
+/*
+ * Closed, it is a `+` sized to the glyph. It sits in the wrapping chip row, so
+ * `flex` rather than `width` decides how much room it takes — and the wrapper is
+ * what flexes, since the arrow is drawn on it.
+ */
+.oof-add-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
 	width: 3.5em;
 	min-width: 3.5em;
+	transition: flex-basis 120ms ease-out, width 120ms ease-out, min-width 120ms ease-out;
+}
+
+/*
+ * Open, it takes whatever is left of the line and grows to the full width of the
+ * row when that is not enough — the row wraps and it lands on a line of its own.
+ *
+ * It used to be a flat `width: 10em`, which clipped anything longer than about
+ * fifteen characters however much space was going spare beside it.
+ */
+.oof-add-wrap:focus-within {
+	flex: 1 1 10em;
+	width: auto;
+	min-width: 10em;
+}
+
+.oof-add {
+	width: 100%;
+	min-width: 0;
 	padding: 1px 6px;
 	font-size: var(--font-ui-smaller);
 	background: transparent;
@@ -504,9 +552,45 @@ button.oof-new-class .svg-icon {
 }
 
 .oof-add:focus {
-	width: 10em;
-	min-width: 10em;
 	border-style: solid;
+	background: var(--background-modifier-form-field);
+	padding-right: 16px;
+}
+
+/*
+ * The native arrow is a button: clicking it opens the list rather than putting
+ * the caret in, so a click meant to start typing was swallowed. Gone, and drawn
+ * again below as something that cannot be clicked.
+ */
+.oof-add::-webkit-calendar-picker-indicator {
+	display: none;
+}
+
+/*
+ * Ours: only while the box is being typed in, and in the colour of the border
+ * around it. A mask rather than an image, so it takes the theme colour exactly
+ * instead of a hard-coded grey that would be wrong in half of them.
+ */
+.oof-add-wrap::after {
+	content: '';
+	position: absolute;
+	right: 5px;
+	width: 8px;
+	height: 8px;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 120ms ease-out;
+	background-color: var(--background-modifier-border);
+	-webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1 3l4 4 4-4' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1 3l4 4 4-4' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-size: contain;
+	mask-size: contain;
+}
+
+.oof-add-wrap:focus-within::after {
+	opacity: 1;
 }
 
 .oof-empty {
@@ -718,3 +802,741 @@ button.oof-new-class .svg-icon {
 	opacity: 0.4;
 	cursor: default;
 }
+
+/*
+ * Said where the question gets asked: a class whose `is a` names another class
+ * inherits nothing from it. Both links are legitimate, so this is an explanation
+ * rather than a warning — muted, not orange.
+ */
+.oof-inherit-note {
+	margin: 4px 0 2px 96px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+.oof-inherit-note-em {
+	color: var(--text-muted);
+}
+
+/* Nothing live: the card is a receipt, not an alarm. */
+.oof-discrepancies-quiet {
+	border-color: var(--background-modifier-border);
+}
+
+.oof-discrepancies-quiet .oof-caution {
+	color: var(--text-muted);
+}
+
+.oof-dismissed-toggle {
+	cursor: pointer;
+	user-select: none;
+}
+
+.oof-dismissed-toggle:hover {
+	color: var(--text-normal);
+}
+
+/*
+ * The root class: pinned above the alphabetical run, and marked so the pinning
+ * explains itself. Accent rather than warning — it is a fact about the model,
+ * not a problem.
+ */
+.oof-object-is-root {
+	border-color: var(--interactive-accent);
+	border-style: solid;
+	margin-bottom: 14px;
+}
+
+.oof-object-is-root > .oof-object-title > .oof-object-name {
+	color: var(--interactive-accent);
+}
+
+/* ----- the change view --------------------------------------------------- */
+
+.oof-diff {
+	max-height: 45vh;
+	overflow: auto;
+	margin: 6px 0 12px;
+	padding: 8px 10px;
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+	white-space: pre;
+}
+
+.oof-diff-same {
+	color: var(--text-faint);
+}
+
+/*
+ * Green and red the way a diff is read everywhere else — and the whole row is
+ * tinted, not just the text. The line that prompted this was `  - `, an empty
+ * list entry: colouring its text coloured nothing at all, so the row itself has
+ * to carry the mark.
+ *
+ * Mixed from the text colour rather than taken from a background variable,
+ * because `--background-modifier-error-hover` is not defined in every theme and a
+ * missing one leaves the row transparent — which is the bug being fixed.
+ */
+.oof-diff-add,
+.oof-diff-remove {
+	display: block;
+	margin: 0 -10px;
+	padding: 0 10px;
+	border-left: 3px solid transparent;
+}
+
+.oof-diff-add {
+	color: var(--text-success, var(--color-green, var(--interactive-accent)));
+	background: color-mix(in srgb,
+		var(--text-success, var(--color-green, var(--interactive-accent))) 14%, transparent);
+	border-left-color: var(--text-success, var(--color-green, var(--interactive-accent)));
+}
+
+.oof-diff-remove {
+	color: var(--text-error);
+	background: color-mix(in srgb, var(--text-error) 16%, transparent);
+	border-left-color: var(--text-error);
+	/* Struck through, so a removal reads as one even where the text is blank. */
+	text-decoration: line-through;
+	text-decoration-color: color-mix(in srgb, var(--text-error) 60%, transparent);
+}
+
+/* ----- the turns ----- */
+
+.oof-tree-corner {
+	position: absolute;
+	box-sizing: border-box;
+	width: var(--oof-corner);
+	height: var(--oof-corner);
+	border: 0 solid var(--background-modifier-border);
+}
+
+.oof-tree-corner.is-lit {
+	border-color: var(--interactive-accent);
+	z-index: 1;
+}
+
+/*
+ * Four of them, one per turn. `down` leaves a node and heads away; `up` arrives
+ * from the lane and turns back towards one. `left`/`right` is which side of the
+ * lane the node is on, which flips with the rails.
+ */
+.oof-tree-corner-down-left {
+	border-left-width: 2px;
+	border-top-width: 2px;
+	border-top-left-radius: var(--oof-corner);
+}
+
+.oof-tree-corner-down-right {
+	border-right-width: 2px;
+	border-top-width: 2px;
+	border-top-right-radius: var(--oof-corner);
+}
+
+.oof-tree-corner-up-left {
+	border-left-width: 2px;
+	border-bottom-width: 2px;
+	border-bottom-left-radius: var(--oof-corner);
+}
+
+.oof-tree-corner-up-right {
+	border-right-width: 2px;
+	border-bottom-width: 2px;
+	border-bottom-right-radius: var(--oof-corner);
+}
+
+/*
+ * A lane that turns rather than ending at a node starts or stops at the arc.
+ *
+ * The `- 1px` is the stroke: a corner is a box whose *border* is the line, and
+ * the border sits inside the box. Its far edge is therefore one pixel short of
+ * the box edge, and without this every turn had a hairline gap where it met its
+ * own straight.
+ */
+.oof-tree-line-bottom.oof-tree-at-corner {
+	top: calc(var(--oof-dot-top) + var(--oof-corner) - 1px);
+}
+
+.oof-tree-line-top.oof-tree-at-corner {
+	height: calc(var(--oof-dot-top) - var(--oof-corner) + 1px);
+}
+
+/* Said in words when there is nothing to see. */
+.oof-diff-empty {
+	margin-left: 8px;
+	font-style: italic;
+	opacity: 0.75;
+	text-decoration: none;
+}
+
+/* Nothing is being changed here; this is the line he was asked about. */
+.oof-diff-subject {
+	color: var(--text-warning);
+	font-weight: 600;
+}
+
+/* ---------------------------------------------------------- group headings */
+
+/*
+ * The line between one class's characteristics and the next, drawn over
+ * Obsidian's properties panel. Nothing of this is in the file — his call, and
+ * the right one: frontmatter keeps no comments and no blank lines, so a heading
+ * written there would have to be a real property for ever.
+ *
+ * A rule with the class name sitting on it, in the muted colour, so it reads as
+ * furniture rather than as another property.
+ */
+.oof-property-group {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 10px 0 2px;
+	/* Lines up with the property names rather than the panel edge. */
+	padding-left: var(--metadata-property-indent, 0);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	user-select: none;
+}
+
+/* The first one has the panel edge above it already. */
+.oof-property-group:first-child {
+	margin-top: 2px;
+}
+
+.oof-property-group-name {
+	flex: 0 0 auto;
+	font-weight: var(--font-semibold);
+}
+
+/* ----- folding a group away ----- */
+
+/*
+ * The whole heading is the target, not the twisty alone — a 12px chevron is a
+ * poor thing to have to hit, and there is nothing else on the row to click.
+ */
+.oof-property-group {
+	cursor: pointer;
+	border-radius: 4px;
+	/* Room for the hover fill, taken back so nothing shifts. */
+	padding-right: 6px;
+	margin-right: -6px;
+}
+
+.oof-property-group:hover {
+	color: var(--text-muted);
+}
+
+.oof-property-group:hover .oof-property-group-name {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.oof-property-group:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.oof-property-group-twisty {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	transition: transform 120ms ease;
+}
+
+.oof-property-group-twisty .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
+/* Pointing down is open; a quarter turn anticlockwise is shut. */
+.oof-property-group.is-collapsed .oof-property-group-twisty {
+	transform: rotate(-90deg);
+}
+
+/*
+ * How many are hidden. Only rendered when folded — see `syncGroup` — because
+ * open it would be a count of a list already in front of you.
+ */
+.oof-property-group-count {
+	flex: 0 0 auto;
+	padding: 0 5px;
+	border-radius: 6px;
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	letter-spacing: 0;
+}
+
+.oof-property-group-count:empty {
+	display: none;
+}
+
+/*
+ * Folded rows are gone rather than merely faint; the count says they exist.
+ *
+ * `!important` deliberately. Obsidian's own rule for a property row is one class
+ * and loses on specificity, but a theme's `.metadata-container .metadata-property`
+ * ties — and themes load after plugins, so the tie goes to the theme and the
+ * fold silently does nothing. This is a visibility toggle he asked for; nothing
+ * should be able to outvote it.
+ */
+.metadata-property.oof-group-hidden,
+.oof-group-hidden.metadata-property {
+	display: none !important;
+}
+
+/* The rule runs from the name to the far edge. */
+.oof-property-group::after {
+	content: "";
+	flex: 1 1 auto;
+	height: 1px;
+	background: var(--background-modifier-border);
+}
+
+/* ------------------------------------------- the Add property button */
+
+/*
+ * Hidden, not removed: the command presses this very button rather than
+ * reimplementing what it does, so it has to still be there to press.
+ * `!important` for the same reason as the folded rows — themes load after
+ * plugins, so a theme's two-class rule would otherwise win the tie.
+ */
+body.oof-hide-add-property .metadata-add-button {
+	display: none !important;
+}
+
+/* Said in the settings tab when the button is hidden and nothing replaces it. */
+.oof-settings-warning {
+	margin: 6px 0 18px;
+	padding: 8px 10px;
+	border-left: 3px solid var(--text-warning);
+	border-radius: 0 4px 4px 0;
+	background: color-mix(in srgb, var(--text-warning) 12%, transparent);
+	color: var(--text-warning);
+	font-size: var(--font-ui-smaller);
+}
+
+/* ------------------------------------------------------------- the tree */
+
+/*
+ * The classes as a git graph: one class per row, rails in lanes to its left.
+ *
+ * The rails are elements rather than SVG because a row is as tall as the card
+ * in it, and an expanded card is very tall. `top: 0; bottom: 0` does not care
+ * how tall that is; an SVG would need measuring on every fold.
+ */
+.oof-tree {
+	/* Narrow, because this is a sidebar: five lanes is 60px of about 300. */
+	--oof-lane-width: 12px;
+	/* Measured against the card title, so the node sits on the name it marks. */
+	--oof-dot-top: 21px;
+	/*
+	 * How far short of a node its lines stop. Nothing while a node is filled —
+	 * the line runs under it and is hidden, which is what a filled node is for.
+	 */
+	--oof-dot-gap: 0px;
+	/*
+	 * How wide the turn is where a connexion changes direction. A corner is its
+	 * own element — a box with two borders and a radius on the corner between
+	 * them, which is exactly a quarter arc — so the straights stay straights and
+	 * only the bend is curved.
+	 */
+	--oof-corner: 6px;
+	/*
+	 * How wide a break is where one wire passes under another. Three times the
+	 * 2px stroke, so the wire above sits in clear space rather than in a nick —
+	 * a break the width of the line it makes way for reads as a printing fault.
+	 */
+	--oof-cross-gap: 6px;
+	/* The colour of a second-parent wire, moved by the highlight rules. */
+	--oof-wire-dash: var(--background-modifier-border);
+	/*
+	 * Its dash: `on` of ink, then nothing until `off`. The setting for a solid
+	 * wire moves `on` up to meet `off` rather than swapping the gradient out for
+	 * a flat colour — a zero-length gap repeats into an unbroken line, and every
+	 * rule that lights a wire goes on working on the one pattern.
+	 */
+	--oof-wire-on: 3px;
+	--oof-wire-off: 6px;
+}
+
+.oof-tree.is-solid-wires {
+	--oof-wire-on: 6px;
+}
+
+.oof-tree.is-square-corners {
+	--oof-corner: 0px;
+}
+
+/*
+ * Empty nodes need the lines to *stop*, not to be covered up. Running them to
+ * the centre and relying on the fill to hide the last few pixels is what made an
+ * empty node look like a bead with a line through it.
+ *
+ * Half the node plus its ring, so a line ends exactly where the circle begins,
+ * on any background — which the fill trick cannot promise, since the colour
+ * behind the panel is the theme's business and not always the one variable.
+ */
+.oof-tree.is-hollow-dots {
+	--oof-dot-gap: 6px;
+}
+
+.oof-tree-row {
+	display: flex;
+	align-items: stretch;
+	gap: 2px;
+}
+
+.oof-tree-rail {
+	position: relative;
+	flex: 0 0 auto;
+	width: calc(var(--oof-lane-width) * var(--oof-lanes));
+}
+
+.oof-tree-body {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/*
+ * A lane, covering as much of the row as the layout says it does. The three
+ * kinds are what makes a line reach: a lane that starts at this row is drawn
+ * from the node down, so it meets the dot it comes from instead of beginning at
+ * the top of the row below and joining nothing.
+ */
+.oof-tree-line {
+	position: absolute;
+	width: 2px;
+	margin-left: -1px;
+	background: var(--background-modifier-border);
+}
+
+/* Passing straight through. */
+.oof-tree-line-full { top: 0; bottom: 0; }
+
+/* Arriving from above and stopping at the node line. */
+.oof-tree-line-top { top: 0; height: var(--oof-dot-top); }
+
+/* Starting at the node line and carrying on down. */
+.oof-tree-line-bottom { top: var(--oof-dot-top); bottom: 0; }
+
+/*
+ * The gap belongs to segments that end at a **node**, and to those only.
+ *
+ * A bracket's own vertical ends at its *elbow*, which sits on the same line as
+ * the node it is heading for — so shortening every segment alike left the elbow
+ * floating six pixels above the rail it turns into. `oof-tree-at-node` marks the
+ * ones that really do stop at a circle.
+ */
+.oof-tree-line-top.oof-tree-at-node {
+	height: calc(var(--oof-dot-top) - var(--oof-dot-gap));
+}
+
+.oof-tree-line-bottom.oof-tree-at-node {
+	top: calc(var(--oof-dot-top) + var(--oof-dot-gap));
+}
+
+/*
+ * The elbow from a parent's lane across to this node. Horizontal only — the
+ * vertical half is the parent's lane, which is already drawn.
+ */
+.oof-tree-elbow {
+	position: absolute;
+	top: var(--oof-dot-top);
+	height: 2px;
+	margin-top: -1px;
+	background: var(--background-modifier-border);
+}
+
+
+/*
+ * Eight pixels, not seven, and the reason is worth keeping.
+ *
+ * A 7px circle pulled back by 4px has its centre at 20.5 while every line is
+ * positioned from 21 — half a pixel high. With the 2px ring it covered 15 to 26,
+ * so a line ending at 21 − 6 = 15 met it exactly and a line starting at
+ * 21 + 6 = 27 missed by one. The gap was always below a node and never above it,
+ * which is precisely what half a pixel of asymmetry looks like once the ring is
+ * added on.
+ *
+ * At 8px the centre lands on 21, the ring covers 15 to 27, and `--oof-dot-gap`
+ * of 6 puts both ends of the line exactly on it. Whole pixels throughout, so
+ * nothing depends on how the device rounds.
+ */
+.oof-tree-dot {
+	position: absolute;
+	top: var(--oof-dot-top);
+	width: 8px;
+	height: 8px;
+	margin: -4px 0 0 -4px;
+	border-radius: 50%;
+	background: var(--background-primary);
+	box-shadow: 0 0 0 2px var(--text-muted);
+}
+
+/*
+ * Quiet nodes: the same colour as the rails, so the drawing is one weight and
+ * nothing competes with the highlight. The lit rules below still win, being
+ * more specific — a node on the active line is the one thing meant to shout.
+ */
+/*
+ * `:not(.is-lit)` said out loud rather than left to specificity. Three classes
+ * beats the two of `.oof-tree-dot.is-lit`, so without it this would quietly
+ * un-highlight the very nodes the highlight is for — which is the bug the
+ * elbows had an hour ago, and the reason the paint suite exists.
+ */
+.oof-tree.is-quiet-dots .oof-tree-dot:not(.is-lit) {
+	box-shadow: 0 0 0 2px var(--background-modifier-border);
+}
+
+
+/*
+ * Hollow nodes: nothing inside, so the rail shows through the middle and a node
+ * reads as a ring on the line rather than a bead over it.
+ *
+ * The root is **not** excluded, and used to be. It is drawn in the accent and
+ * ringed in it, which is what says it is the root — the fill was never carrying
+ * that on its own, and keeping it meant one node ignoring a setting named
+ * "Empty — the line shows through". An accent ring with the line running
+ * through it still reads as the root, and now reads as the same drawing as
+ * everything else.
+ *
+ * Nor is a class with two parents, and for the same reason: the wire arriving at
+ * its node is what says so, and a filled node meant it read as highlighted when
+ * it was not.
+ *
+ * What stays excluded is the one fill nothing else says — the class the note is
+ * about, and the class under the pointer. Emptying those would take away the
+ * only thing that distinguishes them.
+ */
+.oof-tree.is-hollow-dots .oof-tree-dot:not(.is-active):not(.is-hover-active) {
+	background: transparent;
+}
+
+/*
+ * The two fills that override "empty" have to reach the root as well, now that
+ * it can be empty. Both exclude `.is-root` — deliberately, because in the
+ * filled drawing the root's own accent is already the right colour — so without
+ * this the hovered root would come out at *full* accent while every other
+ * hovered node came out at the tint.
+ */
+.oof-tree.is-hollow-dots .oof-tree-dot.is-hover-active:not(.is-lit) {
+	background: var(--oof-hover-lit);
+}
+
+/* The root is what the rest hangs from: the accent, as a ring and — unless the
+ * nodes are empty — as a fill. */
+.oof-tree-dot.is-root {
+	background: var(--interactive-accent);
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+/*
+ * `.oof-tree-dot.is-merge` used to be filled — `--text-muted`, and a shade
+ * darker again under quiet dots — because a class with two parents had nothing
+ * else saying so: its second parentage was a stub that did not reach, or in the
+ * bracket drawing was not drawn at all. The fill was standing in for a missing
+ * line.
+ *
+ * The line exists now. A second parent is a wire arriving at the node, so the
+ * fill said the same thing twice and said it in the one language the node
+ * already uses for something else — filled means *the class you are reading*.
+ * A grey blob on a hierarchy where several classes have two parents read as a
+ * scattering of highlights that were not highlights.
+ *
+ * So it is an ordinary node, and the class is still put on it: the drawing does
+ * not need it, and anything that comes to need it can find it.
+ */
+
+/* ----- the active note's line of descent ----- */
+
+/*
+ * The run from the class the open note belongs to up to the parent it descends
+ * from. A highlighted node with a grey line into it says less than nothing —
+ * the line is what tells you where it sits.
+ */
+.oof-tree-line.is-lit,
+.oof-tree-elbow.is-lit {
+	background: var(--interactive-accent);
+	z-index: 1;
+}
+
+.oof-tree-line.is-lit { width: 2px; }
+
+
+.oof-tree-dot.is-lit {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+	z-index: 2;
+}
+
+/*
+ * Filled for the class the note belongs to; ringed for everything it descends
+ * from. The whole path is lit, but only one node is where the note sits.
+ */
+.oof-tree-dot.is-active:not(.is-root) {
+	background: var(--interactive-accent);
+}
+
+.oof-tree-dot.is-ancestor {
+	background: var(--background-primary);
+}
+
+/* ----- the same path again, fainter, for the class under the pointer ----- */
+
+/*
+ * A tint of the accent rather than the accent itself, and that is the whole
+ * point of it: the active note's line has to stay the one bright thing in the
+ * drawing. Painting hover at full strength would mean a pointer wandering
+ * across the panel repeatedly overwriting the one highlight that says where he
+ * actually is.
+ *
+ * Every rule below says `:not(.is-lit)` out loud rather than leaning on
+ * specificity. A segment on both paths is already painted properly, and the
+ * tint would otherwise dull it or not depending only on which rule came last in
+ * this file — which is exactly how the elbows broke once before.
+ *
+ * **Opaque, mixed against the panel — not the accent at 45% alpha.** A
+ * translucent tint is right on one line and wrong everywhere two pieces of wire
+ * meet, and they meet constantly: a corner overlaps each of its straights by a
+ * pixel *by design*, to close the hairline gap a border-drawn arc leaves. Every
+ * one of those seams stacked two 45% layers and came out as a dark pip, so a
+ * hovered path was a dotted line of joins rather than a run. Mixing to a flat
+ * colour lands on the same shade over the panel and cannot compound however
+ * many pieces sit on top of each other.
+ *
+ * `--background-secondary` because that is what the drawing sits on: the rails
+ * are beside the cards, not under them, so their ground is the sidebar's.
+ */
+.oof-tree {
+	--oof-hover-lit: color-mix(in srgb,
+		var(--interactive-accent) 45%, var(--background-secondary));
+}
+
+.oof-tree-line.is-hover-lit:not(.is-lit),
+.oof-tree-elbow.is-hover-lit:not(.is-lit) {
+	background: var(--oof-hover-lit);
+	z-index: 1;
+}
+
+.oof-tree-line.is-hover-lit:not(.is-lit) { width: 2px; }
+
+.oof-tree-corner.is-hover-lit:not(.is-lit) {
+	border-color: var(--oof-hover-lit);
+	z-index: 1;
+}
+
+
+/*
+ * The descendant selector is load-bearing, not decoration: quiet dots are the
+ * default and `.oof-tree.is-quiet-dots .oof-tree-dot:not(.is-lit)` carries four
+ * classes, so a three-class rule here would have been overridden and the hover
+ * ring would simply never have appeared. This ties it and comes later.
+ */
+.oof-tree .oof-tree-dot.is-hover-lit:not(.is-lit) {
+	box-shadow: 0 0 0 2px var(--oof-hover-lit);
+	z-index: 2;
+}
+
+/*
+ * The class the pointer is on is filled; what it descends from is only ringed —
+ * the same distinction the lit path makes, so the two highlights read as the
+ * same drawing at two weights rather than as two different things.
+ */
+.oof-tree-dot.is-hover-active:not(.is-lit):not(.is-root) {
+	background: var(--oof-hover-lit);
+}
+
+/* ----- the second-parent wires ----- */
+
+/*
+ * A second parent, dashed — the same reason as before: it is the other edge, and
+ * a class with two parents should not need reading twice to see which of them
+ * the rows are ordered by. What changed is that it is now a whole wire rather
+ * than a stub, so the dashes have to survive being a vertical, a horizontal and
+ * an arc.
+ *
+ * A repeating gradient rather than `border-style: dashed`, so the dash rides on
+ * `background` and the colour is one variable. A dashed border would have needed
+ * a 0-width box and a parallel set of `border-color` rules, and every bit of
+ * geometry here is shared with the solid wires.
+ *
+ * **Placed after the highlight rules, and saying `.is-lit` and `.is-hover-lit`
+ * out loud.** `.oof-tree-line.is-lit` sets `background` outright at two classes;
+ * from up where the old dashed stub lived, this rule tied and lost, and a lit
+ * wire came out solid — the one moment it most needs to still read as the other
+ * edge. Ties are broken by order, so both halves of the fix matter.
+ */
+.oof-tree-line.oof-tree-wire-merge,
+.oof-tree-line.oof-tree-wire-merge.is-lit,
+.oof-tree-line.oof-tree-wire-merge.is-hover-lit:not(.is-lit) {
+	background: repeating-linear-gradient(to bottom,
+		var(--oof-wire-dash) 0 var(--oof-wire-on),
+		transparent var(--oof-wire-on) var(--oof-wire-off));
+}
+
+.oof-tree-elbow.oof-tree-wire-merge,
+.oof-tree-elbow.oof-tree-wire-merge.is-lit,
+.oof-tree-elbow.oof-tree-wire-merge.is-hover-lit:not(.is-lit) {
+	background: repeating-linear-gradient(to right,
+		var(--oof-wire-dash) 0 var(--oof-wire-on),
+		transparent var(--oof-wire-on) var(--oof-wire-off));
+}
+
+/* Only the colour moves; the pattern is written once, above. */
+.oof-tree-line.oof-tree-wire-merge.is-lit,
+.oof-tree-elbow.oof-tree-wire-merge.is-lit {
+	--oof-wire-dash: var(--interactive-accent);
+}
+
+.oof-tree-line.oof-tree-wire-merge.is-hover-lit:not(.is-lit),
+.oof-tree-elbow.oof-tree-wire-merge.is-hover-lit:not(.is-lit) {
+	--oof-wire-dash: var(--oof-hover-lit);
+}
+
+/* The arc is a border, so this one *is* a dash pattern on a border. */
+.oof-tree-corner.oof-tree-wire-merge {
+	border-style: dashed;
+}
+
+.oof-tree.is-solid-wires .oof-tree-corner.oof-tree-wire-merge {
+	border-style: solid;
+}
+
+/* A card in the tree carries its own indent in the rail, so it needs none. */
+.oof-tree .oof-object {
+	margin-left: 0;
+}
+
+/*
+ * List or tree, on the title row. Marked when the tree is on, because unlike
+ * the folding pair beside it this one has a state rather than only an effect.
+ */
+.oof-layout-toggle.is-tree {
+	color: var(--interactive-accent);
+}
+
+/*
+ * Rails down the right instead of the left. Only the row order flips — the lane
+ * numbering is mirrored in the renderer, so the root stays the outermost lane
+ * rather than the graph turning inside out.
+ */
+.oof-tree.is-right .oof-tree-row {
+	flex-direction: row-reverse;
+}
+
+/*
+ * His drawing shares every rule above it — the rails are the same three kinds of
+ * segment as the lane graph, and only the geometry differs. There was a
+ * `.oof-tree-brackets .oof-tree-elbow { background: … }` here restating the
+ * colour an elbow already has, and it **broke the highlight**: two classes beats
+ * `.oof-tree-elbow.is-lit`, and coming later it won, so a lit elbow stayed grey.
+ * The verticals lit and the horizontals joining them to the nodes did not, which
+ * is what a highlight looks like when it is "slightly broken".
+ *
+ * Nothing belongs here. That is the point.
+ */

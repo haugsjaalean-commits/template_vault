@@ -1,0 +1,13 @@
+filters:
+  and:
+    - file.ext == "base"
+formulas:
+  word count: file.WordCount()
+properties:
+  formula.word count:
+    displayName: word count
+views:
+  - type: table
+    name: Table
+    order:
+      - file.name

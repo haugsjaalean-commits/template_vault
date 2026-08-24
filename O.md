@@ -2,18 +2,23 @@
 tags:
   - origin
 ---
-## Plugins
 
-[[Classes Plugin]]
-[[Base Formulas Plugin]]
-[[Graphs for Bases Plugin]]
-[[Graph Focus Plugin]]
-[[Connexion Changer]]
-[[Graph Rotator]]
+[[My Obsidian workflow]]
+[[Base Base.base]]
+[[README]]
+[[How to organize with the system]]
+[[Thoughts]]
+[[Notes]]
 
 
-## Misc.
+## Bookmarks
 
-[[Ideas for plugins]]
+- [[Obsidian Plugin Base.base]]
+	- [[Class Manager]]
+	- [[Panel Groups]]
+- [[Everything base.base]]
+- [[Structure Base.base]]
+- [[Issue Base.base]]
+
 
 

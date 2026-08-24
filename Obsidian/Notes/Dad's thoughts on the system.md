@@ -1,10 +1,15 @@
 ---
-created: 2026-08-19 08:52
 is a:
-  - "[[Obsidian Note]]"
+characteristics:
+type of:
+created: 2026-08-19 08:52
+ext links:
 related:
 note rating:
 rating:
+garden:
+life stage:
+maturity:
 ---
 
 

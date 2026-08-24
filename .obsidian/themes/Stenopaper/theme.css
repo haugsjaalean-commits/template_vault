@@ -1,0 +1,207 @@
+/* ============================================================================
+   Stenopaper — proof of concept, v1.3
+   Written by Claude for Leander. Brief: Obsidian/Notes/Stenopaper.md.
+
+   The note is a stack of PANELS. A panel starts at a heading and runs down
+   through everything under it until the next heading. It is filled with paper,
+   it has a faint outline all the way round, and at its top-left a tab runs out
+   past the text column.
+
+   Between panels there is a GAP — real empty space, where the pane shows
+   through. There are no rules anywhere. The gaps get smaller at every level
+   down, and that is the only thing that varies by level.
+
+   No plugin. Everything only ever asks "is this block a heading", "is the next
+   block a heading", and "which level" — all of which are selectors.
+
+   ---------------------------------------------------------------------------
+   STANDING RULE, his, 2026-08-23. Applies to every future version of this file:
+
+       THE OUTLINE GOES AROUND EVERY COLOURED AREA, NOT AROUND ONE ELEMENT.
+
+   Whatever is painted with --sp-paper is enclosed by --sp-outline, all the way
+   round its whole silhouette, however many elements that silhouette is made of.
+   A heading is not a special case with its own box; it is the top of a panel,
+   and the panel's outline runs from its top edge down past every paragraph,
+   list, quote and fence under it to wherever the next gap begins.
+
+   So: adding any new painted region means giving it its edges in the same pass.
+   The single mechanism is the --sp-edge-* variables below — never a `border` on
+   a block, which is layout, and never a per-element outline, which is what this
+   rule exists to forbid.
+
+   The harness enforces it rather than trusting it: it walks every block and
+   checks that a panel closes exactly where the next heading starts and nowhere
+   else, so a coloured area that is missing an edge, or has one it should not,
+   fails.
+   ---------------------------------------------------------------------------
+   ========================================================================= */
+
+.theme-light,
+.theme-dark {
+	--sp-tint: #5f92b0;          /* the pencil blue of the sketch */
+
+	/* How much tint is mixed into the paper. The contrast knob: turn it up
+	   until the panels are obvious against the pane, down until they are only
+	   a suggestion. Measured in CIE L* against white: 10% = 4.1, 22% = 9.0,
+	   30% = 12.3. */
+	--sp-paper-strength: 22%;
+
+	/* The outline. Two knobs, and they are the ones to reach for when the boxes
+	   are hard to make out: how dark the line is, and how thick.
+
+	   It started faint (14%, 1px) and he asked for it clearer, so it is now
+	   dark enough to read as a drawn box. Measured in CIE L* against the paper
+	   it sits on: 14% = 4.6, 30% = 9.6, 50% = 15.6. */
+	--sp-outline-strength: 50%;
+	--sp-edge-width: 2px;
+
+	--sp-paper: color-mix(in srgb, var(--sp-tint) var(--sp-paper-strength), var(--background-primary));
+	--sp-outline: color-mix(in srgb, var(--sp-tint) var(--sp-outline-strength), transparent);
+
+	/* How far the tab runs past the LEFT edge of the text column. Drawn into
+	   the pane's own margin, so a value wider than that margin is simply
+	   clipped — it never pushes anything. */
+	--sp-spill: 1.5rem;
+
+	/* Breathing room inside a panel, above and below a heading. */
+	--sp-panel-pad: 0.35rem;
+
+	/* The four edges, composed per block below. A transparent zero-size shadow
+	   is the "no edge here" value: box-shadow does not cascade additively, so
+	   every rule would otherwise have to restate all four, and variables are
+	   how that stays readable. */
+	--sp-no-edge: inset 0 0 0 0 transparent;
+	--sp-edge-top: var(--sp-no-edge);
+	--sp-edge-bottom: var(--sp-no-edge);
+	--sp-edge-left: inset var(--sp-edge-width) 0 0 0 var(--sp-outline);
+	--sp-edge-right: inset calc(-1 * var(--sp-edge-width)) 0 0 0 var(--sp-outline);
+}
+
+.theme-dark {
+	--sp-paper-strength: 20%;
+	--sp-outline-strength: 46%;
+}
+
+/* --------------------------------------------------------------- panels ---
+   Every block is filled and carries its own left and right edge. Stacked, they
+   make one continuous outlined column; the gaps above headings cut that column
+   into panels.
+
+   The edges are INSET box-shadows, never borders. A border is layout: 1px of
+   border-left on every block moves every line of text 1px right and narrows the
+   column by 2px. An inset shadow paints inside the box the theme already has.  */
+
+.markdown-source-view.mod-cm6 .cm-line,
+.markdown-preview-section > div:not(.markdown-preview-pusher) {
+	background-color: var(--sp-paper);
+	box-shadow: var(--sp-edge-top), var(--sp-edge-right),
+	            var(--sp-edge-bottom), var(--sp-edge-left);
+}
+
+/* Reading view only: block spacing there comes from margins on the *children*
+   (p, ul, headings). Without a block formatting context those margins collapse
+   straight out through the block and the pane shows between two blocks of one
+   panel, breaking both the fill and the outline. */
+.markdown-preview-section > div:not(.markdown-preview-pusher) { display: flow-root; }
+/* ...and the same block formatting context means a child's margin can no longer
+   escape, so it inflates the panel instead. Obsidian's own heading margins are
+   generous, which made a heading's panel several times taller than its text.
+   HEADINGS MUST BE IN THIS LIST — leaving them out is what caused that. */
+.markdown-preview-section > div
+  > :is(p, ul, ol, blockquote, pre, h1, h2, h3, h4, h5, h6):first-child { margin-block-start: 0; }
+.markdown-preview-section > div
+  > :is(p, ul, ol, blockquote, pre, h1, h2, h3, h4, h5, h6):last-child { margin-block-end: 0; }
+
+/* ------------------------------------------------------ where a panel opens -
+   A heading starts a panel: it draws the top edge, and gives up its own left
+   edge, because the tab to its left owns that side.                          */
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header,
+.markdown-preview-section > div:is(.el-h1, .el-h2, .el-h3, .el-h4, .el-h5, .el-h6,
+                                   :has(> :is(h1, h2, h3, h4, h5, h6))) {
+	--sp-edge-top: inset 0 var(--sp-edge-width) 0 0 var(--sp-outline);
+	--sp-edge-left: var(--sp-no-edge);
+	position: relative;
+	z-index: 0;
+	padding-top: var(--sp-panel-pad);
+	padding-bottom: var(--sp-panel-pad);
+}
+
+/* The tab: the strip of paper running out to the left of a heading, with the
+   panel's outline continuing round it — over the top, down the left, and back
+   along the bottom, which is the step where the panel narrows to the column.
+
+   It is a pseudo-element and not a box-shadow because the coloured area is
+   L-shaped, and box-shadow cannot outline that: `spread` grows a shadow on all
+   four sides at once, so no single shadow is 26px wider on the left and 1px
+   wider on the right, and a second shadow leaves a seam down the join.
+
+   It is out of flow and the heading keeps its own paper underneath, so if the
+   pseudo-element is ever ignored the heading degrades to a plain block of paper
+   rather than to something broken. */
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header::before,
+.markdown-preview-section > div:is(.el-h1, .el-h2, .el-h3, .el-h4, .el-h5, .el-h6,
+                                   :has(> :is(h1, h2, h3, h4, h5, h6)))::before {
+	content: "";
+	position: absolute;
+	inset: 0 100% 0 calc(-1 * var(--sp-spill));   /* right edge = the box's left edge */
+	box-sizing: border-box;
+	background-color: var(--sp-paper);
+	border: var(--sp-edge-width) solid var(--sp-outline);
+	border-right: none;                            /* the tab joins the panel here */
+	z-index: -1;
+	pointer-events: none;
+}
+
+/* ---------------------------------------------------- where a panel closes -
+   The last block before the next heading, and the last block of the note.
+
+   `:has(+ ...)` is what makes this expressible at all — it is the only way CSS
+   can say "the block after me is a heading". Note the sibling test can only use
+   Obsidian's own `.el-hN` class: :has() may not be nested inside :has(), so
+   `:has(+ div:has(> h2))` is invalid. The `:has(> hN)` fallback used everywhere
+   else in this file is unavailable here. */
+
+.markdown-source-view.mod-cm6 .cm-line:has(+ .cm-line.HyperMD-header),
+.markdown-source-view.mod-cm6 .cm-line:last-child,
+.markdown-preview-section > div:has(+ div:is(.el-h1, .el-h2, .el-h3, .el-h4, .el-h5, .el-h6)),
+.markdown-preview-section > div:not(.markdown-preview-pusher):last-child {
+	--sp-edge-bottom: inset 0 calc(-1 * var(--sp-edge-width)) 0 0 var(--sp-outline);
+}
+
+/* Text above the first heading is a panel too, so it needs a top edge — and no
+   gap, since there is nothing above it to be separated from. */
+.markdown-source-view.mod-cm6 .cm-line:first-child,
+.markdown-preview-section > div:not(.markdown-preview-pusher):first-child {
+	--sp-edge-top: inset 0 var(--sp-edge-width) 0 0 var(--sp-outline);
+	margin-top: 0;
+}
+
+/* ------------------------------------------------------------- the gaps ---
+   The separation is the gap itself: a margin, so the paper genuinely stops and
+   the pane shows through between one panel and the next. Each level down gets
+   a little less.
+
+   This is the exact reverse of v0.2, and deliberately so. Back then the air
+   above a heading was `padding` precisely so the sheet would NOT break; now the
+   break is the whole separation.                                              */
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-1,
+.markdown-preview-section > div:is(.el-h1, :has(> h1)) { margin-top: 2.4rem; }
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-2,
+.markdown-preview-section > div:is(.el-h2, :has(> h2)) { margin-top: 1.8rem; }
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-3,
+.markdown-preview-section > div:is(.el-h3, :has(> h3)) { margin-top: 1.35rem; }
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-4,
+.markdown-preview-section > div:is(.el-h4, :has(> h4)) { margin-top: 1rem; }
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-5,
+.markdown-preview-section > div:is(.el-h5, :has(> h5)) { margin-top: 0.7rem; }
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-6,
+.markdown-preview-section > div:is(.el-h6, :has(> h6)) { margin-top: 0.45rem; }

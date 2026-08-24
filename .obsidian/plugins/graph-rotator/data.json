@@ -1,0 +1,9 @@
+{
+  "modifier": "alt",
+  "step": 15,
+  "invert": false,
+  "pivot": "note",
+  "smooth": true,
+  "uprightLabels": true,
+  "statusBar": true
+}

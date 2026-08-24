@@ -1567,11 +1567,11 @@ class BasesGraphView extends obsidian.BasesView {
 	/*
 	 * Where a node sits in the pane, in CSS pixels, or null if it cannot be found.
 	 *
-	 * `screen = world * scale + pan` in *device* pixels — the relation `resetPan()`
-	 * uses when it centres the origin, recorded in the Graph Focus notes — so the
-	 * ratio divides back out to the CSS pixels the tooltip is positioned in. The
-	 * anchor is the top of the circle rather than its centre, so the label clears
-	 * the node whatever size it is.
+	 * `screen = pan + R(angle) · (world * scale)` in *device* pixels — the hanger's
+	 * own transform, which `resetPan()` encodes for the untuned case — so the ratio
+	 * divides back out to the CSS pixels the tooltip is positioned in. The anchor
+	 * is the top of the circle rather than its centre, so the label clears the node
+	 * whatever size it is, and a circle is the same shape at every angle.
 	 */
 	nodeAnchor(id) {
 		if (id === null || id === undefined) return null;
@@ -1593,8 +1593,19 @@ class BasesGraphView extends obsidian.BasesView {
 		if (!node || typeof node.x !== 'number' || typeof node.y !== 'number') return null;
 
 		const dpr = window.devicePixelRatio || 1;
-		const x = (node.x * scale + renderer.panX) / dpr;
-		const y = (node.y * scale + renderer.panY) / dpr;
+		// A turned pane needs the rotation applied here too, or the label goes to
+		// where the node would be if the graph were level — most of the pane away
+		// at 90 degrees. Graph Rotator publishes the angle; 0 when it is not
+		// installed or not attached, which is the arithmetic this had before.
+		const app = this.app || (this.controller && this.controller.app);
+		const rotator = app && app.__graphRotator;
+		const angle = rotator && typeof rotator.angleOf === 'function' ? rotator.angleOf(renderer) : 0;
+		const wx = node.x * scale;
+		const wy = node.y * scale;
+		const cos = Math.cos(angle);
+		const sin = Math.sin(angle);
+		const x = (renderer.panX + wx * cos - wy * sin) / dpr;
+		const y = (renderer.panY + wx * sin + wy * cos) / dpr;
 		if (!isFinite(x) || !isFinite(y)) return null;
 
 		const size = typeof node.getSize === 'function' ? node.getSize() : 0;

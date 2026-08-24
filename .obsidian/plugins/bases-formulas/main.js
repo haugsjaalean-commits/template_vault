@@ -1,8 +1,22 @@
 'use strict';
 
 /*
- * Bases Formulas
- * --------------
+ * Bases Shared
+ * ------------
+ * Two right-sidebar tabs over what every base in the vault has in common, and
+ * one Sync behind both:
+ *
+ *   Formulas  one list of formulas, shared by every base
+ *   Views     one list of views, shared by every base
+ *
+ * They are two halves of one plugin rather than two plugins because they write
+ * the same lines of the same files. A shared view's `order:` and `sort:` name
+ * `formula.*` columns, so whatever writes views has to know which formulas each
+ * base carries; two plugins would be two owners of one file, disagreeing.
+ *
+ * The views half is further down, under "views: the shared ones" and "the views
+ * tab". What follows is the formulas half.
+ *
  * A right-sidebar panel over the formulas of every base in the vault. There is
  * one list of formulas, and it is shared: a formula written once is defined in
  * every base, so it shows up in every base's column picker, filter menu and
@@ -71,18 +85,38 @@ const obsidian = require('obsidian');
 const { Plugin, PluginSettingTab, Setting, ItemView, Modal, Notice, parseYaml, setIcon } = obsidian;
 
 const VIEW_TYPE = 'bases-formulas-panel';
+const VIEWS_VIEW_TYPE = 'bases-shared-views-panel';
+
+/*
+ * The keys a shared view keeps per base. Everything here is something Obsidian
+ * rewrites from looking at a view rather than from a decision he made, so
+ * sharing them would mean one pan of one graph rewriting every base.
+ */
+const DEFAULT_LOCAL_VIEW_KEYS = [
+	'columnSize',
+	'graphOptions.scale',
+	'graphOptions.close',
+	'graphOptions.collapse-filter',
+	'graphOptions.collapse-color-groups',
+	'graphOptions.collapse-display',
+	'graphOptions.collapse-forces',
+];
 
 const DEFAULT_SETTINGS = {
 	/* Write to the bases as soon as anything changes, without a plan. */
 	autoSync: true,
 	/* Pick up formulas written through Obsidian's own base UI. */
 	adoptFromBases: true,
+	/* Carry an edit made to a shared view in one base back to the others. */
+	adoptViewEdits: true,
 	/* Manage the `displayName` under `properties:` as well as the expression. */
 	manageDisplayNames: true,
 	/* '' means the whole vault. */
 	basesFolder: '',
 	/* How long to wait after a base changes before syncing, in milliseconds. */
 	syncDelay: 900,
+	/* Per-base keys of a shared view. One per line in the settings tab. */
+	localViewKeys: DEFAULT_LOCAL_VIEW_KEYS.slice(),
 };
 
 /* --------------------------------------------------------------- the model */
@@ -102,6 +136,22 @@ function newFormula(name, expression) {
 	};
 }
 
+/*
+ * A shared view. `body` is the view's YAML minus `name:`, `type:` and the
+ * per-base keys; the scope is the same three-valued thing a formula has, so
+ * `Only…` and `All except…` mean here exactly what they mean there.
+ */
+function newView(name, type, body) {
+	return {
+		name: name,
+		type: type || 'table',
+		body: Array.isArray(body) ? body.slice() : [],
+		scope: 'all',
+		bases: [],
+	};
+}
+
+/* Formulas and views are scoped the same way, so this reads both. */
 function appliesTo(formula, path) {
 	if (formula.scope === 'only') return formula.bases.indexOf(path) !== -1;
 	if (formula.scope === 'except') return formula.bases.indexOf(path) === -1;
@@ -371,6 +421,39 @@ function editViews(lines, edit) {
 	return lines.slice(0, block.start).concat(edited, lines.slice(block.end));
 }
 
+/*
+ * Taking the last entry out of a list leaves the key that held it standing with
+ * nothing under it, and `sort:` followed by nothing is not an empty sort - it is
+ * a null, and the view reads it as a broken one. So a key emptied by a removal
+ * goes with its last child.
+ *
+ * Only a key that *had* children is considered, so a key he wrote empty himself
+ * is left alone, and only one occurrence at a time: two views can both have a
+ * `sort:`, and one of them keeping its entries says nothing about the other.
+ */
+function dropEmptied(before, after) {
+	const hadChildren = new Set();
+	for (let i = 0; i < before.length; i++) {
+		const m = before[i].trim() ? /^(\s*)([^:]+):\s*$/.exec(before[i]) : null;
+		if (m && deeperEnd(before, i, m[1].length) > i) hadChildren.add(before[i]);
+	}
+	if (!hadChildren.size) return after;
+
+	let out = after;
+	/* A key emptied by dropping an emptied child needs another pass. */
+	for (let round = 0; round < 4; round++) {
+		const next = [];
+		for (let i = 0; i < out.length; i++) {
+			const m = out[i].trim() ? /^(\s*)([^:]+):\s*$/.exec(out[i]) : null;
+			if (m && hadChildren.has(out[i]) && deeperEnd(out, i, m[1].length) === i) continue;
+			next.push(out[i]);
+		}
+		if (next.length === out.length) return out;
+		out = next;
+	}
+	return out;
+}
+
 function removeFormulaReferences(lines, names) {
 	if (names.length === 0) return lines;
 	return editViews(lines, (body) => {
@@ -383,7 +466,7 @@ function removeFormulaReferences(lines, names) {
 			 * a sort entry, say. A blank line ends it, and so does a sibling. */
 			while (i + 1 < body.length && body[i + 1].trim() && indentOf(body[i + 1]) > indent) i++;
 		}
-		return out;
+		return dropEmptied(body, out);
 	});
 }
 
@@ -403,37 +486,444 @@ function renameFormulaReferences(lines, from, to) {
  * Append the formula to every `order:` list that does not have it. Views
  * without an `order:` are left alone: they are showing default columns, and a
  * one-item `order:` would hide them.
+ *
+ * Shared views are skipped here and handled in the list instead - a column
+ * appended to a shared view in fifteen bases would come back as fifteen
+ * simultaneous edits to the same view, one of which would win.
  */
-function addToViewOrders(lines, names) {
+function addToViewOrders(lines, names, skipNames) {
 	if (names.length === 0) return lines;
-	return editViews(lines, (body) => {
-		let out = body.slice();
-		for (const name of names) {
-			const ref = '- ' + formulaRef(name);
-			const next = [];
-			for (let i = 0; i < out.length; i++) {
-				next.push(out[i]);
-				const m = /^(\s+)order:\s*$/.exec(out[i]);
-				if (!m) continue;
+	const block = blockFor(lines, 'views');
+	if (!block) return lines;
 
-				const keyIndent = m[1].length;
-				let end = i + 1;
-				let present = false;
-				while (end < out.length) {
-					const line = out[end];
-					if (!line.trim()) break;
-					if (indentOf(line) <= keyIndent) break;
-					if (line.trim() === ref) present = true;
-					next.push(line);
-					end++;
+	const parsed = parseViews(lines, block);
+	const skip = new Set(skipNames || []);
+	const blockLines = ['views:'];
+
+	for (const entry of parsed.entries) {
+		const entryLines = entry.lines.slice();
+		if (!entry.name || !skip.has(entry.name)) {
+			const keyIndent = entry.indent + 2;
+			for (const name of names) {
+				const ref = '- ' + formulaRef(name);
+				const lv = entryLines.map((l, i) => (i === 0 ? l.replace(/^(\s*)-\s?/, '$1  ') : l));
+				for (let i = 0; i < lv.length; i++) {
+					if (!lv[i].trim() || indentOf(lv[i]) !== keyIndent) continue;
+					if (keyOf(lv[i]) !== 'order') continue;
+
+					const end = deeperEnd(lv, i, keyIndent);
+					let present = false;
+					let childIndent = keyIndent + 2;
+					for (let j = i + 1; j <= end; j++) {
+						if (!lv[j].trim()) continue;
+						childIndent = Math.min(childIndent, indentOf(lv[j]));
+						if (lv[j].trim() === ref) present = true;
+					}
+					if (!present) entryLines.splice(end + 1, 0, ' '.repeat(childIndent) + ref);
+					break;
 				}
-				if (!present) next.push(' '.repeat(keyIndent + 2) + ref);
-				i = end - 1;
 			}
-			out = next;
 		}
-		return out;
+		for (const line of entryLines) blockLines.push(line);
+	}
+
+	while (blockLines.length > 1 && !blockLines[blockLines.length - 1].trim()) blockLines.pop();
+	return replaceBlock(lines, block, blockLines);
+}
+
+/* ----- views: the shared ones ---------------------------------------------- */
+
+/*
+ * A shared view is kept as *lines*, not as a parsed object. A view is a nested
+ * map whose keys nothing here models - `graphOptions`, `ringSpread`, whatever
+ * Bases grows next - and re-emitting a parsed one would quietly drop the parts
+ * I did not think of. So the panel keeps the YAML it captured and writes that
+ * same YAML into the other bases, re-indented.
+ *
+ * Some keys are deliberately not shared:
+ *
+ *   scale, close, collapse-*   the graph camera, and which sections of the
+ *                              graph settings are folded. Obsidian rewrites
+ *                              these from merely looking at a view, so sharing
+ *                              them would rewrite every base every time he pans
+ *                              one graph.
+ *   columnSize                 column widths, dragged per base.
+ *
+ * They are stripped when a view is captured, and put back from each base's own
+ * copy when it is written, so every base keeps its own.
+ *
+ * A view's `filters:` sits inside the view and travels with it. The base's
+ * top-level `filters:` is a different block and is never touched - which is
+ * what makes a shared view usable at all: one local filter over each base's own
+ * global one.
+ */
+
+/* The last line of the run that hangs under `lines[i]`. */
+function deeperEnd(lines, i, indent) {
+	let end = i;
+	for (let j = i + 1; j < lines.length; j++) {
+		if (!lines[j].trim()) continue;
+		if (indentOf(lines[j]) <= indent) break;
+		end = j;
+	}
+	return end;
+}
+
+function keyOf(line) {
+	const m = /^\s*([^:]+):(\s|$)/.exec(line);
+	if (!m) return null;
+	const key = m[1].trim();
+	if (key.indexOf('- ') === 0) return null;
+	return key.replace(/^["']|["']$/g, '');
+}
+
+/*
+ * The entries of `views:`, which is a sequence, not a map. Each entry keeps its
+ * lines verbatim; an entry not in the shared list is put back exactly as found.
+ */
+function parseViews(lines, block) {
+	const entries = [];
+	let dashIndent = -1;
+	let current = null;
+
+	for (let i = block.start + 1; i < block.end; i++) {
+		const line = lines[i];
+		if (!line.trim()) { if (current) current.lines.push(line); continue; }
+		const indent = indentOf(line);
+		const isItem = /^\s*-(\s|$)/.test(line);
+
+		if (isItem && (dashIndent === -1 || indent === dashIndent)) {
+			if (dashIndent === -1) dashIndent = indent;
+			current = { indent: indent, lines: [line] };
+			entries.push(current);
+		} else if (current) {
+			current.lines.push(line);
+		}
+	}
+	for (const entry of entries) Object.assign(entry, viewParts(entry));
+	return { entries: entries, indent: dashIndent === -1 ? 2 : dashIndent };
+}
+
+/* The entry's own lines with the `- ` turned into indent, so every key of the
+ * view sits at one column and the body can be read like an ordinary map. */
+function levelled(entry) {
+	return entry.lines.map((line, i) => (i === 0 ? line.replace(/^(\s*)-\s?/, '$1  ') : line));
+}
+
+/*
+ * name and type - the identity of a view - and the body, which is every other
+ * key, dedented to column zero. `name` is how a shared view is matched across
+ * bases, so it is held apart from the body rather than written from it.
+ */
+function viewParts(entry) {
+	const keyIndent = entry.indent + 2;
+	const lines = levelled(entry);
+	const body = [];
+	let name = '';
+	let type = '';
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (!line.trim()) { if (body.length) body.push(''); continue; }
+		if (indentOf(line) !== keyIndent) continue;
+
+		const key = keyOf(line);
+		const end = deeperEnd(lines, i, keyIndent);
+
+		if (key === 'name' || key === 'type') {
+			const m = /^\s*[^:]+:\s*(.*)$/.exec(line);
+			const value = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+			if (key === 'name') name = value; else type = value;
+		} else {
+			for (let j = i; j <= end; j++) body.push(lines[j].slice(keyIndent));
+		}
+		i = end;
+	}
+	while (body.length && !body[body.length - 1].trim()) body.pop();
+	return { name: name, type: type, body: body };
+}
+
+/* 'columnSize' or 'graphOptions.scale', split into the two shapes that need
+ * different handling. Only one level of nesting: that is all the churning keys
+ * need, and a deeper path would be a guess about a schema I do not control. */
+function splitLocalKeys(keys) {
+	const top = new Set();
+	const nested = new Map();
+	for (const key of keys) {
+		const at = key.indexOf('.');
+		if (at === -1) { top.add(key); continue; }
+		const parent = key.slice(0, at);
+		if (!nested.has(parent)) nested.set(parent, new Set());
+		nested.get(parent).add(key.slice(at + 1));
+	}
+	return { top: top, nested: nested };
+}
+
+function stripLocalKeys(body, keys) {
+	const { top, nested } = splitLocalKeys(keys);
+	const out = [];
+
+	for (let i = 0; i < body.length; i++) {
+		const line = body[i];
+		if (!line.trim()) { out.push(line); continue; }
+		if (indentOf(line) !== 0) { out.push(line); continue; }
+
+		const key = keyOf(line);
+		const end = deeperEnd(body, i, 0);
+
+		if (key !== null && top.has(key)) { i = end; continue; }
+
+		if (key !== null && nested.has(key)) {
+			const children = nested.get(key);
+			out.push(line);
+			let childIndent = -1;
+			for (let j = i + 1; j <= end; j++) {
+				if (!body[j].trim()) { out.push(body[j]); continue; }
+				const indent = indentOf(body[j]);
+				if (childIndent === -1) childIndent = indent;
+				if (indent === childIndent) {
+					const child = keyOf(body[j]);
+					if (child !== null && children.has(child)) { j = deeperEnd(body, j, indent); continue; }
+				}
+				out.push(body[j]);
+			}
+			i = end;
+			continue;
+		}
+
+		out.push(line);
+	}
+	while (out.length && !out[out.length - 1].trim()) out.pop();
+	return out;
+}
+
+/*
+ * The other direction: what this base keeps for itself, dedented, each with the
+ * sibling it followed.
+ *
+ * The anchor is the point. Obsidian writes graphOptions in its own order, with
+ * `scale` after `linkDistance` and the `collapse-` keys scattered through the
+ * block - so putting them back at the end would move them, Obsidian would move
+ * them back at the next save, and the two of us would rewrite the file at each
+ * other forever. Put back where they were, nothing moves and nothing churns.
+ */
+function pickLocalKeys(body, keys) {
+	const { top, nested } = splitLocalKeys(keys);
+	const picked = new Map();
+	let previousTop = null;
+
+	for (let i = 0; i < body.length; i++) {
+		const line = body[i];
+		if (!line.trim() || indentOf(line) !== 0) continue;
+		const key = keyOf(line);
+		if (key === null) continue;
+		const end = deeperEnd(body, i, 0);
+
+		if (top.has(key)) {
+			picked.set(key, { lines: body.slice(i, end + 1), after: previousTop });
+		} else if (nested.has(key)) {
+			const children = nested.get(key);
+			let childIndent = -1;
+			let previousChild = null;
+			for (let j = i + 1; j <= end; j++) {
+				if (!body[j].trim()) continue;
+				const indent = indentOf(body[j]);
+				if (childIndent === -1) childIndent = indent;
+				if (indent !== childIndent) continue;
+				const child = keyOf(body[j]);
+				if (child === null) continue;
+				const childEnd = deeperEnd(body, j, indent);
+				if (children.has(child)) {
+					picked.set(key + '.' + child, {
+						lines: body.slice(j, childEnd + 1).map((l) => l.slice(indent)),
+						after: previousChild,
+					});
+				}
+				previousChild = child;
+				j = childEnd;
+			}
+		}
+		previousTop = key;
+		i = end;
+	}
+	return picked;
+}
+
+function insertAfterTop(body, after, lines) {
+	if (after === null) return lines.concat(body);
+	for (let i = 0; i < body.length; i++) {
+		if (!body[i].trim() || indentOf(body[i]) !== 0) continue;
+		if (keyOf(body[i]) !== after) continue;
+		const end = deeperEnd(body, i, 0) + 1;
+		return body.slice(0, end).concat(lines, body.slice(end));
+	}
+	return body.concat(lines);
+}
+
+/*
+ * Walked in the order they were found, so that a local key anchored on another
+ * local key - `close` follows `scale`, and both are local - finds its anchor
+ * already back in place.
+ */
+function injectLocalKeys(body, picked) {
+	let out = body.slice();
+
+	for (const [key, held] of picked) {
+		if (!held.lines.length) continue;
+
+		const at = key.indexOf('.');
+		if (at === -1) { out = insertAfterTop(out, held.after, held.lines); continue; }
+
+		/* A nested one goes back inside its parent, at the parent's own child
+		 * indent - and only if the parent is in the shared body at all. */
+		const parent = key.slice(0, at);
+		let start = -1;
+		for (let i = 0; i < out.length; i++) {
+			if (out[i].trim() && indentOf(out[i]) === 0 && keyOf(out[i]) === parent) { start = i; break; }
+		}
+		if (start === -1) continue;
+
+		const end = deeperEnd(out, start, 0);
+		let childIndent = 2;
+		for (let i = start + 1; i <= end; i++) {
+			if (out[i].trim()) { childIndent = indentOf(out[i]); break; }
+		}
+		const pad = ' '.repeat(childIndent);
+		const lines = held.lines.map((l) => (l ? pad + l : ''));
+
+		let insertAt = start + 1;
+		if (held.after !== null) {
+			insertAt = end + 1;
+			for (let i = start + 1; i <= end; i++) {
+				if (!out[i].trim() || indentOf(out[i]) !== childIndent) continue;
+				if (keyOf(out[i]) !== held.after) continue;
+				insertAt = deeperEnd(out, i, childIndent) + 1;
+				break;
+			}
+		}
+		out = out.slice(0, insertAt).concat(lines, out.slice(insertAt));
+	}
+	return out;
+}
+
+/* Everything the base's `views:` holds, keyed by name, with the local keys
+ * taken out - which is the form a shared view is compared and stored in. */
+function viewsIn(lines, localKeys) {
+	const block = blockFor(lines, 'views');
+	const out = new Map();
+	if (!block) return out;
+	for (const entry of parseViews(lines, block).entries) {
+		if (!entry.name) continue;
+		out.set(entry.name, {
+			type: entry.type,
+			body: stripLocalKeys(entry.body, localKeys),
+			local: pickLocalKeys(entry.body, localKeys),
+		});
+	}
+	return out;
+}
+
+/* One string per view, so "did this base change" is a string comparison. */
+function viewFingerprint(type, body) {
+	return String(type || '') + '\n' + body.join('\n');
+}
+
+function viewEntryLines(view, body, indent) {
+	const pad = ' '.repeat(indent);
+	const keyPad = ' '.repeat(indent + 2);
+	const out = [pad + '- type: ' + yamlValue(view.type || 'table')];
+	out.push(keyPad + 'name: ' + yamlValue(view.name));
+	for (const line of body) out.push(line ? keyPad + line : '');
+	while (out.length > 1 && !out[out.length - 1].trim()) out.pop();
+	return out;
+}
+
+/*
+ * upserts: [{ match, view, body }] - `match` is the name to look for, which is
+ * the old one when the view has just been renamed.
+ * removals: names to take out.
+ * Entries the list knows nothing about are copied across untouched.
+ */
+function setSharedViews(lines, upserts, removals) {
+	if (!upserts.length && !removals.length) return lines;
+
+	const block = blockFor(lines, 'views');
+	const parsed = block ? parseViews(lines, block) : { entries: [], indent: 2 };
+	const indent = parsed.indent;
+	const gone = new Set(removals);
+
+	const kept = [];
+	const done = new Set();
+
+	for (const entry of parsed.entries) {
+		if (entry.name && gone.has(entry.name)) continue;
+
+		let hit = null;
+		for (const upsert of upserts) {
+			if (entry.name && entry.name === upsert.match) { hit = upsert; break; }
+		}
+		if (!hit) { kept.push(entry.lines); continue; }
+		kept.push(viewEntryLines(hit.view, hit.body, indent));
+		done.add(hit.view.name);
+	}
+
+	for (const upsert of upserts) {
+		if (done.has(upsert.view.name)) continue;
+		kept.push(viewEntryLines(upsert.view, upsert.body, indent));
+	}
+
+	if (!kept.length) return block ? removeBlock(lines, block) : lines;
+
+	const blockLines = ['views:'];
+	for (const entry of kept) for (const line of entry) blockLines.push(line);
+	while (blockLines.length > 1 && !blockLines[blockLines.length - 1].trim()) blockLines.pop();
+
+	return block ? replaceBlock(lines, block, blockLines) : insertTopLevel(lines, 'views', blockLines);
+}
+
+/* ----- a shared view's own body, corrected for formulas -------------------- */
+
+/* The same three shapes as in a base, applied to a body held in the list. A
+ * shared view can name a formula that is scoped out of the base it is being
+ * written into, and a column pointing at a formula that is not there is a
+ * broken column. */
+function removeRefsInBody(body, names) {
+	if (!names.length) return body;
+	const out = [];
+	for (let i = 0; i < body.length; i++) {
+		if (!referencesIn(body[i], names)) { out.push(body[i]); continue; }
+		i = deeperEnd(body, i, indentOf(body[i]));
+	}
+	return dropEmptied(body, out);
+}
+
+function renameRefsInBody(body, from, to) {
+	const oldRef = formulaRef(from);
+	const newRef = formulaRef(to);
+	return body.map((line) => {
+		const trimmed = line.trim();
+		if (trimmed === '- ' + oldRef) return line.replace(oldRef, newRef);
+		if (trimmed === '- property: ' + oldRef) return line.replace(oldRef, newRef);
+		if (trimmed.indexOf(oldRef + ':') === 0) return line.replace(oldRef + ':', newRef + ':');
+		return line;
 	});
+}
+
+/* `Add as column` reaching a shared view means the column joins the shared
+ * body, so every base gets it - rather than being appended per base and then
+ * read back as fifteen simultaneous edits. */
+function addRefToBodyOrder(body, name) {
+	const ref = '- ' + formulaRef(name);
+	for (let i = 0; i < body.length; i++) {
+		if (!body[i].trim() || indentOf(body[i]) !== 0) continue;
+		if (keyOf(body[i]) !== 'order') continue;
+		const end = deeperEnd(body, i, 0);
+		for (let j = i + 1; j <= end; j++) if (body[j].trim() === ref) return body;
+		let childIndent = 2;
+		for (let j = i + 1; j <= end; j++) { if (body[j].trim()) { childIndent = indentOf(body[j]); break; } }
+		return body.slice(0, end + 1).concat([' '.repeat(childIndent) + ref], body.slice(end + 1));
+	}
+	return body;
 }
 
 /* ------------------------------------------------------------------- plugin */
@@ -453,11 +943,20 @@ class BasesFormulasPlugin extends Plugin {
 		/* Names he asked to be added as a column, once. */
 		this.pendingColumns = [];
 
+		/* The other half: the shared list of views. */
+		this.views = [];
+		/* path -> { name: fingerprint }, what was last agreed with that base. */
+		this.viewSnapshots = {};
+		this.pendingViewDeletes = [];
+		this.pendingViewRenames = [];
+
 		await this.loadState();
 
 		this.registerView(VIEW_TYPE, (leaf) => new FormulasView(leaf, this));
+		this.registerView(VIEWS_VIEW_TYPE, (leaf) => new SharedViewsView(leaf, this));
 
 		this.addRibbonIcon('sigma', 'Bases Formulas', () => { this.activateView(); });
+		this.addRibbonIcon('layout-grid', 'Bases Views', () => { this.activateView(VIEWS_VIEW_TYPE); });
 
 		this.addCommand({
 			id: 'open-formulas-panel',
@@ -466,8 +965,14 @@ class BasesFormulasPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'open-views-panel',
+			name: 'Open the views panel',
+			callback: () => { this.activateView(VIEWS_VIEW_TYPE); },
+		});
+
+		this.addCommand({
 			id: 'sync-formulas',
-			name: 'Sync formulas to every base',
+			name: 'Sync formulas and views to every base',
 			callback: () => { this.openPlan(); },
 		});
 
@@ -488,15 +993,16 @@ class BasesFormulasPlugin extends Plugin {
 		if (this.syncTimer) window.clearTimeout(this.syncTimer);
 	}
 
-	async activateView() {
-		const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+	async activateView(type) {
+		const wanted = type || VIEW_TYPE;
+		const existing = this.app.workspace.getLeavesOfType(wanted);
 		if (existing.length > 0) {
 			this.app.workspace.revealLeaf(existing[0]);
 			return;
 		}
 		const leaf = this.app.workspace.getRightLeaf(false);
 		if (!leaf) return;
-		await leaf.setViewState({ type: VIEW_TYPE, active: true });
+		await leaf.setViewState({ type: wanted, active: true });
 		this.app.workspace.revealLeaf(leaf);
 	}
 
@@ -516,20 +1022,38 @@ class BasesFormulasPlugin extends Plugin {
 			this.formulas.push(formula);
 		}
 
+		this.views = [];
+		for (const raw of data.views || []) {
+			if (!raw || !raw.name) continue;
+			const view = newView(String(raw.name), String(raw.type || 'table'),
+				Array.isArray(raw.body) ? raw.body.map(String) : []);
+			view.scope = raw.scope === 'only' || raw.scope === 'except' ? raw.scope : 'all';
+			view.bases = Array.isArray(raw.bases) ? raw.bases.map(String) : [];
+			this.views.push(view);
+		}
+
 		this.snapshots = data.snapshots && typeof data.snapshots === 'object' ? data.snapshots : {};
+		this.viewSnapshots = data.viewSnapshots && typeof data.viewSnapshots === 'object'
+			? data.viewSnapshots : {};
 		this.pendingDeletes = Array.isArray(data.pendingDeletes) ? data.pendingDeletes : [];
 		this.pendingRenames = Array.isArray(data.pendingRenames) ? data.pendingRenames : [];
 		this.pendingColumns = Array.isArray(data.pendingColumns) ? data.pendingColumns : [];
+		this.pendingViewDeletes = Array.isArray(data.pendingViewDeletes) ? data.pendingViewDeletes : [];
+		this.pendingViewRenames = Array.isArray(data.pendingViewRenames) ? data.pendingViewRenames : [];
 	}
 
 	async saveState() {
 		await this.saveData({
 			settings: this.settings,
 			formulas: this.formulas,
+			views: this.views,
 			snapshots: this.snapshots,
+			viewSnapshots: this.viewSnapshots,
 			pendingDeletes: this.pendingDeletes,
 			pendingRenames: this.pendingRenames,
 			pendingColumns: this.pendingColumns,
+			pendingViewDeletes: this.pendingViewDeletes,
+			pendingViewRenames: this.pendingViewRenames,
 		});
 	}
 
@@ -538,9 +1062,21 @@ class BasesFormulasPlugin extends Plugin {
 		return null;
 	}
 
+	viewNamed(name) {
+		for (const view of this.views) if (view.name === name) return view;
+		return null;
+	}
+
+	localViewKeys() {
+		const keys = this.settings.localViewKeys;
+		return Array.isArray(keys) ? keys.filter((k) => k && k.trim()).map((k) => k.trim()) : [];
+	}
+
 	refreshPanel() {
-		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
-			if (leaf.view && typeof leaf.view.render === 'function') leaf.view.render();
+		for (const type of [VIEW_TYPE, VIEWS_VIEW_TYPE]) {
+			for (const leaf of this.app.workspace.getLeavesOfType(type)) {
+				if (leaf.view && typeof leaf.view.render === 'function') leaf.view.render();
+			}
 		}
 	}
 
@@ -589,10 +1125,18 @@ class BasesFormulasPlugin extends Plugin {
 	async buildPlan() {
 		const plan = {
 			formulas: this.formulas.map((f) => Object.assign({}, f, { bases: f.bases.slice() })),
+			views: this.views.map((v) => Object.assign({}, v, {
+				bases: v.bases.slice(),
+				body: v.body.slice(),
+			})),
 			adoptions: [],
 			expressionUpdates: [],
 			scopeExtensions: [],
 			renames: this.pendingRenames.slice(),
+			viewUpdates: [],
+			viewScopeExtensions: [],
+			viewRenames: this.pendingViewRenames.slice(),
+			viewPrints: {},
 			files: [],
 			errors: [],
 		};
@@ -603,6 +1147,11 @@ class BasesFormulasPlugin extends Plugin {
 
 		const named = new Map();
 		for (const formula of plan.formulas) named.set(formula.name, formula);
+
+		const localKeys = this.localViewKeys();
+		const viewNames = new Set(plan.views.map((v) => v.name));
+		const viewDeleted = new Set(this.pendingViewDeletes);
+		const viewRenamedFrom = new Set(this.pendingViewRenames.map((r) => r.from));
 
 		const bases = this.listBases();
 		const contents = new Map();
@@ -624,7 +1173,56 @@ class BasesFormulasPlugin extends Plugin {
 				plan.errors.push({ path: file.path, message: 'is not valid YAML, so it was skipped' });
 				continue;
 			}
-			contents.set(file.path, { text: text, found: found });
+			const baseViews = viewsIn(text.split('\n'), localKeys);
+			contents.set(file.path, { text: text, found: found, views: baseViews });
+
+			/*
+			 * A shared view he tuned in one base. The snapshot decides, exactly as
+			 * it does for a formula: what we last wrote is what "unchanged" means,
+			 * so anything else is his hand, and his hand wins.
+			 *
+			 * The per-base keys are already out of both sides of this comparison,
+			 * which is what stops a pan of one graph from looking like an edit.
+			 */
+			if (this.settings.adoptViewEdits) {
+				const viewSnapshot = this.viewSnapshots[file.path] || {};
+
+				for (const view of plan.views) {
+					const key = baseViews.has(view.name)
+						? view.name
+						: this.renameSourceForView(view.name, baseViews);
+					if (!key) continue;
+
+					const entry = baseViews.get(key);
+					const print = viewFingerprint(entry.type, entry.body);
+
+					/*
+					 * Only a base we have already written this view to can have
+					 * edited it. Without that, sharing a view would lose the moment
+					 * it started: two bases can hold different views under one name
+					 * - `Graph` is in nearly all of his - and every one of them
+					 * would look like an edit, so the last base in path order would
+					 * overwrite the one he actually picked. A base with no snapshot
+					 * for this view has never agreed anything about it, so it gets
+					 * the shared one.
+					 */
+					if (key in viewSnapshot
+						&& print !== viewSnapshot[key]
+						&& print !== viewFingerprint(view.type, view.body)) {
+						view.type = entry.type;
+						view.body = entry.body.slice();
+						plan.viewUpdates.push({ name: view.name, path: file.path });
+					}
+
+					/* Present in a base it is scoped out of, and we did not put it
+					 * there - so he did, and that is a request to include it. */
+					if (!appliesTo(view, file.path) && !(key in viewSnapshot)) {
+						if (view.scope === 'only') view.bases.push(file.path);
+						else view.bases = view.bases.filter((p) => p !== file.path);
+						plan.viewScopeExtensions.push({ name: view.name, path: file.path });
+					}
+				}
+			}
 
 			if (!this.settings.adoptFromBases) continue;
 
@@ -666,6 +1264,21 @@ class BasesFormulasPlugin extends Plugin {
 			}
 		}
 
+		/*
+		 * Between the passes: a shared body is corrected once, in the list, not
+		 * fifteen times in fifteen files. A formula renamed, removed, or queued
+		 * as a column reaches every base through the view it is named in.
+		 */
+		for (const view of plan.views) {
+			for (const rename of this.pendingRenames) {
+				view.body = renameRefsInBody(view.body, rename.from, rename.to);
+			}
+			view.body = removeRefsInBody(view.body, [...deleted]);
+			for (const name of this.pendingColumns) {
+				if (named.has(name)) view.body = addRefToBodyOrder(view.body, name);
+			}
+		}
+
 		/* Pass two: build the text each base should have. */
 		for (const file of bases) {
 			const entry = contents.get(file.path);
@@ -684,6 +1297,11 @@ class BasesFormulasPlugin extends Plugin {
 				removed: [],
 				renamed: [],
 				columns: [],
+				viewsAdded: [],
+				viewsChanged: [],
+				viewsRemoved: [],
+				viewsRenamed: [],
+				viewsEmptied: false,
 			};
 
 			/* Anything in the base that the list does not know about is his -
@@ -711,7 +1329,59 @@ class BasesFormulasPlugin extends Plugin {
 				if (applicableNames.has(name)) change.columns.push(name);
 			}
 
+			/*
+			 * The views half. Composed first, so that everything below - the
+			 * formula renames, the removals, the queued columns - runs over the
+			 * text as it will be, not as it was.
+			 */
+			const baseViews = entry.views;
+			const applicableViews = plan.views.filter((v) => appliesTo(v, file.path));
+			const applicableViewNames = new Set(applicableViews.map((v) => v.name));
+			/* Formulas this base does not carry. A column pointing at one of them
+			 * is a broken column, so a shared view arrives here without it. */
+			const absent = plan.formulas.filter((f) => !appliesTo(f, file.path)).map((f) => f.name);
+
+			const upserts = [];
+			const prints = {};
+
+			for (const view of applicableViews) {
+				const match = baseViews.has(view.name)
+					? view.name
+					: (this.renameSourceForView(view.name, baseViews) || view.name);
+				const existing = baseViews.get(match);
+
+				const shared = removeRefsInBody(view.body, absent);
+				const body = injectLocalKeys(shared, existing ? existing.local : new Map());
+
+				if (!existing) change.viewsAdded.push(view.name);
+				else if (match !== view.name) change.viewsRenamed.push({ from: match, to: view.name });
+				else if (viewFingerprint(view.type, shared) !== viewFingerprint(existing.type, existing.body)) {
+					change.viewsChanged.push(view.name);
+				}
+
+				prints[view.name] = viewFingerprint(view.type, shared);
+				upserts.push({ match: match, view: view, body: body });
+			}
+
+			const matched = new Set(upserts.map((u) => u.match));
+			for (const name of baseViews.keys()) {
+				if (applicableViewNames.has(name) || matched.has(name)) continue;
+				if (viewRenamedFrom.has(name)) continue;
+				if (!viewNames.has(name) && !viewDeleted.has(name)) continue;
+				change.viewsRemoved.push(name);
+			}
+			plan.viewPrints[file.path] = prints;
+
 			let lines = entry.text.split('\n');
+
+			if (upserts.length || change.viewsRemoved.length) {
+				/* A base whose only view was a shared one that just left keeps no
+				 * `views:` block at all, and Obsidian gives it a default view. */
+				change.viewsEmptied = baseViews.size > 0
+					&& !upserts.length
+					&& change.viewsRemoved.length === baseViews.size;
+				lines = setSharedViews(lines, upserts, change.viewsRemoved);
+			}
 
 			for (const rename of this.pendingRenames) {
 				if (!entry.found.has(rename.from)) continue;
@@ -724,7 +1394,7 @@ class BasesFormulasPlugin extends Plugin {
 				.concat(unknown));
 			lines = setFormulaProperties(lines, applicable, change.removed,
 				this.settings.manageDisplayNames);
-			lines = addToViewOrders(lines, change.columns);
+			lines = addToViewOrders(lines, change.columns, [...applicableViewNames]);
 
 			let after = lines.join('\n');
 			if (after && !after.endsWith('\n')) after += '\n';
@@ -744,15 +1414,26 @@ class BasesFormulasPlugin extends Plugin {
 		return null;
 	}
 
+	/* A shared view shows a pending rename as the old name still sitting there. */
+	renameSourceForView(name, found) {
+		for (const rename of this.pendingViewRenames) {
+			if (rename.to === name && found.has(rename.from)) return rename.from;
+		}
+		return null;
+	}
+
 	planIsEmpty(plan) {
 		return plan.files.length === 0
 			&& plan.adoptions.length === 0
 			&& plan.expressionUpdates.length === 0
-			&& plan.scopeExtensions.length === 0;
+			&& plan.scopeExtensions.length === 0
+			&& plan.viewUpdates.length === 0
+			&& plan.viewScopeExtensions.length === 0;
 	}
 
 	async applyPlan(plan) {
 		this.formulas = plan.formulas;
+		this.views = plan.views;
 
 		for (const change of plan.files) {
 			this.writing.add(change.path);
@@ -778,9 +1459,16 @@ class BasesFormulasPlugin extends Plugin {
 		}
 		this.snapshots = snapshots;
 
+		/* Views cannot be rebuilt from the list the same way: what each base got
+		 * depends on which formulas it carries, so the plan records it per base
+		 * as it composes. */
+		this.viewSnapshots = plan.viewPrints;
+
 		this.pendingDeletes = [];
 		this.pendingRenames = [];
 		this.pendingColumns = [];
+		this.pendingViewDeletes = [];
+		this.pendingViewRenames = [];
 
 		await this.saveState();
 		this.refreshPanel();
@@ -801,8 +1489,9 @@ class BasesFormulasPlugin extends Plugin {
 
 	async onBaseGone(file) {
 		if (!file || file.extension !== 'base') return;
-		if (!(file.path in this.snapshots)) return;
+		if (!(file.path in this.snapshots) && !(file.path in this.viewSnapshots)) return;
 		delete this.snapshots[file.path];
+		delete this.viewSnapshots[file.path];
 		this.forgetBase(file.path);
 		await this.saveState();
 		this.refreshPanel();
@@ -810,16 +1499,17 @@ class BasesFormulasPlugin extends Plugin {
 
 	async onBaseRenamed(file, oldPath) {
 		if (!file || file.extension !== 'base') return;
-		if (oldPath in this.snapshots) {
-			this.snapshots[file.path] = this.snapshots[oldPath];
-			delete this.snapshots[oldPath];
+		for (const snapshots of [this.snapshots, this.viewSnapshots]) {
+			if (!(oldPath in snapshots)) continue;
+			snapshots[file.path] = snapshots[oldPath];
+			delete snapshots[oldPath];
 		}
 		/* A scope names bases by path, so a rename has to follow. */
 		let touched = false;
-		for (const formula of this.formulas) {
-			const at = formula.bases.indexOf(oldPath);
+		for (const scoped of this.formulas.concat(this.views)) {
+			const at = scoped.bases.indexOf(oldPath);
 			if (at === -1) continue;
-			formula.bases[at] = file.path;
+			scoped.bases[at] = file.path;
 			touched = true;
 		}
 		await this.saveState();
@@ -827,8 +1517,8 @@ class BasesFormulasPlugin extends Plugin {
 	}
 
 	forgetBase(path) {
-		for (const formula of this.formulas) {
-			formula.bases = formula.bases.filter((p) => p !== path);
+		for (const scoped of this.formulas.concat(this.views)) {
+			scoped.bases = scoped.bases.filter((p) => p !== path);
 		}
 	}
 
@@ -856,6 +1546,7 @@ class BasesFormulasPlugin extends Plugin {
 				 * keep even with writing switched off - they are what makes the
 				 * panel show what the bases actually contain. */
 				this.formulas = plan.formulas;
+				this.views = plan.views;
 				await this.saveState();
 				this.refreshPanel();
 				return;
@@ -874,10 +1565,14 @@ class BasesFormulasPlugin extends Plugin {
 			const names = [...new Set(plan.adoptions.map((a) => a.name))];
 			parts.push('picked up ' + names.map((n) => '"' + n + '"').join(', '));
 		}
+		if (plan.viewUpdates.length) {
+			const names = [...new Set(plan.viewUpdates.map((u) => u.name))];
+			parts.push('followed ' + names.map((n) => '"' + n + '"').join(', '));
+		}
 		if (plan.files.length) {
 			parts.push('updated ' + plan.files.length + ' base' + (plan.files.length === 1 ? '' : 's'));
 		}
-		if (parts.length) new Notice('Bases Formulas: ' + parts.join(', ') + '.');
+		if (parts.length) new Notice('Bases Shared: ' + parts.join(', ') + '.');
 	}
 
 	async openPlan() {
@@ -925,64 +1620,101 @@ class BasesFormulasPlugin extends Plugin {
 		this.afterEdit();
 	}
 
+	/* ------------------------------------------------------- views editing -- */
+
+	/*
+	 * Every view of every base, so one can be picked to share. Sharing is
+	 * opt-in: a view nobody put in this list is never read and never written,
+	 * which is what keeps a one-off table in one base a one-off table.
+	 */
+	async candidateViews() {
+		const out = [];
+		const localKeys = this.localViewKeys();
+		for (const file of this.listBases()) {
+			let text;
+			try {
+				text = await this.app.vault.read(file);
+			} catch (error) {
+				continue;
+			}
+			for (const [name, entry] of viewsIn(text.split('\n'), localKeys)) {
+				out.push({ path: file.path, name: name, type: entry.type, body: entry.body });
+			}
+		}
+		return out;
+	}
+
+	/* Sharing starts from a view that already exists: its YAML is captured as
+	 * it stands in that base, and that becomes the shared one. */
+	async shareView(candidate) {
+		const view = newView(candidate.name, candidate.type, candidate.body);
+		this.views.push(view);
+		this.pendingViewDeletes = this.pendingViewDeletes.filter((n) => n !== candidate.name);
+		await this.saveState();
+		this.afterEdit();
+		return view;
+	}
+
+	async removeView(name) {
+		this.views = this.views.filter((v) => v.name !== name);
+		if (this.pendingViewDeletes.indexOf(name) === -1) this.pendingViewDeletes.push(name);
+		this.pendingViewRenames = this.pendingViewRenames.filter((r) => r.to !== name);
+		await this.saveState();
+		this.afterEdit();
+	}
+
+	/* Stopping sharing without touching a single base: every copy stays where
+	 * it is, and from now on they drift apart on their own. */
+	async unshareView(name) {
+		this.views = this.views.filter((v) => v.name !== name);
+		for (const path of Object.keys(this.viewSnapshots)) delete this.viewSnapshots[path][name];
+		await this.saveState();
+		this.afterEdit();
+	}
+
+	async renameView(view, to) {
+		const from = view.name;
+		if (from === to) return;
+		view.name = to;
+		const existing = this.pendingViewRenames.filter((r) => r.to === from);
+		if (existing.length) for (const rename of existing) rename.to = to;
+		else this.pendingViewRenames.push({ from: from, to: to });
+		await this.saveState();
+		this.afterEdit();
+	}
+
+	pending() {
+		return this.pendingDeletes.length > 0
+			|| this.pendingRenames.length > 0
+			|| this.pendingColumns.length > 0
+			|| this.pendingViewDeletes.length > 0
+			|| this.pendingViewRenames.length > 0;
+	}
+
 	afterEdit() {
 		this.refreshPanel();
 		if (this.settings.autoSync) this.queueSync();
 	}
 }
 
-/* --------------------------------------------------------------- the panel */
+/* -------------------------------------------------------------- the panels */
 
-class FormulasView extends ItemView {
+/*
+ * What the two panels have in common: the header, the sticky-frost bookkeeping
+ * under it, the scope row, and the fold at the bottom saying what each base
+ * ends up carrying. Formulas and views differ in what a card holds and in
+ * nothing else, so the chrome is written once - which is also what keeps the
+ * two tabs looking like one plugin.
+ */
+class PanelView extends ItemView {
 	constructor(leaf, plugin) {
 		super(leaf);
 		this.plugin = plugin;
 		this.filter = '';
 	}
 
-	getViewType() { return VIEW_TYPE; }
-	getDisplayText() { return 'Formulas'; }
-	getIcon() { return 'sigma'; }
-
 	async onOpen() {
 		this.render();
-	}
-
-	render() {
-		const container = this.containerEl.children[1];
-		container.empty();
-		container.addClass('bases-formulas');
-
-		const plugin = this.plugin;
-		const bases = plugin.listBases();
-
-		const filter = String(this.filter || '').trim().toLowerCase();
-		const shown = filter
-			? plugin.formulas.filter((f) => f.name.toLowerCase().indexOf(filter) !== -1
-				|| f.expression.toLowerCase().indexOf(filter) !== -1)
-			: plugin.formulas;
-
-		this.renderHeader(container, bases, {
-			shown: shown.length,
-			total: plugin.formulas.length,
-		});
-
-		for (const formula of shown) this.renderFormula(container, formula, bases);
-
-		if (shown.length === 0) {
-			container.createEl('p', {
-				text: filter
-					? 'No formula matches "' + this.filter + '".'
-					: 'No formulas yet. Add one here, or write one in any base - a formula '
-						+ 'found in a base is picked up and shared with the others.',
-				cls: 'bf-empty',
-			});
-		}
-
-		if (!filter) this.renderBases(container, bases);
-
-		this.watchScroll();
-		this.syncStuckHeader();
 	}
 
 	/*
@@ -1012,7 +1744,7 @@ class FormulasView extends ItemView {
 		else scroller.addEventListener('scroll', sync);
 	}
 
-	renderHeader(container, bases, counts) {
+	renderHeader(container, options) {
 		const plugin = this.plugin;
 		const header = container.createDiv({ cls: 'bf-header' });
 
@@ -1022,22 +1754,21 @@ class FormulasView extends ItemView {
 		 * plain element rather than an `h3`, so the theme's heading style does
 		 * not decide how this looks, with the count in the accent colour. */
 		const heading = title.createDiv({ cls: 'bf-title' });
-		heading.createSpan({ text: 'Formulas', cls: 'bf-title-name' });
+		heading.createSpan({ text: options.title, cls: 'bf-title-name' });
 		heading.createSpan({
 			cls: 'bf-title-count',
-			text: counts.shown === counts.total
-				? String(counts.total)
-				: counts.shown + '/' + counts.total,
+			text: options.shown === options.total
+				? String(options.total)
+				: options.shown + '/' + options.total,
 		});
 
 		/*
 		 * *pending*, not *unsaved*: list edits are kept the moment they are made,
 		 * so what this marks is work the bases have not been told about yet. With
-		 * auto-sync on it clears itself within the second.
+		 * auto-sync on it clears itself within the second. It reads both halves,
+		 * because one Sync writes both.
 		 */
-		const pending = plugin.pendingDeletes.length > 0
-			|| plugin.pendingRenames.length > 0
-			|| plugin.pendingColumns.length > 0;
+		const pending = plugin.pending();
 		if (pending) title.createSpan({ text: 'pending', cls: 'bf-badge bf-badge-dirty' });
 		else if (!plugin.settings.autoSync) {
 			title.createSpan({ text: 'manual', cls: 'bf-badge bf-badge-dirty' });
@@ -1059,7 +1790,7 @@ class FormulasView extends ItemView {
 		 */
 		const search = header.createEl('input', {
 			cls: 'bf-search',
-			attr: { type: 'search', placeholder: 'Find a formula…' },
+			attr: { type: 'search', placeholder: options.searchPlaceholder },
 		});
 		search.value = this.filter || '';
 		search.oninput = () => {
@@ -1078,17 +1809,147 @@ class FormulasView extends ItemView {
 			if (next) next.focus();
 		};
 
-		const add = buttons.createEl('button', { text: 'New formula' });
-		add.onclick = () => {
-			new NameModal(this.app, 'New formula', '', async (name) => {
-				if (plugin.formulaNamed(name)) {
-					new Notice('Bases Formulas: "' + name + '" already exists.');
-					return;
-				}
-				await plugin.addFormula(name, '');
-				this.render();
-			}).open();
+		const add = buttons.createEl('button', { text: options.addLabel });
+		add.onclick = () => { options.onAdd(); };
+	}
+
+	/* `Every base`, `Only…`, `All except…` - a formula and a view are scoped the
+	 * same way, so this row is the same row. */
+	renderScope(card, item, bases) {
+		const plugin = this.plugin;
+
+		const row = card.createDiv({ cls: 'bf-row' });
+		row.createSpan({ text: 'In', cls: 'bf-row-label' });
+
+		const select = row.createEl('select', { cls: 'bf-select' });
+		for (const [value, label] of [['all', 'Every base'], ['only', 'Only…'], ['except', 'All except…']]) {
+			const option = select.createEl('option', { text: label });
+			option.value = value;
+			if (item.scope === value) option.selected = true;
+		}
+		select.onchange = async () => {
+			item.scope = select.value;
+			await plugin.saveState();
+			plugin.afterEdit();
+			this.render();
 		};
+
+		if (item.scope === 'all') return;
+
+		const chips = card.createDiv({ cls: 'bf-chips' });
+		for (const path of item.bases) {
+			const chip = chips.createSpan({ cls: 'bf-chip' });
+			chip.createSpan({ text: baseName(path), cls: 'bf-chip-text' });
+			const x = chip.createSpan({ text: '×', cls: 'bf-chip-remove' });
+			x.onclick = async () => {
+				item.bases = item.bases.filter((p) => p !== path);
+				await plugin.saveState();
+				plugin.afterEdit();
+				this.render();
+			};
+		}
+
+		const remaining = bases.filter((f) => item.bases.indexOf(f.path) === -1);
+		if (remaining.length === 0) return;
+
+		const adder = chips.createEl('select', { cls: 'bf-select bf-adder' });
+		const first = adder.createEl('option', { text: '+ base' });
+		first.value = '';
+		for (const file of remaining) {
+			const option = adder.createEl('option', { text: baseName(file.path) });
+			option.value = file.path;
+		}
+		adder.onchange = async () => {
+			if (!adder.value) return;
+			item.bases.push(adder.value);
+			await plugin.saveState();
+			plugin.afterEdit();
+			this.render();
+		};
+	}
+
+	/* The other way round: what each base ends up carrying. */
+	renderBases(container, bases, describe) {
+		const details = container.createEl('details', { cls: 'bf-bases' });
+		if (this.basesOpen) details.setAttribute('open', 'true');
+		details.ontoggle = () => { this.basesOpen = details.hasAttribute('open'); };
+		details.createEl('summary', { text: 'Bases (' + bases.length + ')' });
+
+		for (const file of bases) {
+			const row = details.createDiv({ cls: 'bf-base-row' });
+			const link = row.createSpan({ text: baseName(file.path), cls: 'bf-base-name' });
+			link.onclick = () => { this.app.workspace.getLeaf(false).openFile(file); };
+
+			const carried = describe(file.path);
+			row.createSpan({
+				text: carried.length ? carried.join(', ') : 'none',
+				cls: 'bf-base-formulas' + (carried.length ? '' : ' bf-muted'),
+			});
+		}
+
+		if (bases.length === 0) {
+			details.createEl('p', { text: 'No .base files found.', cls: 'bf-empty' });
+		}
+	}
+}
+
+class FormulasView extends PanelView {
+	getViewType() { return VIEW_TYPE; }
+	getDisplayText() { return 'Formulas'; }
+	getIcon() { return 'sigma'; }
+
+	render() {
+		const container = this.containerEl.children[1];
+		container.empty();
+		container.addClass('bases-formulas');
+
+		const plugin = this.plugin;
+		const bases = plugin.listBases();
+
+		const filter = String(this.filter || '').trim().toLowerCase();
+		const shown = filter
+			? plugin.formulas.filter((f) => f.name.toLowerCase().indexOf(filter) !== -1
+				|| f.expression.toLowerCase().indexOf(filter) !== -1)
+			: plugin.formulas;
+
+		this.renderHeader(container, {
+			title: 'Formulas',
+			shown: shown.length,
+			total: plugin.formulas.length,
+			searchPlaceholder: 'Find a formula…',
+			addLabel: 'New formula',
+			onAdd: () => {
+				new NameModal(this.app, 'New formula', '', async (name) => {
+					if (plugin.formulaNamed(name)) {
+						new Notice('Bases Shared: "' + name + '" already exists.');
+						return;
+					}
+					await plugin.addFormula(name, '');
+					this.render();
+				}).open();
+			},
+		});
+
+		for (const formula of shown) this.renderFormula(container, formula, bases);
+
+		if (shown.length === 0) {
+			container.createEl('p', {
+				text: filter
+					? 'No formula matches "' + this.filter + '".'
+					: 'No formulas yet. Add one here, or write one in any base - a formula '
+						+ 'found in a base is picked up and shared with the others.',
+				cls: 'bf-empty',
+			});
+		}
+
+		if (!filter) {
+			this.renderBases(container, bases, (path) => plugin.formulas
+				.filter((f) => appliesTo(f, path))
+				.map((f) => f.name));
+		}
+
+		this.watchScroll();
+		this.syncStuckHeader();
 	}
 
 	renderFormula(container, formula, bases) {
@@ -1101,7 +1962,7 @@ class FormulasView extends ItemView {
 		name.onclick = () => {
 			new NameModal(this.app, 'Rename formula', formula.name, async (to) => {
 				if (to !== formula.name && plugin.formulaNamed(to)) {
-					new Notice('Bases Formulas: "' + to + '" already exists.');
+					new Notice('Bases Shared: "' + to + '" already exists.');
 					return;
 				}
 				await plugin.renameFormula(formula, to);
@@ -1161,82 +2022,169 @@ class FormulasView extends ItemView {
 		};
 	}
 
-	renderScope(card, formula, bases) {
+}
+
+/* ------------------------------------------------------------ the views tab */
+
+/*
+ * The second half, and the second tab. Same list, same scopes, same Sync - the
+ * thing being shared is a view instead of a formula.
+ *
+ * Sharing is opt-in, unlike formulas: a formula found in a base is picked up
+ * because a formula is small and duplicating it is always a mistake, whereas a
+ * one-off table in one base is an ordinary thing to want. So a view joins the
+ * list only when he picks it, and from then on it is kept in step everywhere.
+ */
+class SharedViewsView extends PanelView {
+	getViewType() { return VIEWS_VIEW_TYPE; }
+	getDisplayText() { return 'Views'; }
+	getIcon() { return 'layout-grid'; }
+
+	render() {
+		const container = this.containerEl.children[1];
+		container.empty();
+		container.addClass('bases-formulas');
+
 		const plugin = this.plugin;
+		const bases = plugin.listBases();
 
-		const row = card.createDiv({ cls: 'bf-row' });
-		row.createSpan({ text: 'In', cls: 'bf-row-label' });
+		const filter = String(this.filter || '').trim().toLowerCase();
+		const shown = filter
+			? plugin.views.filter((v) => v.name.toLowerCase().indexOf(filter) !== -1
+				|| v.type.toLowerCase().indexOf(filter) !== -1)
+			: plugin.views;
 
-		const select = row.createEl('select', { cls: 'bf-select' });
-		for (const [value, label] of [['all', 'Every base'], ['only', 'Only…'], ['except', 'All except…']]) {
-			const option = select.createEl('option', { text: label });
-			option.value = value;
-			if (formula.scope === value) option.selected = true;
-		}
-		select.onchange = async () => {
-			formula.scope = select.value;
-			await plugin.saveState();
-			plugin.afterEdit();
-			this.render();
-		};
+		this.renderHeader(container, {
+			title: 'Views',
+			shown: shown.length,
+			total: plugin.views.length,
+			searchPlaceholder: 'Find a view…',
+			addLabel: 'Share a view',
+			onAdd: () => { this.pickView(); },
+		});
 
-		if (formula.scope === 'all') return;
+		for (const view of shown) this.renderView(container, view, bases);
 
-		const chips = card.createDiv({ cls: 'bf-chips' });
-		for (const path of formula.bases) {
-			const chip = chips.createSpan({ cls: 'bf-chip' });
-			chip.createSpan({ text: baseName(path), cls: 'bf-chip-text' });
-			const x = chip.createSpan({ text: '×', cls: 'bf-chip-remove' });
-			x.onclick = async () => {
-				formula.bases = formula.bases.filter((p) => p !== path);
-				await plugin.saveState();
-				plugin.afterEdit();
-				this.render();
-			};
-		}
-
-		const remaining = bases.filter((f) => formula.bases.indexOf(f.path) === -1);
-		if (remaining.length === 0) return;
-
-		const adder = chips.createEl('select', { cls: 'bf-select bf-adder' });
-		const first = adder.createEl('option', { text: '+ base' });
-		first.value = '';
-		for (const file of remaining) {
-			const option = adder.createEl('option', { text: baseName(file.path) });
-			option.value = file.path;
-		}
-		adder.onchange = async () => {
-			if (!adder.value) return;
-			formula.bases.push(adder.value);
-			await plugin.saveState();
-			plugin.afterEdit();
-			this.render();
-		};
-	}
-
-	/* The other way round: what each base ends up carrying. */
-	renderBases(container, bases) {
-		const plugin = this.plugin;
-		const details = container.createEl('details', { cls: 'bf-bases' });
-		if (this.basesOpen) details.setAttribute('open', 'true');
-		details.ontoggle = () => { this.basesOpen = details.hasAttribute('open'); };
-		details.createEl('summary', { text: 'Bases (' + bases.length + ')' });
-
-		for (const file of bases) {
-			const row = details.createDiv({ cls: 'bf-base-row' });
-			const link = row.createSpan({ text: baseName(file.path), cls: 'bf-base-name' });
-			link.onclick = () => { this.app.workspace.getLeaf(false).openFile(file); };
-
-			const carried = plugin.formulas.filter((f) => appliesTo(f, file.path));
-			row.createSpan({
-				text: carried.length ? carried.map((f) => f.name).join(', ') : 'none',
-				cls: 'bf-base-formulas' + (carried.length ? '' : ' bf-muted'),
+		if (shown.length === 0) {
+			container.createEl('p', {
+				text: filter
+					? 'No view matches "' + this.filter + '".'
+					: 'No shared views yet. Build a view in one base — its layout, its sort, '
+						+ 'its own filter — then share it here, and every other base gets the '
+						+ 'same one. Each base keeps its own global filter.',
+				cls: 'bf-empty',
 			});
 		}
 
-		if (bases.length === 0) {
-			details.createEl('p', { text: 'No .base files found.', cls: 'bf-empty' });
+		if (!filter) {
+			this.renderBases(container, bases, (path) => plugin.views
+				.filter((v) => appliesTo(v, path))
+				.map((v) => v.name));
 		}
+
+		this.watchScroll();
+		this.syncStuckHeader();
+	}
+
+	async pickView() {
+		const plugin = this.plugin;
+		const candidates = (await plugin.candidateViews())
+			.filter((c) => !plugin.viewNamed(c.name));
+
+		if (!candidates.length) {
+			new Notice('Bases Shared: every view in every base is already shared.');
+			return;
+		}
+		new PickViewModal(this.app, candidates, async (candidate) => {
+			await plugin.shareView(candidate);
+			this.render();
+		}).open();
+	}
+
+	renderView(container, view, bases) {
+		const plugin = this.plugin;
+		const card = container.createDiv({ cls: 'bf-formula' });
+
+		const head = card.createDiv({ cls: 'bf-formula-head' });
+		const name = head.createSpan({ text: view.name, cls: 'bf-formula-name' });
+		name.title = 'Click to rename. The view is renamed in every base that carries it — '
+			+ 'an embed written as ![[Base.base#' + view.name + ']] would have to be '
+			+ 'updated by hand.';
+		name.onclick = () => {
+			new NameModal(this.app, 'Rename view', view.name, async (to) => {
+				if (to !== view.name && plugin.viewNamed(to)) {
+					new Notice('Bases Shared: "' + to + '" already exists.');
+					return;
+				}
+				await plugin.renameView(view, to);
+				this.render();
+			}).open();
+		};
+
+		head.createSpan({ text: view.type, cls: 'bf-badge bf-badge-type' });
+
+		const carrying = bases.filter((f) => appliesTo(view, f.path)).length;
+		head.createSpan({
+			text: carrying + '/' + bases.length,
+			cls: 'bf-badge' + (carrying === bases.length ? ' bf-badge-all' : ''),
+		});
+
+		const remove = head.createSpan({ cls: 'bf-remove' });
+		setIcon(remove, 'x');
+		remove.title = 'Remove this view from every base';
+		remove.onclick = async () => {
+			await plugin.removeView(view.name);
+			this.render();
+		};
+
+		/*
+		 * The YAML itself, editable. Folded by default - a graph view is forty
+		 * lines of forces and colour groups, and the usual way to change one is
+		 * in a base, not here.
+		 */
+		const details = card.createEl('details', { cls: 'bf-view-yaml' });
+		details.createEl('summary', { text: view.body.length + ' lines of settings' });
+
+		const body = details.createEl('textarea', { cls: 'bf-expression bf-view-body' });
+		body.value = view.body.join('\n');
+		body.rows = Math.min(20, Math.max(3, view.body.length));
+		body.onchange = async () => {
+			const lines = body.value.replace(/\s+$/, '').split('\n');
+			/* Written by hand, so it has to parse - otherwise it would be written
+			 * into every base and break all of them at once. */
+			try {
+				parseYaml(lines.join('\n'));
+			} catch (error) {
+				new Notice('Bases Shared: that is not valid YAML, so it was not kept.');
+				this.render();
+				return;
+			}
+			view.body = lines;
+			await plugin.saveState();
+			plugin.afterEdit();
+		};
+
+		/* Seven key names is four wrapped lines of grey text on every card in a
+		 * 340px sidebar, so the count is the line and the list is the tooltip. */
+		const local = plugin.localViewKeys();
+		if (local.length) {
+			const note = card.createEl('p', {
+				text: local.length + (local.length === 1 ? ' key is' : ' keys are') + ' kept per base',
+				cls: 'bf-local-note',
+			});
+			note.title = local.join('\n');
+		}
+
+		this.renderScope(card, view, bases);
+
+		const actions = card.createDiv({ cls: 'bf-actions' });
+		const stop = actions.createEl('button', { text: 'Stop sharing', cls: 'bf-small' });
+		stop.title = 'Take this view off the list without touching a single base. Every copy '
+			+ 'stays where it is, and they drift apart from now on.';
+		stop.onclick = async () => {
+			await plugin.unshareView(view.name);
+			this.render();
+		};
 	}
 }
 
@@ -1285,6 +2233,75 @@ class NameModal extends Modal {
 }
 
 /*
+ * Every view of every base that is not shared yet, grouped by the base it is
+ * in. Picking one captures its YAML as it stands there - so the way to share a
+ * view is to build it once, properly, in one base, and then point at it.
+ *
+ * Two bases can hold two different views under one name. Only the one picked is
+ * captured; the others become copies of it at the next sync, which is the whole
+ * point, and the modal says so.
+ */
+class PickViewModal extends Modal {
+	constructor(app, candidates, onPick) {
+		super(app);
+		this.candidates = candidates;
+		this.onPick = onPick;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.createEl('h3', { text: 'Share a view' });
+		contentEl.createEl('p', {
+			text: 'The view is captured as it stands in the base you pick, and every other '
+				+ 'base gets that one. Its own filter travels with it; each base keeps its '
+				+ 'global filter, its column widths and its graph position.',
+			cls: 'bf-modal-lede',
+		});
+
+		const byBase = new Map();
+		for (const candidate of this.candidates) {
+			if (!byBase.has(candidate.path)) byBase.set(candidate.path, []);
+			byBase.get(candidate.path).push(candidate);
+		}
+
+		const seen = new Map();
+		for (const candidate of this.candidates) {
+			seen.set(candidate.name, (seen.get(candidate.name) || 0) + 1);
+		}
+
+		const list = contentEl.createEl('div', { cls: 'bf-pick' });
+		for (const [path, candidates] of byBase) {
+			list.createEl('div', { text: baseName(path), cls: 'bf-pick-base' });
+			for (const candidate of candidates) {
+				const row = list.createEl('button', { cls: 'bf-pick-row' });
+				row.createSpan({ text: candidate.name, cls: 'bf-pick-name' });
+				row.createSpan({ text: candidate.type, cls: 'bf-badge bf-badge-type' });
+				row.createSpan({
+					text: candidate.body.length + ' lines',
+					cls: 'bf-pick-detail',
+				});
+				if (seen.get(candidate.name) > 1) {
+					row.createSpan({
+						text: 'also in ' + (seen.get(candidate.name) - 1) + ' other base'
+							+ (seen.get(candidate.name) === 2 ? '' : 's') + ', which this replaces',
+						cls: 'bf-pick-warn',
+					});
+				}
+				row.onclick = async () => {
+					this.close();
+					await this.onPick(candidate);
+				};
+			}
+		}
+
+		const buttons = contentEl.createDiv({ cls: 'bf-modal-buttons' });
+		buttons.createEl('button', { text: 'Cancel' }).onclick = () => { this.close(); };
+	}
+
+	onClose() { this.contentEl.empty(); }
+}
+
+/*
  * Every file that would be written and every line in it that would change.
  * Nothing has been written when this opens.
  */
@@ -1299,7 +2316,7 @@ class SyncModal extends Modal {
 		const { contentEl } = this;
 		const plan = this.plan;
 
-		contentEl.createEl('h3', { text: 'Sync formulas' });
+		contentEl.createEl('h3', { text: 'Sync formulas and views' });
 
 		if (this.plugin.planIsEmpty(plan)) {
 			contentEl.createEl('p', {
@@ -1341,6 +2358,29 @@ class SyncModal extends Modal {
 			}
 		}
 
+		if (plan.viewUpdates.length) {
+			contentEl.createEl('h4', { text: 'Tuned in a base' });
+			const list = contentEl.createEl('ul', { cls: 'bf-plan' });
+			for (const update of plan.viewUpdates) {
+				const item = list.createEl('li');
+				item.createSpan({ text: update.name, cls: 'bf-plan-label' });
+				item.createSpan({ text: 'changed in ' + baseName(update.path)
+					+ ' — that version becomes the shared one', cls: 'bf-plan-detail' });
+			}
+		}
+
+		if (plan.viewScopeExtensions.length) {
+			contentEl.createEl('h4', { text: 'Put back by hand' });
+			const list = contentEl.createEl('ul', { cls: 'bf-plan' });
+			for (const extension of plan.viewScopeExtensions) {
+				const item = list.createEl('li');
+				item.createSpan({ text: extension.name, cls: 'bf-plan-label' });
+				item.createSpan({ text: 'found in ' + baseName(extension.path)
+					+ ', which it was scoped out of — that base is included again',
+					cls: 'bf-plan-detail' });
+			}
+		}
+
 		if (plan.files.length) {
 			contentEl.createEl('h4', { text: 'Files to write (' + plan.files.length + ')' });
 			const list = contentEl.createEl('ul', { cls: 'bf-plan' });
@@ -1366,6 +2406,24 @@ class SyncModal extends Modal {
 					item.createSpan({ text: 'show ' + name + ' as a column',
 						cls: 'bf-plan-detail' });
 				}
+				for (const rename of change.viewsRenamed) {
+					item.createSpan({ text: 'rename the ' + rename.from + ' view → ' + rename.to,
+						cls: 'bf-plan-detail' });
+				}
+				for (const name of change.viewsAdded) {
+					item.createSpan({ text: 'add the ' + name + ' view', cls: 'bf-plan-detail' });
+				}
+				for (const name of change.viewsChanged) {
+					item.createSpan({ text: 'update the ' + name + ' view', cls: 'bf-plan-detail' });
+				}
+				for (const name of change.viewsRemoved) {
+					item.createSpan({ text: 'remove the ' + name + ' view',
+						cls: 'bf-plan-detail bf-plan-cut' });
+				}
+				if (change.viewsEmptied) {
+					item.createSpan({ text: 'this base has no other view, so it will show '
+						+ "Obsidian's default one", cls: 'bf-plan-detail bf-plan-cut' });
+				}
 			}
 		}
 
@@ -1385,7 +2443,7 @@ class SyncModal extends Modal {
 		write.onclick = async () => {
 			this.close();
 			await this.plugin.applyPlan(plan);
-			new Notice('Bases Formulas: ' + plan.files.length + ' base'
+			new Notice('Bases Shared: ' + plan.files.length + ' base'
 				+ (plan.files.length === 1 ? '' : 's') + ' updated.');
 		};
 	}
@@ -1428,6 +2486,38 @@ class BasesFormulasSettingTab extends PluginSettingTab {
 					this.plugin.settings.adoptFromBases = value;
 					await this.plugin.saveState();
 				}));
+
+		new Setting(containerEl)
+			.setName('Follow view edits made in a base')
+			.setDesc('A shared view tuned in one base becomes the shared one, and the other '
+				+ 'bases follow. Off, a shared view is only ever changed from this panel — '
+				+ 'and a base edited by hand is put back at the next sync.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.adoptViewEdits)
+				.onChange(async (value) => {
+					this.plugin.settings.adoptViewEdits = value;
+					await this.plugin.saveState();
+				}));
+
+		new Setting(containerEl)
+			.setName('Kept per base')
+			.setDesc('Keys of a shared view that every base keeps its own copy of, one per '
+				+ 'line. These are the ones Obsidian rewrites from merely looking at a view — '
+				+ 'sharing them would rewrite every base each time you pan one graph. '
+				+ 'A nested key is written parent.child.')
+			.addTextArea((text) => {
+				text.inputEl.rows = 8;
+				text.inputEl.addClass('bf-settings-area');
+				text.setValue(this.plugin.localViewKeys().join('\n'));
+				text.setPlaceholder(DEFAULT_LOCAL_VIEW_KEYS.join('\n'));
+				text.onChange(async (value) => {
+					this.plugin.settings.localViewKeys = value
+						.split('\n')
+						.map((line) => line.trim())
+						.filter((line) => line);
+					await this.plugin.saveState();
+				});
+			});
 
 		new Setting(containerEl)
 			.setName('Manage display names')

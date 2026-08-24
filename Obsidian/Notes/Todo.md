@@ -1,16 +1,20 @@
 ---
 tags:
   - class
-created: 2026-08-16 18:29
-characteristics:
-  - "[[∘ urgency]]"
-  - "[[∘ payoff]]"
-  - "[[∘ done]]"
 is a:
-  - "[[Obsidian Note]]"
-related:
+characteristics:
+  - "[[∘ importance]]"
+  - "[[∘ urgency]]"
+  - "[[∘ done]]"
+  - "[[∘ duedate]]"
+  - "[[∘ what to do]]"
 type of:
-  - "[[Obsidian Note]]"
+created: 2026-08-16 18:29
+ext links:
+related:
 note rating:
 rating:
+garden:
+life stage:
+maturity:
 ---

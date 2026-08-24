@@ -1,13 +1,16 @@
 ---
 tags:
   - class
-created: 2026-08-17 12:22
+is a:
 characteristics:
   - "[[∘ map link]]"
-is a:
-  - "[[Obsidian Note]]"
-related:
 type of:
+created: 2026-08-17 12:22
+ext links:
+related:
 note rating:
 rating:
+garden:
+life stage:
+maturity:
 ---

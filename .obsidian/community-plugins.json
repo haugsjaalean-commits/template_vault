@@ -9,5 +9,6 @@
   "bases-graph",
   "graph-focus",
   "bases-word-count",
-  "graph-rotator"
+  "graph-rotator",
+  "obsidian-style-settings"
 ]

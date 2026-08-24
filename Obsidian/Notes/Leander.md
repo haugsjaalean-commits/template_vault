@@ -1,13 +1,32 @@
 ---
-birth day:
-death day:
-created: 2026-08-16 14:43
-children:
 is a:
-  - "[[Person]]"
+  - "[[Visual Artist]]"
+characteristics:
+type of:
+created: 2026-08-21 17:38
+ext links:
 related:
-relation to me:
 note rating:
 rating:
+garden:
+life stage: current
+maturity:
+birth day: 2007-11-28
+death day:
+children:
+relation to me:
+historical importance:
 location:
+creation domain:
+  - visual
+  - writing
+masetery:
+medium:
+  - digital
+  - classic
+  - 3D
+  - Photos
+visual domain:
+  - industrial design
+  - characters
 ---

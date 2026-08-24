@@ -1,17 +1,24 @@
 ---
-birth day:
-death day:
-created:
-art domain:
-children:
-domain:
 is a:
   - "[[Visual Artist]]"
-medium:
+characteristics:
+type of:
+created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+ext links:
 related:
-relation to me:
-visual domain:
 note rating:
 rating:
+garden:
+life stage: current
+maturity: Charmander
+birth day:
+death day:
+children:
+relation to me:
+historical importance:
 location:
+creation domain:
+masetery:
+medium:
+visual domain:
 ---

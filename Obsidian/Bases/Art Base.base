@@ -1,0 +1,22 @@
+filters:
+  and:
+    - file.isA("∘ Art")
+    - '!file.inFolder("Obsidian/Templates")'
+formulas:
+  word count: file.WordCount()
+properties:
+  formula.word count:
+    displayName: word count
+views:
+  - type: table
+    name: Table
+    order:
+      - file.name
+      - artist
+      - art domain
+      - related
+      - note rating
+      - rating
+      - created
+      - garden
+      - lifespan

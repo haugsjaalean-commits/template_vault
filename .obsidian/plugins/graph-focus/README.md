@@ -391,8 +391,11 @@ searchable as ASCII despite being minified):
   interface every 40ms. If no instance can be borrowed — you would have to delete
   every colour group — it falls back to plain substring matching on the path and
   says so in the panel.
-- **Panning** uses the renderer's transform directly: `screen = world * scale +
-  pan`, in device pixels. That is the relation `resetPan()` encodes when it
+- **Panning** uses the renderer's transform directly: `screen = pan + R(angle) *
+  (world * scale)`, in device pixels. The rotation term is Graph Rotator's, read
+  from `app.__graphRotator.angleOf()` and 0 when that plugin is not installed
+  (v1.36.0) — without it, centring a note in a turned pane aims at where the
+  note would sit if the graph were level, and settles confidently there. That is the relation `resetPan()` encodes when it
   centres the origin with `setPan(width / 2 * dpr, height / 2 * dpr)`, so
   centring node *n* means `setPan(width / 2 * dpr - n.x * scale, …)`. The target
   is recomputed every frame rather than once, because the force simulation keeps

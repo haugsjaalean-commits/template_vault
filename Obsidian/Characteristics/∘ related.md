@@ -5,3 +5,7 @@ property type: list
 possible values:
   - "[[Obsidian Note]]"
 ---
+
+| Default location | Default value | Strict default value |
+| ---------------- | ------------- | -------------------- |
+| All notes        |               |                      |

@@ -1,13 +1,13 @@
 ---
-created:
 is a:
-  - "[[Obsidian Note]]"
+characteristics:
+type of:
+created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+ext links:
 related:
 note rating:
 rating:
+garden:
+life stage: current
+maturity: Charmander
 ---
-<%*
-const created = tp.date.now("YYYY-MM-DDTHH:mm:ss");
-await tp.file.rename(`${created} - ${tp.file.title}`);
-%>
-

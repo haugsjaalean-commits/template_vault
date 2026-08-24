@@ -1,7 +1,7 @@
 {
   "id": "graph-focus",
   "name": "Graph Focus",
-  "version": "1.35.0",
+  "version": "1.36.0",
   "minAppVersion": "1.0.0",
   "description": "Lock the graph highlight onto one or several nodes without hovering, fade connections progressively by link depth, and draw links differently depending on the property they were written in.",
   "author": "Claude (written for Leander)",

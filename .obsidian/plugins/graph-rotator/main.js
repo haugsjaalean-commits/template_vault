@@ -5,9 +5,9 @@
  *
  * What it does
  *   Hold a modifier and scroll the mouse wheel over a graph pane: the graph
- *   turns. Rotation is per pane, anchored under the pointer (or on the centre
- *   of the view), eased the way Obsidian's own zoom is, and undone by a
- *   command or by disabling the plugin.
+ *   turns. Rotation is per pane, anchored on the pointer, on the middle of the
+ *   graph or on the active note, eased the way Obsidian's own zoom is, and
+ *   undone by a command or by disabling the plugin.
  *
  * How it works (Obsidian 1.13.x internals — see README.md)
  *   Every node circle, label, link sprite and arrow is a child of one PIXI
@@ -17,15 +17,16 @@
  *   PIXI redraws everything about it, in the right theme colours, with the
  *   right z-order.
  *
- *   What that does *not* fix is the places where the renderer converts between
- *   screen and world by hand, each of which assumes there is no rotation: the
- *   viewport rectangle it culls against, the hover test that drops
- *   `highlightNode` when the pointer has left the node, and — in Graph Focus —
- *   the pan target that centres a focused note. The first two are corrected
- *   here by intercepting the properties they read (`viewport`, `mouseX`,
- *   `mouseY`) rather than by patching the code that reads them, which is a
- *   closure. The third is another plugin's arithmetic, so this one only
- *   publishes the angle for it: see `app.__graphRotator`.
+ *   What that does *not* fix is everything computed from `node.x` by hand, each
+ *   of which assumes there is no rotation. Inside the renderer: the viewport
+ *   rectangle it culls against, and the hover test that drops `highlightNode`
+ *   when the pointer has left the node. Both are corrected by intercepting the
+ *   properties they read (`viewport`, `mouseX`, `mouseY`) rather than by
+ *   patching the code reading them, which is a closure. The note labels are the
+ *   third, and they are fixed at draw time — see ensureDrawHook(), and note
+ *   that a label's position has no pan in it at all, which is why it is not a
+ *   screen-to-world conversion and was missed twice. Graph Focus and Bases
+ *   Graph View own one each; they read the angle from `app.__graphRotator`.
  *
  *   Everything PIXI resolves for itself — hit-testing the node under the
  *   cursor, dragging one, the arrows' own rotation — already goes through the
@@ -47,7 +48,7 @@ const DEFAULT_SETTINGS = {
 	step: 15,
 	/** Reverse which way a notch turns. */
 	invert: false,
-	/** What stays put while the rest turns: 'pointer' | 'center'. */
+	/** What stays put while the rest turns: 'pointer' | 'graph' | 'note'. */
 	pivot: 'pointer',
 	/** Ease into the new angle instead of jumping to it. */
 	smooth: true,
@@ -99,7 +100,12 @@ function prettyDegrees(radians) {
 
 class GraphRotatorPlugin extends Plugin {
 	async onload() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) || {});
+		const stored = (await this.loadData()) || {};
+		// 1.0 and 1.1 anchored the "centre" option on the middle of the *pane*.
+		// 1.2 turns around the middle of the *graph* instead, which is what that
+		// option was reaching for, so a stored value carries over to it.
+		if (stored.pivot === 'center') stored.pivot = 'graph';
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
 
 		/** renderer -> state, see attach(). */
 		this.attached = new Map();
@@ -153,9 +159,10 @@ class GraphRotatorPlugin extends Plugin {
 		for (const [renderer, state] of this.attached) {
 			try {
 				// Leave nothing turned: a rotated pane whose plugin is gone has no
-				// way back, and its hover test would stay wrong.
-				state.pivotX = null;
-				state.pivotY = null;
+				// way back, and its hover test would stay wrong. Straightening it
+				// about the middle of the pane is the one choice that needs nothing
+				// from the settings or the workspace on the way out.
+				state.pivot = null;
 				state.target = 0;
 				this.applyAngle(renderer, state, 0);
 				this.restoreLabels(renderer);
@@ -216,7 +223,7 @@ class GraphRotatorPlugin extends Plugin {
 		if (this.broken) return;
 		const graphs = this.liveGraphs();
 		for (const graph of graphs) {
-			if (!this.attached.has(graph.renderer)) this.guard(() => this.attach(graph.renderer));
+			if (!this.attached.has(graph.renderer)) this.guard(() => this.attach(graph.renderer, graph.view));
 		}
 		const live = graphs.map((graph) => graph.renderer);
 		for (const [renderer, state] of Array.from(this.attached)) {
@@ -282,17 +289,24 @@ class GraphRotatorPlugin extends Plugin {
 		});
 	}
 
-	attach(renderer) {
+	attach(renderer, view) {
 		if (this.attached.has(renderer)) return;
 
 		const state = {
+			/** The pane's view, for the note a local graph is built around. */
+			view: view || null,
 			/** Where the pane is now, in radians, clockwise. */
 			angle: 0,
 			/** Where it is heading; the two differ only while easing. */
 			target: 0,
-			/** The screen point held still, in device pixels. Null means the centre. */
-			pivotX: null,
-			pivotY: null,
+			/**
+			 * What the turn holds still, frozen when the gesture starts:
+			 * `{kind: 'screen'|'world', x, y}`, or null for the middle of the pane.
+			 * A world pivot is resolved to a screen point again on every frame,
+			 * which is what keeps a note or the graph's centre truly still while
+			 * the angle eases; a screen pivot is already what it needs to be.
+			 */
+			pivot: null,
 			/** The pointer as the renderer last reported it, before correction. */
 			rawMouseX: null,
 			rawMouseY: null,
@@ -305,13 +319,16 @@ class GraphRotatorPlugin extends Plugin {
 		const self = this;
 
 		// Step the animation before the frame is drawn, so the viewport, the node
-		// positions and the hit test all agree within one frame; straighten the
-		// labels after it, because the renderer writes their position itself.
+		// positions and the hit test all agree within one frame. The labels are
+		// straightened later and from somewhere else — see ensureDrawHook().
 		this.wrapProperty(renderer, 'renderCallback', (original) => function () {
 			self.guard(() => self.step(renderer, state));
-			original.call(this);
-			self.guard(() => self.after(renderer, state));
+			return original.apply(this, arguments);
 		}, state.cleanups);
+
+		state.cleanups.push(() => {
+			if (state.unhookPx) state.unhookPx();
+		});
 
 		// The renderer culls against an axis-aligned rectangle it derives from the
 		// pan and the scale alone. Under rotation the visible region is a turned
@@ -353,10 +370,31 @@ class GraphRotatorPlugin extends Plugin {
 
 	/* -------------------------------------------------------------- geometry */
 
-	/** The screen point, in device pixels, that a rotation holds still. */
+	/**
+	 * The screen point, in device pixels, that a rotation holds still.
+	 *
+	 * A world pivot is converted with the transform *as it is now* — before the
+	 * turn about to be applied. Holding that screen point still is then exactly
+	 * the same as holding the world point still: substituting
+	 * `c = pan + R(angle)·(scale·W)` into `pan' = c + R(d)·(pan - c)` leaves
+	 * `pan' + R(angle + d)·(scale·W) = c`, so W comes out under the same pixel it
+	 * went in under, at any angle and any zoom.
+	 */
 	pivotPoint(renderer, state) {
-		if (state.pivotX !== null && state.pivotY !== null) {
-			return { x: state.pivotX, y: state.pivotY };
+		const pivot = state.pivot;
+		if (pivot && pivot.kind === 'screen') {
+			return { x: pivot.x, y: pivot.y };
+		}
+		if (pivot && pivot.kind === 'world') {
+			const scale = renderer.scale || 1;
+			const cos = Math.cos(state.angle);
+			const sin = Math.sin(state.angle);
+			const wx = pivot.x * scale;
+			const wy = pivot.y * scale;
+			return {
+				x: renderer.panX + wx * cos - wy * sin,
+				y: renderer.panY + wx * sin + wy * cos,
+			};
 		}
 		const dpr = window.devicePixelRatio || 1;
 		// Measure live rather than trusting renderer.width/height, which are only
@@ -395,8 +433,48 @@ class GraphRotatorPlugin extends Plugin {
 		if (hanger && hanger.rotation !== next) hanger.rotation = next;
 	}
 
+	/**
+	 * Hook the draw itself, so the labels can be moved *between* the node renders
+	 * and the frame being put on screen.
+	 *
+	 * This is the one thing about the frame that cannot be done from outside it.
+	 * `renderCallback` writes every label's position from scratch — `text.x` is
+	 * assigned `node.x`, not adjusted — and only then draws, so a correction
+	 * applied after the callback is overwritten by the next frame before it has
+	 * ever been drawn. The `rotation` survives, because nothing else writes it,
+	 * which is why getting this wrong produces level names sitting at the
+	 * un-turned offset rather than no effect at all. Graph Focus's README says
+	 * exactly this about forcing a label visible.
+	 *
+	 * `px.render()` is the draw, called from inside the callback on the PIXI
+	 * Application its closure captured. Shadowing that one method, per instance,
+	 * is the only moment that works. It also means nothing runs on a frame the
+	 * renderer skipped as idle, so there is no half-finished frame to corrupt.
+	 */
+	ensureDrawHook(renderer, state) {
+		const px = renderer.px;
+		if (!px || typeof px.render !== 'function' || state.hookedPx === px) return;
+
+		const self = this;
+		const hadOwn = Object.prototype.hasOwnProperty.call(px, 'render');
+		const original = px.render;
+		px.render = function () {
+			self.guard(() => self.placeLabels(renderer, state));
+			return original.apply(this, arguments);
+		};
+		state.hookedPx = px;
+		// initGraphics builds a new Application and destroys this one, so only the
+		// live hook is ever worth undoing; the old one goes with its Application.
+		state.unhookPx = () => {
+			if (px.render === undefined) return;
+			if (hadOwn) px.render = original;
+			else delete px.render;
+		};
+	}
+
 	/** Called at the top of every frame: ease towards the target angle. */
 	step(renderer, state) {
+		this.ensureDrawHook(renderer, state);
 		if (!renderer.hanger) return;
 		const gap = state.target - state.angle;
 		if (Math.abs(gap) > EPS) {
@@ -432,22 +510,27 @@ class GraphRotatorPlugin extends Plugin {
 	 * lands it directly under the node on screen again, and the label's own
 	 * `-angle` cancels the camera. The renderer rewrites `x`/`y` every frame but
 	 * never touches `rotation`, so only the position has to be re-derived — from
-	 * the value it just wrote, which is what `text.y - node.y` reads. It is only
-	 * safe to read that from a label the renderer drew this frame, which is what
-	 * `text.visible` means here.
+	 * the value it just wrote, which is what `text.y - node.y` reads. Reading it
+	 * is only meaningful for a label positioned this frame, which is what
+	 * `text.visible` means here, and this runs from the draw hook so the frame is
+	 * always one the renderer has just finished laying out.
 	 */
-	after(renderer, state) {
+	placeLabels(renderer, state) {
 		const want = this.settings.uprightLabels && !!state.angle;
 		if (!want && !state.uprightApplied) return;
 		const cos = Math.cos(state.angle);
 		const sin = Math.sin(state.angle);
 		for (const node of renderer.nodes) {
 			const text = node && node.text;
-			if (!text || !text.visible) continue;
+			if (!text) continue;
 			if (!want) {
+				// Every label, not only the visible ones: one that happened to be
+				// hidden on the frame the graph came back to level would otherwise
+				// keep its counter-rotation for good and reappear as a tilted name.
 				text.rotation = 0;
 				continue;
 			}
+			if (!text.visible) continue;
 			const offset = text.y - node.y;
 			text.rotation = -state.angle;
 			text.x = node.x + offset * sin;
@@ -524,30 +607,108 @@ class GraphRotatorPlugin extends Plugin {
 		event.stopPropagation();
 		event.stopImmediatePropagation();
 
+		// Either axis turns the graph. Holding Shift makes the platform report a
+		// vertical wheel as a *horizontal* scroll — `deltaY` is 0 and the movement
+		// arrives on `deltaX` — so reading `deltaY` alone leaves the Shift
+		// modifier doing nothing at all, in either direction. A tilt wheel and a
+		// trackpad's sideways swipe land on the same axis.
+		let delta = event.deltaY || event.deltaX;
 		// The same normalisation the renderer applies before zooming, so a line-
 		// or page-mode wheel turns by the same amount as a pixel-mode one.
-		let delta = event.deltaY;
 		if (event.deltaMode === 1) delta *= 40;
 		else if (event.deltaMode === 2) delta *= 800;
 		if (!delta) return;
 
 		let degrees = (delta / 120) * this.settings.step;
 		if (this.settings.invert) degrees = -degrees;
-		this.rotateBy(renderer, state, degrees * DEG, this.wheelPivot(renderer, event));
+		this.rotateBy(renderer, state, degrees * DEG, this.resolvePivot(renderer, state, event));
 	}
 
-	wheelPivot(renderer, event) {
-		if (this.settings.pivot !== 'pointer') return null;
-		const el = renderer.interactiveEl || renderer.containerEl;
-		if (!el || typeof el.getBoundingClientRect !== 'function') return null;
-		const rect = el.getBoundingClientRect();
-		const dpr = window.devicePixelRatio || 1;
-		return { x: (event.clientX - rect.left) * dpr, y: (event.clientY - rect.top) * dpr };
+	/**
+	 * What this turn should hold still, frozen now rather than recomputed each
+	 * frame: the graph's middle is an O(n) sweep, and a centre that shifted
+	 * under the ease would make the graph crawl instead of spin.
+	 *
+	 * Each choice falls through to the next when it cannot be had — the pointer
+	 * when a command fired the turn and there is no pointer, the active note when
+	 * it is not a node in *this* pane, which is the ordinary case in a Bases
+	 * graph or in a local graph of some other note. The graph's own middle is the
+	 * one that is always available, so it is the floor.
+	 */
+	resolvePivot(renderer, state, event) {
+		const mode = this.settings.pivot;
+
+		if (mode === 'pointer' && event) {
+			const el = renderer.interactiveEl || renderer.containerEl;
+			if (el && typeof el.getBoundingClientRect === 'function') {
+				const rect = el.getBoundingClientRect();
+				const dpr = window.devicePixelRatio || 1;
+				return {
+					kind: 'screen',
+					x: (event.clientX - rect.left) * dpr,
+					y: (event.clientY - rect.top) * dpr,
+				};
+			}
+		}
+
+		if (mode === 'note') {
+			const node = this.activeNode(renderer, state);
+			if (node) return { kind: 'world', x: node.x, y: node.y };
+		}
+
+		const centre = this.graphCentre(renderer);
+		if (centre) return { kind: 'world', x: centre.x, y: centre.y };
+		return null;
+	}
+
+	/**
+	 * The node for the note this pane is about.
+	 *
+	 * A local graph is built around its own note, which is not always the one the
+	 * workspace calls active — clicking into the graph pane makes *it* the active
+	 * leaf without changing which note it is showing. So the pane's own file wins
+	 * where there is one, and the workspace's active file is the fallback.
+	 */
+	activeNode(renderer, state) {
+		const view = state.view;
+		let file = view && view.file;
+		if (!file || typeof file.path !== 'string') file = this.app.workspace.getActiveFile();
+		const path = file && file.path;
+		if (!path) return null;
+		const node = renderer.nodeLookup && renderer.nodeLookup[path];
+		if (!node || typeof node.x !== 'number' || typeof node.y !== 'number') return null;
+		if (!isFinite(node.x) || !isFinite(node.y)) return null;
+		return node;
+	}
+
+	/**
+	 * The middle of the graph, in world coordinates — the centre of the box the
+	 * nodes occupy, not their average position. The average is dragged around by
+	 * whichever cluster happens to be densest, which is not where the graph looks
+	 * like its middle is; the box is.
+	 *
+	 * Null while a pane has no laid-out nodes, which is true for a frame or two
+	 * after it opens.
+	 */
+	graphCentre(renderer) {
+		let minX = Infinity;
+		let maxX = -Infinity;
+		let minY = Infinity;
+		let maxY = -Infinity;
+		for (const node of renderer.nodes) {
+			if (!node || typeof node.x !== 'number' || typeof node.y !== 'number') continue;
+			if (!isFinite(node.x) || !isFinite(node.y)) continue;
+			if (node.x < minX) minX = node.x;
+			if (node.x > maxX) maxX = node.x;
+			if (node.y < minY) minY = node.y;
+			if (node.y > maxY) maxY = node.y;
+		}
+		if (minX > maxX) return null;
+		return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
 	}
 
 	rotateBy(renderer, state, radians, pivot) {
-		state.pivotX = pivot ? pivot.x : null;
-		state.pivotY = pivot ? pivot.y : null;
+		state.pivot = pivot || null;
 		state.target += radians;
 		if (!this.settings.smooth) {
 			this.applyAngle(renderer, state, state.target);
@@ -583,7 +744,8 @@ class GraphRotatorPlugin extends Plugin {
 			return;
 		}
 		for (const pair of targets) {
-			this.guard(() => this.rotateBy(pair[0], pair[1], direction * this.settings.step * DEG, null));
+			this.guard(() => this.rotateBy(pair[0], pair[1], direction * this.settings.step * DEG,
+				this.resolvePivot(pair[0], pair[1], null)));
 		}
 	}
 
@@ -595,8 +757,9 @@ class GraphRotatorPlugin extends Plugin {
 			if (!state.angle && !state.target) continue;
 			turned++;
 			this.guard(() => {
-				state.pivotX = null;
-				state.pivotY = null;
+				// Unwind about the same point the winding used, so straightening a
+				// pane is the reverse of turning it rather than a second move.
+				state.pivot = this.resolvePivot(renderer, state, null);
 				state.target = 0;
 				if (!this.settings.smooth) this.applyAngle(renderer, state, 0);
 				renderer.changed();
@@ -677,7 +840,8 @@ class GraphRotatorSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Reverse the direction')
-			.setDesc('Scrolling down turns the graph clockwise. This swaps it.')
+			.setDesc('One modifier gives you both directions: scrolling down turns the graph '
+				+ 'clockwise and scrolling up turns it back. This swaps which way is which.')
 			.addToggle((t) => t
 				.setValue(this.plugin.settings.invert)
 				.onChange(async (v) => {
@@ -687,11 +851,19 @@ class GraphRotatorSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('What stays put')
-			.setDesc('The point the graph turns around. Under the pointer is the same anchoring the '
-				+ 'wheel already gives you when it zooms; the commands always use the centre, since '
-				+ 'they have no pointer to work from.')
+			.setDesc('The point the graph turns around. The pointer is the same anchoring the wheel '
+				+ 'already gives you when it zooms. The centre of the graph is the middle of the '
+				+ 'nodes themselves, so the graph spins in place wherever it sits on screen. The '
+				+ 'active note holds that one note still and swings everything else around it — '
+				+ 'in a local graph that is the note the pane is built on. Each falls back to the '
+				+ 'centre of the graph when it cannot be had: the pointer when a command started '
+				+ 'the turn, the active note when it is not in this pane.')
 			.addDropdown((d) => d
-				.addOptions({ pointer: 'The pointer', center: 'The centre of the pane' })
+				.addOptions({
+					pointer: 'The pointer',
+					graph: 'The centre of the graph',
+					note: 'The active note',
+				})
 				.setValue(this.plugin.settings.pivot)
 				.onChange(async (v) => {
 					this.plugin.settings.pivot = v;

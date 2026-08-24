@@ -1,17 +1,18 @@
 ---
 tags:
   - class
-created: 2026-08-19 15:31
+is a:
 characteristics:
   - "[[∘ medium]]"
   - "[[∘ visual domain]]"
-  - "[[∘ art domain]]"
-is a:
-  - "[[Obsidian Note]]"
-related:
 type of:
-  - "[[Artist]]"
-  - 
+  - "[[Creator]]"
+created: 2026-08-19 15:31
+ext links:
+related:
 note rating:
 rating:
+garden:
+life stage:
+maturity:
 ---

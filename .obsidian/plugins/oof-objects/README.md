@@ -12,7 +12,7 @@ This is the plugin described in `OOF 0.3`.
 | | where | shape |
 |---|---|---|
 | **class** | `Obsidian/Notes/` | `#class`, `characteristics:`, `type of:` |
-| **characteristic** | `Obsidian/Characteristics/` | named `∘ <name>`; `characteristic meaning:`, `property type:`, `possible values:` |
+| **characteristic** | `Obsidian/Characteristics/` | named `∘ <name>`; `characteristic meaning:`, `property type:`, `possible values:`, `default value:`, and a [defaults table](#the-defaults-table) in the body |
 | **template** | `Obsidian/Templates/` | `is a: [[Class]]` + one key per characteristic |
 | **instance** | anywhere | `is a: [[Class]]` + the same keys, filled in |
 
@@ -22,13 +22,130 @@ that flattening by hand is the chore this plugin removes.
 
 Two rules:
 
-- **Nothing is implicit.** There is no root class, and no parent is ever added
-  on your behalf. A class inherits exactly what its own note says it inherits,
-  so the files are the whole truth.
+- **Nothing is implicit** — unless you ask for it. By default no parent is ever
+  added on your behalf, and a class inherits exactly what its own note says, so
+  the files are the whole truth. Setting a **root class** trades that for brevity:
+  see below.
 - Parents are **`type of`** links, not `is a`. `is a` is instantiation, so an
   *instance* uses it to name its class; `type of` is subclassing, so a *class*
   uses it to name its parent. The panel, the generated bases and the
   [base functions](#in-base-queries) all draw that same line.
+
+### A root class
+
+**Its own template writes `is a` empty.** The root has nothing to point at — a
+note made from its template is a root note without saying so, which is the whole
+setting — but the key is still written. An absent property and an empty one look
+nothing alike in the properties view, and the empty one is there to fill in with
+something narrower the moment the note becomes more than a note.
+
+**It reaches the notes folder only.** A note that names no class is one of the
+root's without saying so anywhere — but only inside `Obsidian/Notes`. An entry
+note or a readme living at the root of the vault is not swept in.
+
+An explicit `is a` is a statement you made, and is honoured wherever you made it
+— **except in the three folders that describe the system**: the templates, the
+characteristics and the generated bases. A note filed with the bases is about
+the bases. A template names its class and is regenerated rather than patched.
+Nothing in those folders is ever treated as an instance.
+
+
+**Root class** (settings, empty by default) names a class every note belongs to
+without saying so. Everything is a root note and a type of one; **no link is
+written anywhere**, which is the point — the boilerplate disappears rather than
+being generated.
+
+It reaches everything at once: the panel, generated templates, the instance pass,
+and `file.isA()`. There is one function deciding what sits above a note, so a
+generated base cannot disagree with the card beside it.
+
+Two consequences worth knowing before you switch it on:
+
+- **A note that names no class becomes one of the root's**, and gains what the
+  root carries. That is the feature, but it means ordinary notes are touched.
+- **Frontmatter stops explaining itself.** A class note showing an empty
+  `type of:` still inherits. That is the price of the brevity, and it is why this
+  is off by default.
+
+Characteristic notes and templates are never swept up — they describe the system
+rather than belonging to it.
+
+### Entries that say nothing new
+
+`is a` and `type of` are tidied on Update when an entry adds nothing:
+
+| | example | why it goes |
+|---|---|---|
+| blank | `type of: [[Artist]], ` | an empty list item |
+| repeated | `is a: [[Artist]], [[Artist]]` | named twice |
+| implied | `is a: [[Artist]], Person` | Artist is a `type of` Person, so Person is already reached |
+
+The last is safe for the same reason as the root links: **what is removed is still
+true afterwards.** `file.isA("Person")` keeps answering yes, through the entry
+that stays.
+
+Two classes that reach *each other* — a cycle — are both kept, because there is no
+saying which of them is the redundant one. Two unrelated classes are both kept
+too; that is a note being two things at once, not a mistake.
+
+**Existing links to the root are removed.** An `is a: "[[Obsidian Note]]"` written
+before you set the root says exactly what the setting now says, so Update takes it
+out — keeping any other entries in the same list. This is the only place a
+property holding a value is rewritten rather than reported, and it is safe for a
+narrow reason: the value being removed is the value the setting puts back.
+
+**The root's own template writes no `is a`.** A note made from it is a root note
+without saying so, so the line would be the very clutter the setting removes.
+Every other template keeps its `is a` — that is what tells a new note which class
+it belongs to.
+
+**The root sits at the top of the panel**, above the alphabetical run rather than
+inside it, badged *root* and outlined in the accent colour — it is what the list
+hangs from, not one of the list.
+
+### Two inheritances, not one
+
+Both links carry characteristics, and they carry them to different places:
+
+| | what it means | who ends up with the properties |
+|---|---|---|
+| `A is a B` | A **is** one of B's | **A itself** — A's frontmatter gains B's characteristics |
+| `A type of B` | A is a kind of B | **instances of A** — they gain A's own *and* B's. A itself gains nothing |
+
+A class card shows both, each under the row that causes it:
+
+```
+is a             Obsidian Note
+  carries        related, note rating, rating, created   ← on this note
+characteristics  test attribute
+  inherited      —                                       ← for its instances
+type of          —
+```
+
+A class note may legitimately have both links, and usually wants them: `is a`
+gives the class note itself the properties every note has, and `type of` passes
+them on to its instances. If one is set and the other is not, the card says so
+underneath.
+
+#### Or let `is a` hand them down too
+
+**Instances inherit what their class carries** (settings, off by default) removes
+the need for the second link. With it on, an instance also receives whatever its
+class carries through its own `is a`, so a chain of `is a` passes characteristics
+all the way down and `type of` becomes a statement of meaning rather than a
+requirement.
+
+Off is the stricter reading and the original one: `is a` gives properties to the
+note that declares it and stops there. Switching it on changes what **every**
+instance in the vault is expected to hold, so read the Update plan afterwards.
+
+**The setting reaches `file.isA()` too.** With it on, that function follows the
+`is a` chain as well, so a generated base contains exactly the notes the panel
+says belong to the class. One hierarchy, one answer, wherever you ask.
+
+`file.inheritsFrom()` is deliberately left strict — it asks "is this a *subclass*
+of that?", which stays a different question however characteristics are handed
+down.
 
 ### Changing what a note is
 
@@ -50,6 +167,49 @@ holding a value is reported as a conflict instead).
 
 `Note` is an ordinary class like any other. If you want Artists to carry what
 Notes carry, say so: give `Artist.md` a `type of: "[[Note]]"`.
+
+### Or apply the class from the panel
+
+Editing the frontmatter by hand is one way. The other is the **☑ apply** icon on
+a class's row: it makes the note you currently have open an instance of that
+class.
+
+Because that writes into a note you were not necessarily thinking about, it asks
+first — **yes or no, with the diff underneath**, produced by the same
+`changePreview` the discrepancy view uses. So a yes is a yes to lines you have
+read, not to a description of them:
+
+```
+      created: "2026-08-16 14:42"
+      is a:
+[-]     - "[[Artist]]"
+[+]     - "[[Visual Artist]]"
+      related:
+[+]   medium:
+[+]   visual domain:
+[+]   art domain:
+```
+
+Above the diff it says what is being displaced (*It is currently an Artist. That
+is replaced.*), what arrives, and what the old class leaves behind.
+
+Three things it deliberately does **not** do:
+
+- **It does not remove the old class's properties.** They stay, with their
+  values, and the next Update decides — under the rules it already has, where an
+  empty one goes and a populated one is a conflict you are asked about. One
+  confirmation should not smuggle in another.
+- **It does not overwrite a value.** A property the note already has keeps what
+  is in it; only missing ones arrive, and they arrive empty.
+- **It does not reorder the frontmatter.** Putting the keys in inheritance order
+  would rewrite every line the note already had, and in a diff those moves look
+  exactly like deletions — on a real note it turned a 3-line change into a
+  15-line one. Order is Update's business.
+
+It refuses, with a reason, when there is no note open, when the open note **is**
+that class, and when the open note is a class at all — putting one class under
+another is what `type of` is for, and writing `is a` between two classes is the
+mistake the two-relations design exists to prevent.
 
 ## `#class`
 
@@ -99,10 +259,105 @@ The three defaults are anchors the engine depends on and cannot be removed;
 anything you add beyond them is read, shown and written faithfully, but carries
 no inheritance meaning of its own.
 
-## Unused characteristics
+## What nothing uses
 
-With **Trash unused characteristics** on (the default), Update offers to clear
-out characteristic notes nothing refers to any more.
+With **Trash what nothing uses** on (the default), Update offers to clear out
+three things: characteristic notes nothing refers to, and the template and base of
+a class that no longer exists.
+
+### A template whose name does not match its class
+
+A class's template is found **by its name** — `<Class> Template.md` — and that is
+the only link between the two. A template filed under any other name is invisible:
+nothing finds it, a second one is generated beside it, and the two drift apart.
+
+So a template that says `is a: "[[Art]]"` and is not called `Art Template.md` is a
+discrepancy, and Update renames it. Through Obsidian's own rename, so links to it
+are rewritten.
+
+Two things it will not do:
+
+- **A template that claims no class is left alone.** One with no `is a` is either
+  yours or the root's, whose template writes none by design — and neither can be
+  placed by guessing.
+- **When the correct name is already taken**, nothing is renamed. Two templates
+  claiming one class is reported instead, naming both: a class has exactly one
+  template, so one of the two is not it, and choosing which is not the plugin's
+  call.
+
+### Renaming a characteristic
+
+Rename `∘ domain.md` to `∘ field.md` and Obsidian rewrites the links. What it
+cannot do is rename the **property**: every note still says `domain:` with its
+value, under a name nothing declares any more.
+
+So the rename is noticed as it happens and carried through on the next Update —
+`domain:` becomes `field:` on every note and template that has it, value and all.
+
+Nothing else can see this. Only the file system knows what `field` used to be
+called, and by Update time the old note is gone, so the rename is written into
+the plugin's settings the moment it happens and kept until no note carries the
+old key. Renaming twice before an Update follows the chain rather than trying
+each hop.
+
+A note that has **both** keys with values is reported instead: which one is real
+is yours to say.
+
+#### A rename it never saw
+
+That only works for a rename the plugin is running to witness. One made while it
+was off leaves a key on your notes that nothing declares — and the plugin cannot
+know what it became.
+
+So it asks. A key carried by **two or more** notes with nothing declaring it is
+reported as **one** discrepancy — `"lifespan" — on 69 notes, declared by nothing`
+— with a button that lets you say what it turned into. Answering records the same
+kind of rename, and Update carries every note across.
+
+Where the values give it away, the answer is suggested: `lifespan` holding
+`current` and `legacy` against a `life stage` that allows `current, dated,
+legacy` is a match, and against a `maturity` that allows four other things is
+not. No overlap, no suggestion — you are the one who knows.
+
+**One note carrying such a key is an anomaly, not a rename**, and stays reported
+as itself, naming the note and the class. Two or more is a shape.
+
+While the question is open, the **empty** copies are left alone. They would
+otherwise be swept away as unaccounted-for, destroying most of the evidence
+before you had answered — thirty of the sixty-nine, in the case above.
+
+### The prefix is a characteristic's
+
+`∘` starts the name of a characteristic and nothing else. A class is never
+created carrying it — not from the panel, not by renaming — and a characteristic
+named where a class belongs, `type of: "[[∘ shelf]]"`, is **reported** rather
+than taken at face value.
+
+It used to be taken at face value: a `∘ shelf` card appeared in the panel and
+Update offered to generate `∘ shelf Template.md` and `∘ shelf Base.base` beside
+it. The characteristic it names is also protected from trash collection while
+the conflict stands — being told to fix a mistake and having the thing it refers
+to deleted is the worst of both.
+
+### Orphaned templates and bases
+
+Renaming a class moves all three of its files, so these only appear when a class
+note is **deleted by hand** — and then they sit there for ever.
+
+**A filename is not evidence.** `Characteristic Template.md` and `Base Base.base`
+match the naming exactly and are nothing to do with any class. So a file is only
+taken when it also *looks generated*:
+
+| | must also |
+|---|---|
+| `<Class> Template.md` | carry `is a: "[[<Class>]]"` |
+| `<Class> Base.base` | filter on `file.isA("<Class>")` |
+
+Your own files do neither, and are left alone.
+
+### Unused characteristics
+
+A characteristic note is cleared out once nothing refers to it any more.
 
 "Unused" is deliberately strict. A characteristic stays if **any** of these hold:
 
@@ -123,6 +378,29 @@ Obsidian's own `trashFile` — landing wherever your **Deleted files** setting
 puts them, and recoverable. They are marked in red in the Update plan, and the
 plan counts them separately above the list.
 
+## All notes carry the base characteristics
+
+By default a note that is not a class carries a base characteristic **only when
+it has something to say with it** — an instance has `is a`, and a blank `type of`
+or `characteristics` is cleared out on Update.
+
+**Settings → All notes carry the base characteristics** inverts that: every note
+gets every one of them, empty or not, and nothing is cleared. Generated templates
+write them too, so a new note is born in step rather than being corrected the
+moment it exists.
+
+"Base characteristic" means the logic properties — `is a`, `type of`,
+`characteristics` — plus any characteristic note flagged
+`is base characteristic: true`.
+
+`is a` still leads. It and the others are one band and one heading, but within it
+the alphabet would put `characteristics` first, and the line saying what the note
+*is* should be the one you read first.
+
+Turning it back off is safe and symmetric: the empty ones are cleared out again
+on the next Update, and any that hold a value are left alone — the same rule as
+everywhere else.
+
 ## Property order
 
 Properties are always laid out **by property type first, then alphabetically**,
@@ -134,6 +412,148 @@ characteristic note; anything with no type known sorts last.
 > the property lands at the bottom rather than with its own kind. Update now
 > fills in `property type: list` for the base characteristics, and says so in
 > the plan, but an ordinary characteristic's type is yours to set.
+
+### Or group by the class it came from
+
+**Settings → Properties → Property order** switches the layout to *Grouped by the
+class it came from*. Each class's characteristics then sit together, the nearest
+class first, and inside each group the old type-then-name rule still decides.
+
+A `Visual Artist` template, both ways:
+
+```yaml
+# by property type              # grouped by class
+birth day:                      is a:
+death day:                      art domain:      ─┐
+art domain:                     medium:           │ Visual Artist
+children:                       visual domain:   ─┘
+is a:                           birth day:       ─┐
+medium:                         death day:        │
+relation to me:                 children:         │ Person
+visual domain:                  relation to me:   │
+location:                       location:        ─┘
+```
+
+Two things fall out of grouping that are worth knowing:
+
+- **`is a` and `type of` lead the note.** They are base characteristics — no
+  class declares them — so they get a group of their own at the top. In flat
+  order they are sorted like anything else, and `is a` lands wherever the
+  alphabet puts it among the other lists, which on a real note is usually the
+  middle.
+- **A characteristic two classes both declare is credited to the nearer one**,
+  which is the class you would name if asked where it came from.
+
+Anything managed that no class in the chain declares trails at the end.
+
+**Changing this setting rewrites the property order of every note**, since order
+is part of being in step. The next Update plan shows it as an ordinary reorder,
+file by file, before anything is written.
+
+#### The headings you see are drawn, not written
+
+With grouping on, the properties panel gains a heading over each group:
+
+```
+is a                    ← base characteristics, no heading
+── PERSON ──
+birth day
+death day
+children
+── NOT FROM A CLASS ──
+garden
+lifespan
+```
+
+**None of that is in the file.** Frontmatter keeps no comments and no blank
+lines — Obsidian re-emits the block from a parsed object every time a property
+is touched, so a heading written there would have to be a real property, and
+would then be a real property for ever: in the panel, in every base, in the
+count. Drawing it over the panel costs the file nothing and cannot decay.
+
+The sections run **general to specific**, top to bottom:
+
+```
+Native attributes            fields Obsidian owns
+Base characteristics         what the note is
+Not from a class             a characteristic nothing accounts for
+Obsidian Note characteristics   ← the root, the most general class
+Person characteristics
+Artist characteristics
+Visual Artist characteristics   ← the class the note actually claims
+```
+
+Reading down the panel is reading down the hierarchy: what every note has, then
+what every Person has, then what only a Visual Artist has. The **root comes
+before every other class**, whatever its distance — it is reachable from
+anywhere, so measuring by distance put it in the middle, and it is placed
+instead.
+
+Every row sits under a heading. Three of them do not name a class:
+
+| heading | what is under it |
+|---|---|
+| **&lt;Class&gt; characteristics** | what that class hands down — `Person characteristics`, `Obsidian Note characteristics` |
+| **Base characteristics** | `is a`, `type of`, `characteristics` — and anything a characteristic note flags with `is base characteristic: true` |
+| **Not from a class** | a real characteristic that no class in the chain, and no root, hands down |
+| **Native attributes** | a field Obsidian itself owns — `tags`, `aliases`, anything with no characteristic note |
+
+The last two are deliberately not synonyms. *Not from a class* is a question
+about the hierarchy — usually a property whose class was changed, or one that
+predates it. *Native attributes* is not a question at all: those fields belong to
+Obsidian, and the class system has no opinion about them.
+
+One thing is left undecorated: **a note with nothing but native attributes**. A
+single heading over the whole of a journal entry is not information, and the
+section exists to separate those fields *from* the class ones, which needs there
+to be some.
+
+**Class notes are decorated too.** A class says what its instances carry through
+`characteristics` and `type of`, and normally leaves its own `is a` empty — but
+the class note is still a note with properties of its own.
+
+**The root class counts.** When a root is set, every note is one implicitly and
+writes no link saying so, so the headings ask `rootAbove()` as well as reading
+`is a`. Without that a root class could never be named, and its characteristics
+would be reported as belonging to nothing.
+
+So *Not from a class* means what it says: no class, no ancestor and no root
+accounts for that property. On a class note it usually means either the class
+note should say what **it** is an instance of, or that the class those
+properties come from should be your root.
+
+The headings are restored whenever Obsidian rebuilds the panel, which it does
+each time you edit a property.
+
+#### Folding a group away
+
+Click a heading — anywhere on it, not just the chevron — and its properties fold
+away, with a count of what is hidden:
+
+```
+is a
+▾ PERSON
+  birth day
+  death day
+  children
+▸ OBSIDIAN NOTE   6
+```
+
+All of them fold like any other group.
+
+**Settings → Name class sections after their characteristics** switches the class
+headings between *Person characteristics* and plain *Person*. It changes the
+wording only: a folded section is remembered by the class name either way, so
+switching it never unfolds anything.
+
+**Folding is by class, not by note.** A group is folded because that whole class
+is boilerplate you would rather not look at — the root's housekeeping properties,
+usually — and wanting that on one note means wanting it on all of them. So it
+applies everywhere at once, in every open pane, and is remembered across
+restarts.
+
+It is a view and nothing else: the file is untouched, and a folded property is
+still there, still written, still in every base.
 
 ```yaml
 born:              # date
@@ -176,6 +596,158 @@ It scrolls **only when you move to a different note**, never on an ordinary
 redraw, so it will not yank the list around while you are editing chips. Turn it
 off with *Follow the active note*.
 
+### The tree
+
+There are two drawings of it, and they differ in what the horizontal space is
+spent on.
+
+**A tree** — *classes aligned, connexions drawn out*. Every node in one column
+beside the cards, so the names line up and the dots line up. A child directly
+below its parent is joined by a plain vertical; anything else is a **bracket**:
+out from the parent, down a lane, and back in at the child. The lanes carry only
+the detours, so the width is the number of connexions that have to overtake each
+other rather than the depth of the hierarchy. Brackets nest — the shortest reach
+innermost, the longest furthest out.
+
+**A graph** — *a lane per branch, like a commit graph*. A lane belongs to a class
+and holds it for as long as it has descendants, so the node's position tells you
+which branch it is on.
+
+**The ⑂ button on the title row**, beside unfold-all and fold-all, steps round the
+three. It shows the icon of the one you will get next, is accented while either
+drawing is on, and is greyed out while you are searching — a filtered tree has holes in it, so the panel falls
+back to the list.
+
+The same choice is **Settings → Class layout**, beside *Order in the panel*.
+Choosing the tree hides that sort, since the tree is the order.
+
+The tree draws the classes as a git graph: one class per row, rails in lanes to
+the left, and a node on the lane the class sits in.
+
+```
+●  Obsidian Note
+├● Art
+│├● Location
+││● Person
+││● Artist
+││● Visual Artist
+│││● Project
+│││● Issue
+●││ Obsidian Plugin
+    ● Todo
+```
+
+Four things it does:
+
+- **Only `type of`.** Subclassing is the tree. `is a` is instantiation, and
+  drawing it here would be a different picture entirely.
+- **One class per row**, which is what stops two nodes ever sharing a horizontal
+  position.
+- **A parent is always drawn above its child** — including a class with two
+  parents, which waits until both are above it and then hangs from the second.
+  Its **other** parent is a wire of its own: out of that parent's node, down a
+  lane, and back in at the child — dashed by default, so it is obvious which of
+  the two the rows are ordered by, and solid if you would rather they looked
+  alike.
+- **The root class is above everything**, drawn as an edge even though no note
+  contains it. That is what a root is, and without it a vault whose classes name
+  no parent comes out as a row of separate trees.
+
+### Wires that cross
+
+A class that is a `type of` two classes has two edges, and only one of them can
+be the descent the drawing is built around. The other is routed as a wire in a
+lane of its own — **a band outside the class lanes**, so adding one never moves a
+node: the classes keep their lanes and their distance from the cards, and the
+drawing only grows at the outer edge.
+
+**As many lanes as there are wires that have to overtake each other**, and no
+more. Two wires whose spans do not overlap share a lane; two that do get one
+each. Shortest first, so a short wire ends up inside the ones that contain it
+rather than crossing them.
+
+**Where two wires cross, one gives way.** The vertical is drawn straight through
+and the horizontal is cut either side of it, the way a wiring diagram has always
+said "these two do not touch". The horizontal is the one cut, which falls the
+right way round on its own: a second-parent wire is horizontal for the whole of
+its detour out and back, so it is the wire doing nearly all of the crossing and
+nearly all of the giving way.
+
+This applies to the bracket drawing too, where every edge is already a wire in a
+lane — the brackets used to run straight through each other. And the bracket
+drawing **shows second parents at all** now; until this it drew only the descent,
+which meant a class could be a `type of` two things and the picture said one.
+
+**Settings - The wire to a second parent** draws it dashed or solid. Dashed is
+the default and tells the two parentages apart at a glance. Solid draws them
+alike, which is arguably the truer reading: both are ordinary `type of`, and
+which one the rows are ordered by is decided by the drawing rather than by
+anything in the vault. Either way it is the wire that gives way where two cross —
+that is about which line is easier to follow, not about which parent matters.
+
+**Everything the class inherits from is lit** for the class you are reading — up
+every wire leading to it, through both parents of a class that has two and their
+parents in turn, out to the roots. The class the note belongs to is a filled
+node; everything above it is a ringed one, so the highlight reads as one run
+while still saying where the note actually sits.
+
+**Settings - How far the highlight reaches** turns that down to *only the line it
+descends from*: the single chain the rows are ordered by, which is one path even
+where the class has more than one parent. That was the behaviour before there
+were wires to follow, and it is quieter on a hierarchy where nearly everything
+has two parents. Either way the wire arriving at the highlighted class is lit —
+an edge landing on that node is part of what the highlight is saying.
+
+**Hovering a class lights the same thing**, in a tint of the accent
+rather than the accent — same run, same filled node and ringed ancestors, half
+the weight. Point at any class and you can read where it hangs from without
+opening it. The tint is the point: the line for the note you are *reading* has to
+stay the one bright thing in the drawing, or a pointer wandering across the panel
+would keep overwriting the one highlight that says where you actually are. Where
+the two paths overlap the bright one wins.
+
+**Settings → How a connexion turns** bends a connexion in a curve or in a right
+angle. Rounded is the default. A turn is its own piece — a box with two borders
+and a radius on the corner between them, which is exactly a quarter arc — so the
+straights stay straight and only the bend is curved.
+
+**Settings → Inside a node** leaves a node empty, so it reads as a ring — the
+lines stop at the circle rather than running under it, or fills it with the panel colour so it sits over the line.
+Empty is the default. **The root empties with the rest**: it is drawn in the
+accent and ringed in it, and the ring is what says it is the root — so an accent
+ring with the line running through it reads as the root perfectly well, and one
+node quietly ignoring a setting called *Empty* read as a bug.
+
+**A class with two parents empties too.** Its node used to be filled grey,
+because back when a second parentage was a stub that did not reach — and in the
+bracket drawing was not drawn at all — the fill was standing in for a missing
+line. The line exists now, so the fill said the same thing twice, in the one
+language the node already uses for something else: filled means *the class you
+are reading*. On a hierarchy where several classes have two parents it read as a
+scattering of highlights that were not highlights.
+
+So only two nodes stay filled either way — the class you are reading and the
+class under the pointer. For those the fill is the whole of the mark.
+
+**Settings → Nodes that are not highlighted** draws a node in the colour of the
+lines, so the graph reads as one drawing, or a shade darker so each class stands
+out on its own. The lines' colour is the default: a node louder than the line
+running into it competes with the highlight, which is the only thing in the panel
+that should be shouting.
+
+**Settings → Which side the tree runs down** puts the rails to the right of the
+classes instead of the left. Left is how a commit graph is drawn; right suits the
+sidebar the panel usually lives in — the lines sit against the window edge, and
+the name is the first thing you read. The root stays the outermost lane either
+way, so the graph mirrors rather than turning inside out.
+
+The tree **is** the order, so the sort setting has nothing to say while it is on.
+Searching falls back to the list, because a filtered tree has holes in it and the
+rails would run to classes that are not there.
+
+Collapsed, a class is the same one-line stub it is in the list; expanded, it is
+the same card. The rails run the full height of a row whatever is in it.
+
 ### Each class is a dropdown
 
 A class is **one row** until you open it: a twisty, its name, and everything that
@@ -208,6 +780,21 @@ Opened, a class shows:
 Type in the `+` box and press Enter to add. Click `×` to remove. A characteristic
 that has no note yet is created on Update.
 
+**Tab takes the first suggestion**, the way a shell or an editor does. Type
+`rel`, press Tab, get `related` with the completed part selected — so typing on
+replaces it rather than appending. Tab again, with nothing left to add, moves
+focus like an ordinary Tab. Enter adds whatever is in the box.
+
+The list is re-ordered as you type — things that *start* with what you typed
+first, then things that merely contain it — and Tab always takes the entry at the
+top of the list you are looking at, because both read the same ordering.
+
+**Adding several in a row stays where you are.** Every edit rebuilds the panel,
+which used to throw the list back to the top and drop the caret. The scroll
+position and the focused box are carried across the rebuild, and the box is
+cleared as the chip appears — so you can type, Enter, type, Enter without touching
+the mouse. Escape empties the box and steps out of it.
+
 ### The icons on the row
 
 Everything a class has or does, on the one line — these used to be a row of words
@@ -220,11 +807,14 @@ underneath it.
 | **▤** template | opens `<Class> Template.md` |
 | **▦** base | opens `<Class> Base.base` |
 | **⟳** reset | queues that base to be regenerated, losing your edits — asks for a typed code |
+| **☑** apply | makes the note you have open an instance of this class — asks yes or no |
 | **＋** new note, ending the row | creates an instance from the template |
 
 Three of them **open** a file, and they are grouped together for that reason.
-Rename **changes** a file, so it stays beside the name it acts on; new-instance
-**creates** one, so it ends the row and gets the biggest glyph.
+Rename **changes** a file, so it stays beside the name it acts on; apply and
+new-instance are the same act from either end — one makes an instance of the note
+you have, the other makes a note that is an instance — so they sit together and
+end the row.
 
 A file that does not exist yet keeps its place, faint, and says why when clicked —
 *No base for "Artist" yet — Update creates it* — rather than making the row jump
@@ -383,6 +973,21 @@ be true. Everything that is not is a discrepancy, and there are two kinds:
 
 Both are listed in the panel under a ⚠ caution card, with counts.
 
+Every entry has a **see the change** button. For a solvable one it shows the
+file's frontmatter line by line, with what will go marked `-` and what will
+arrive marked `+`, before anything is written. For one that needs you, it shows
+the file as it stands with the line at issue marked `!`.
+
+The diff is produced by running the very function that will do the writing against
+a copy of the frontmatter — so it cannot describe something other than what Update
+does.
+
+A changed line with nothing visible in it — `  - `, a list entry that is present
+but empty — is the commonest thing a tidy removes, and colouring an empty line
+red still shows you nothing. So the whole row is tinted and struck through, and
+the line says **(an empty entry)** in words. A wholly blank line says
+**(a blank line)**.
+
 **3. Update.** Your edits are written, and then the discrepancy handler settles
 whatever those edits disturbed — repeatedly, until nothing solvable is left. A
 fix can create work of its own (a new characteristic note then wants a
@@ -393,6 +998,10 @@ than once.
 never block — those are what Update is *for*. If one is insolvable and you mean
 it to stay that way, **dismiss** it: it stays listed and stays true, but stops
 blocking.
+
+It is also disabled, the same faded way **Discard** is with no pending edits, when
+there is simply nothing to do — the vault already matches the panel. Hovering
+either state says which it is.
 
 The same mechanism converges an edit you made by hand in a note, with no panel
 involvement at all. "Correct" has one definition and one code path, whatever
@@ -407,9 +1016,146 @@ caused the drift.
 | a class that is its own ancestor | listed — nothing can be inherited safely around a cycle |
 | two classes differing only by case | listed — Obsidian cannot tell them apart |
 | a value outside `possible values`, or of the wrong shape | listed — a value you typed is yours |
+| a value that disagrees with a **strict default** | listed, unless *Strict defaults also override differing values* is on |
+| a defaults row giving both a default and a different strict default | listed — the strict one would be written and the other never used |
 
 A class you create **in the panel** has no note yet either, and that is different:
 you asked for it, so Update makes it.
+
+## `default value`
+
+What a generated template should put in this property, written **verbatim** — so a
+Templater expression reaches the template intact and renders when a note is made
+from it:
+
+```yaml
+# ∘ created.md
+property type: datetime
+default value: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+```
+
+Every template that carries `created` then gets that line, and every note made
+from one gets a real timestamp.
+
+- **Templates only.** An instance gains the key *empty*; the value arrives from
+  Templater at creation. Writing the expression into a note would leave the text
+  sitting there unrendered.
+- **Notes that missed it are filled in.** A note written before the characteristic
+  existed has an empty `created:` that Templater will never fill. Update fills it
+  **from the file's own creation time** — never from the clock, because the point
+  is to recover a fact rather than to claim every old note was made today. Only
+  empty ones; a date you wrote yourself is yours. Date and datetime
+  characteristics only, and only where the default is a Templater expression.
+- **Checked, not just written.** A template whose value has drifted from the
+  characteristic is brought back into line on Update, the same as a missing key.
+- Leave it empty and the template gets an empty key, as before.
+- **Per class, use the [defaults table](#the-defaults-table) below.** This key is
+  the same claim about every note that carries the characteristic, and it is read
+  last — the table's *All notes* row is what replaces it.
+
+> This is also the answer to a subtler problem. A property with **no**
+> characteristic note is left alone in templates — that is what protected a
+> hand-written `created: <% … %>` line. The moment `created` became a
+> characteristic it turned into a *managed* key, and managed keys are cleared and
+> rewritten. `default value` is where that expression belongs once the system
+> knows about the property.
+
+## The defaults table
+
+`default value` says one thing for every note that carries the characteristic.
+The **defaults table** says it per class — *every visual artist has
+`domain: visual`* — and it lives in the body of the characteristic's own note:
+
+```markdown
+| Default location  | Default value | Strict default value |
+| ----------------- | ------------- | -------------------- |
+| All notes         |               |                      |
+| [[Artist]]        | art           |                      |
+| [[Visual Artist]] |               | visual               |
+```
+
+A row per class, plus *All notes*. Add as many as you like.
+
+**Why here and not in the template.** A template is the *flattening* — `Artist
+Template.md` and `Visual Artist Template.md` both carry `domain:`, so a value in
+the second says nothing about whether Visual Artist declared it or inherited it,
+and a plugin that cannot tell those apart either destroys your edit when the
+parent changes or silently stops inheriting. The same defect `is a: dog, mammal,
+animal` had in `OOF 0.1`. A row exists or it does not.
+
+The class note still tells you: the location is a **link**, so `Visual Artist`'s
+backlinks show the row that names it, value and all.
+
+### The two columns are not the same claim
+
+| | |
+|---|---|
+| **Default value** | what a note is **created** with. The template carries it; from then on the value is the note's own, and nothing here ever touches it again |
+| **Strict default value** | a standing claim about every instance. An empty value is **never accepted** while one stands — Update fills it, retroactively, for ever |
+
+That is the whole difference, and it is what *"if a characteristic has a default
+value, then NONE is never accepted"* means once it is written down: it is the
+strict column that is total.
+
+A value that is neither empty nor the strict one is a third case, and it is a
+setting. **Off** — the default — it is *reported*, because a value you typed is
+yours everywhere else in this plugin:
+
+```
+Otto Vance · domain
+The defaults table for domain gives an instance of Visual Artist the strict
+value visual, and this holds sculpture. Left untouched — change it, change the
+row, or turn on Strict defaults also override differing values.
+```
+
+**On**, it is replaced, and the plan shows `sculpture → visual` before anything
+is written.
+
+### Inheritance
+
+The walk is the one `characteristics` already does: **the class, then its
+ancestors nearest first**. A class with no row of its own uses its parent's; a
+child that declares one wins over everything above it. Two parents at the same
+distance are met in the order the class names them.
+
+*All notes* is the weakest row, and the `default value:` in frontmatter is behind
+even that — it is what the *All notes* row replaces, kept working so nothing has
+to be migrated. Three of the characteristics in this vault use it today and go on
+behaving exactly as they did.
+
+Only the classes that **carry** the characteristic are reached. A row naming a
+class that never declares `domain` does nothing.
+
+### What is written
+
+The strict value if there is one, otherwise the default. A row that gives **both**,
+differing, is reported rather than guessed at: the strict one would be written and
+the other would be visibly ignored for ever.
+
+Cells are text, and the value is coerced to the characteristic's `property type` on
+the way out — `12` into a number property is the number, `a, b` into a list is two
+entries, and a comma inside `[[Paris, France]]` does not split it. A Templater
+expression is left as text, because it is machinery: it reaches the template intact
+and renders at creation. A **strict** default written as one is not enforced on
+existing notes — there is nothing to enforce, and `fill-datetime` is what recovers
+those from the file's own creation time.
+
+### The table is an input
+
+It is read, never rewritten. Editing a row is editing a note, the same as
+`property type` and `possible values` above it.
+
+**Every characteristic note carries one.** A note created by Update is created
+with it; a note that has none gets one appended, listed in the plan like anything
+else. That is the only thing in this plugin that writes into a body at all, and it
+is narrowed until it cannot lose anything:
+
+- **appended, never merged.** The whole write is *what is there* + *the table*.
+  Nothing already written is read, moved or removed
+- **once.** A note that already has a table is left alone, whatever is in it
+- **switchable.** Turn **Settings → Every characteristic note carries the table**
+  off and existing notes are left as they are; only the ones Update creates carry
+  one
 
 ## `possible values`
 
@@ -625,6 +1371,24 @@ in a particular case, the setting takes a comma-separated list.
 > class declares `created` for its instances. Give the class an
 > `is a: "[[Note]]"` if you want it to carry what its own notes carry.
 
+## The "Add property" button
+
+**Settings → Hide the "Add property" button** takes it out of the properties
+panel. What replaces it is a command — **OOF Classes: Add a property to the open
+note** — which you bind to whatever key you like in Settings → Hotkeys.
+
+The command **presses Obsidian's own button** rather than reimplementing what it
+does. Adding a property is Obsidian's business, and a second implementation would
+be one more thing to keep in step with its properties UI. So the button is hidden
+rather than removed, and briefly made real again for the press itself, in case
+anything positions itself against it.
+
+No default hotkey is claimed. Every combination worth having is already yours,
+and silently taking one would be worse than asking. Because of that, hiding the
+button without binding the key would leave you with **neither** — so the settings
+tab says which key it is bound to, and warns in orange when it is bound to
+nothing.
+
 ## Settings
 
 Folders (`Obsidian/Notes`, `Obsidian/Characteristics`, `Obsidian/Templates`),
@@ -632,11 +1396,17 @@ the template suffix (` Template`), the **characteristic prefix** (`∘ `), the b
 characteristics, the bases options above, and **A class is its own instance** for
 the base functions.
 
+Two for the [defaults table](#the-defaults-table): **Strict defaults also override
+differing values**, and **Every characteristic note carries the table** — the only
+setting in the plugin that leads to a note's body being written, and the only
+reason to turn it off.
+
 ## Not yet
 
 - **`property type` and `possible values` are checked, never enforced** — a value
   that contradicts either is reported as a conflict and left alone, because a
-  value you typed is yours. Generated properties are created empty; Obsidian's own
+  value you typed is yours. A **strict default** is the one thing that does get
+  written, and only into an empty value unless you turn the setting on. Generated properties are created empty; Obsidian's own
   `types.json` governs how they are displayed.
 - **One argument per call.** `file.isA("Artist")`, not
   `file.isA("Artist", "Writer")`; `file.isA("a") or file.isA("b")` says the same

@@ -135,6 +135,13 @@
 	color: var(--text-on-accent);
 }
 
+/* A view's type — table, cards, graph. Quieter than the count next to it. */
+.bf-badge-type {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-faint);
+}
+
 /* Work the bases have not been told about yet — the Classes panel's badge. */
 .bf-badge-dirty {
 	background: transparent;
@@ -280,6 +287,88 @@
 .bf-empty {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
+}
+
+/* ----- one shared view ----- */
+
+/* Forty lines of graph forces have no business being open by default, so the
+ * YAML is behind a fold and the summary says how much is under it. */
+.bf-view-yaml {
+	margin-top: 6px;
+}
+
+.bf-view-yaml > summary {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.bf-view-body {
+	white-space: pre;
+	overflow-wrap: normal;
+	overflow-x: auto;
+}
+
+.bf-local-note {
+	margin: 6px 0 0;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* ----- picking a view to share ----- */
+
+.bf-pick {
+	max-height: 50vh;
+	overflow-y: auto;
+	margin: 10px 0;
+}
+
+.bf-pick-base {
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-faint);
+	margin: 10px 0 4px;
+}
+
+.bf-pick-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	text-align: left;
+	background: transparent;
+	border: 1px solid transparent;
+	box-shadow: none;
+	padding: 4px 6px;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.bf-pick-row:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--background-modifier-border);
+}
+
+.bf-pick-name {
+	font-weight: 600;
+}
+
+.bf-pick-detail {
+	margin-left: auto;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+.bf-pick-warn {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-warning);
+}
+
+.bf-settings-area {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	width: 100%;
 }
 
 /* ----- what each base carries ----- */

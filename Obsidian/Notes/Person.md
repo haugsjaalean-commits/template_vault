@@ -1,18 +1,21 @@
 ---
 tags:
   - class
-created:
+is a:
 characteristics:
   - "[[∘ children]]"
   - "[[∘ relation to me]]"
   - "[[∘ location]]"
   - "[[∘ birth day]]"
   - "[[∘ death day]]"
-is a:
-  - "[[Obsidian Note]]"
-related:
+  - "[[∘ historical importance]]"
 type of:
-  - "[[Obsidian Note]]"
+created: 2026-08-15 12:42
+ext links:
+related:
 note rating:
 rating:
+garden:
+life stage:
+maturity:
 ---

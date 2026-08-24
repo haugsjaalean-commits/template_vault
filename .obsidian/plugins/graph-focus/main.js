@@ -1738,8 +1738,20 @@ class GraphFocusPlugin extends Plugin {
 
 		const dpr = window.devicePixelRatio || 1;
 		const scale = renderer.scale || 1;
-		const targetX = (width / 2) * dpr - node.x * scale;
-		const targetY = (height / 2) * dpr - node.y * scale;
+		// The pane may be turned. `screen = pan + R(angle)·(world · scale)` is the
+		// hanger's real transform, so centring a node means undoing all three and
+		// not just the scale — without the rotation the view aims at where the
+		// note would sit if the graph were level, and settles confidently there.
+		// Graph Rotator publishes the angle for this; 0 when it is not installed,
+		// which is the arithmetic this had before.
+		const rotator = this.app && this.app.__graphRotator;
+		const angle = rotator && typeof rotator.angleOf === 'function' ? rotator.angleOf(renderer) : 0;
+		const wx = node.x * scale;
+		const wy = node.y * scale;
+		const cos = Math.cos(angle);
+		const sin = Math.sin(angle);
+		const targetX = (width / 2) * dpr - (wx * cos - wy * sin);
+		const targetY = (height / 2) * dpr - (wx * sin + wy * cos);
 		const dx = targetX - renderer.panX;
 		const dy = targetY - renderer.panY;
 

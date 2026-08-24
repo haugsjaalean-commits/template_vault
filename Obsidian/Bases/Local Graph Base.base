@@ -1,6 +1,7 @@
 filters:
   and:
     - file.linkDistance() <= 4
+    - '!file.inFolder("Obsidian/Templates")'
 formulas:
   word count: file.WordCount()
 properties:
@@ -10,7 +11,7 @@ views:
   - type: graph
     name: Graph
     groupBy:
-      property: file.folder
+      property: is a
       direction: ASC
     sort:
       - property: formula.word count
@@ -34,7 +35,7 @@ views:
       repelStrength: 20
       linkStrength: 1
       linkDistance: 30
-      scale: 0.27268599173600194
+      scale: 0.16348370567219692
       close: true
     neighbourDepth: 0
     ringSpread: 19

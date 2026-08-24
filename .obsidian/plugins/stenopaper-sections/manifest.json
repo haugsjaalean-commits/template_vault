@@ -1,0 +1,9 @@
+{
+  "id": "stenopaper-sections",
+  "name": "Stenopaper Sections",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Stamps every block with the heading level that governs it, so CSS can paint a background behind a whole section. Proof of concept for the Stenopaper theme.",
+  "author": "Claude (written for Leander)",
+  "isDesktopOnly": false
+}
