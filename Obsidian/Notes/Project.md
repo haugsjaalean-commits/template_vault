@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol: lucide:mountain
 is a:
 characteristics:
   - "[[∘ activity]]"

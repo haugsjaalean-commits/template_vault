@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Issue]]"
+  - "[[Improvement]]"
 characteristics:
 type of:
 created: 2026-08-23 17:27
@@ -14,6 +14,7 @@ maturity: Charmander
 importance:
 activity: active
 status: idea
+category:
 project:
   - "[[Class Manager]]"
 subject:

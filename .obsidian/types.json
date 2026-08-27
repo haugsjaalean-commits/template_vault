@@ -49,6 +49,14 @@
     "friend": "multitext",
     "false friend": "multitext",
     "entomology": "multitext",
-    "gender": "multitext"
+    "gender": "multitext",
+    "session": "text",
+    "school": "text",
+    "teacher": "text",
+    "class date": "date",
+    "class number": "number",
+    "level": "text",
+    "maturité": "text",
+    "category": "multitext"
   }
 }

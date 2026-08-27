@@ -11,7 +11,7 @@ views:
   - type: table
     name: Table
     groupBy:
-      property: activity
+      property: is a
       direction: ASC
     order:
       - file.name

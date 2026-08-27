@@ -1,3 +1,7 @@
+filters:
+  and:
+    - '!file.inFolder("Obsidian/Templates")'
+    - '!file.inFolder("Obsidian/Characteristics")'
 formulas:
   word count: file.WordCount()
 properties:
@@ -45,9 +49,18 @@ views:
       repelStrength: 20
       linkStrength: 1
       linkDistance: 30
-      scale: 0.11660891579457187
+      scale: 0.11660891579457136
       close: true
     ringRank: proportional
     ringSpread: 11
   - type: table
     name: Table
+    groupBy:
+      property: is a
+      direction: ASC
+    order:
+      - file.name
+      - file.tags
+    sort:
+      - property: file.tags
+        direction: ASC

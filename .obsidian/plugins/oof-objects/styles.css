@@ -13,7 +13,13 @@
 .oof-header {
 	position: sticky;
 	top: 0;
-	z-index: 1;
+	/*
+	 * Above everything in the panel, said as a number because there is no
+	 * stacking context between them to make it a local question: a tree dot
+	 * carries `z-index: 2` and the pinned cards sit later in the document, so at
+	 * 1 the header was painted over by both.
+	 */
+	z-index: 5;
 	margin: 0 -12px 10px;
 	padding: 8px 24px 12px;
 	border-radius: 0 0 var(--radius-l) var(--radius-l);
@@ -254,6 +260,13 @@ button.oof-new-class .svg-icon {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	/*
+	 * A floor, so a busy row ellipsises the name rather than deleting it.
+	 * `overflow: hidden` sets the automatic minimum size to zero, which is why it
+	 * could vanish entirely — the flex algorithm was free to take every pixel.
+	 * Everything else on the row can be worked out from context; the name cannot.
+	 */
+	min-width: 4.5em;
 }
 
 /* Points right when closed, down when open, the way every twisty does. */
@@ -410,7 +423,16 @@ button.oof-new-class .svg-icon {
 	letter-spacing: 0.04em;
 	color: var(--interactive-accent);
 	white-space: nowrap;
-	flex: 0 0 auto;
+	/*
+	 * Yields before the row does. It is the one piece of prose here that the row
+	 * can spare — the `is a` chip beside it already says what the relation is —
+	 * and it used to be rigid, so on a full row the *name* was crushed instead.
+	 * The name is the last thing that should give way.
+	 */
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .oof-badge-active {
@@ -421,6 +443,328 @@ button.oof-new-class .svg-icon {
 .oof-badge-root {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
+}
+
+/* ----- class symbols ----------------------------------------------------- */
+
+/*
+ * The mark before a class's name. Sized off the name it precedes rather than
+ * fixed, so it holds its proportion when the interface font size changes, and
+ * `flex: 0 0 auto` so it is never the thing that shrinks — it is one character,
+ * and there is nothing to gain by squeezing it.
+ */
+.oof-symbol {
+	font-size: var(--font-ui-medium);
+	line-height: 1;
+	color: var(--text-normal);
+	flex: 0 0 auto;
+	/* Centred in its own box, so ▲ and • sit over the same spot down the list. */
+	width: 1.1em;
+	text-align: center;
+}
+
+/*
+ * Inherited rather than the class's own. Faint, because a chain marked once at
+ * the top would otherwise look like six classes each claiming the same symbol —
+ * the mark is true of all of them, but only one of them said it.
+ */
+.oof-symbol.is-inherited {
+	color: var(--text-faint);
+}
+
+/* Over a class's section in the properties view — the other half of the ask. */
+.oof-property-group-symbol {
+	flex: 0 0 auto;
+	width: 1.1em;
+	text-align: center;
+	color: var(--text-muted);
+	line-height: 1;
+}
+
+/*
+ * A Lucide icon standing in for a symbol. `setIcon` puts an SVG inside, and an
+ * SVG has no baseline — so the box does the aligning that a glyph would do for
+ * itself, and the icon is sized to the text around it rather than to Obsidian's
+ * default, which is a good deal larger than a class name.
+ */
+.oof-symbol.is-icon,
+.oof-property-group-symbol.is-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.oof-symbol.is-icon svg,
+.oof-property-group-symbol.is-icon svg,
+.oof-picker-cell.is-icon svg,
+.oof-picker-preview.is-icon svg,
+.oof-picker-inline.is-icon svg {
+	width: 1em;
+	height: 1em;
+}
+
+/* ----- the symbol picker ------------------------------------------------- */
+
+.oof-picker-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+/*
+ * The chosen mark, big enough to actually judge — which is the whole reason the
+ * picker is a dialog rather than a row on the card.
+ */
+.oof-picker-preview {
+	flex: 0 0 auto;
+	width: 2em;
+	height: 2em;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--font-ui-large);
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.oof-picker-title h3 { margin: 0; }
+
+.oof-picker-inherited {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	margin-left: auto;
+}
+
+.oof-picker-tabs {
+	display: flex;
+	gap: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 8px;
+}
+
+.oof-picker-tab {
+	padding: 4px 10px;
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	text-decoration: none;
+}
+
+.oof-picker-tab:hover { color: var(--text-normal); }
+
+.oof-picker-tab.is-active {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+}
+
+.oof-picker-search {
+	width: 100%;
+	margin-bottom: 8px;
+	padding: 5px 8px;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+}
+
+/*
+ * `auto-fill` rather than a fixed count, so the same grid serves 60 symbols and
+ * 400 icons without either being told how wide the dialog is. Capped in height
+ * and scrolled: the emoji tab is longer than any screen.
+ */
+.oof-picker-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(2.2em, 1fr));
+	gap: 2px;
+	/*
+	 * A floor under the cap: `40vh` is 0 wherever the viewport height is, which
+	 * collapses the grid to an invisible scroller. Measured that happening in the
+	 * harness rather than in Obsidian, but a picker that *can* have no height is
+	 * worth one line to prevent.
+	 */
+	min-height: 8em;
+	max-height: 40vh;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.oof-picker-grid.is-wide {
+	grid-template-columns: repeat(auto-fill, minmax(2.4em, 1fr));
+}
+
+.oof-picker-cell {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	aspect-ratio: 1;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	color: var(--text-normal);
+	font-size: var(--font-ui-medium);
+	line-height: 1;
+}
+
+.oof-picker-cell:hover { background: var(--background-modifier-hover); }
+
+.oof-picker-cell.is-current {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/*
+ * A group's name spans the whole grid rather than sitting in a cell — a caption
+ * squeezed into one 2em square is unreadable, and the row it heads is the thing
+ * it belongs to.
+ */
+.oof-picker-group {
+	grid-column: 1 / -1;
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-faint);
+	padding: 6px 2px 2px;
+}
+
+.oof-picker-more {
+	grid-column: 1 / -1;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	padding: 8px 2px;
+}
+
+/* ----- the symbol row on a class card ------------------------------------ */
+
+.oof-symbol-body {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.oof-symbol-top {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+/*
+ * One character wide and centred, so the box looks like what it holds. A
+ * full-width text field here reads as a place to write a sentence.
+ */
+.oof-symbol-input {
+	width: 2.4em;
+	text-align: center;
+	font-size: var(--font-ui-medium);
+	padding: 2px 4px;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+}
+
+.oof-symbol-input:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+/* What it would show if this class said nothing — placeholder, so it reads as
+ * a fallback rather than as a value already set. */
+.oof-symbol-input::placeholder {
+	color: var(--text-faint);
+}
+
+.oof-symbol-from {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/*
+ * The palette. A grid rather than a wrapping row: the columns are what make the
+ * six shape-families legible as families — filled, outlined, pointed, round,
+ * his own prefixes, marks — and a flex wrap would reflow them into noise at
+ * every panel width.
+ */
+.oof-symbol-palette {
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 2px;
+}
+
+.oof-symbol-cell {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	aspect-ratio: 1;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--font-ui-medium);
+	line-height: 1;
+}
+
+.oof-symbol-cell:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* The one in use. Clicking it again clears it, which the tooltip does not say
+ * and the fill does: it is the pressed state of a toggle. */
+.oof-symbol-cell.is-current {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/*
+ * How much the class adds. A number rather than a word, so the two rules the
+ * base badge applies to words come off: uppercasing does nothing to a digit, and
+ * the letter-spacing pushes the `+` away from it.
+ *
+ * **Narrow on purpose.** The first version padded it like the word badges and
+ * gave it a min-width, to line the numbers up into a column — which was wrong
+ * twice over. There is no column: the name flexes, so everything after it sits
+ * wherever that name ends. And at the width this panel actually has, those 35px
+ * pushed the busiest rows past their edge and squeezed the class name to
+ * *nothing*. A rating must never cost the name it is rating.
+ */
+.oof-badge-novelty {
+	text-transform: none;
+	letter-spacing: 0;
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+	padding: 1px 4px;
+	flex: 0 0 auto;
+	cursor: help;
+}
+
+/*
+ * Adds nothing of its own. Not an error — a class may exist only to name a
+ * narrower set of the same thing — so it is quieted rather than coloured, which
+ * also lets the ones that *do* add something carry the eye down the list.
+ */
+.oof-badge-novelty.is-nothing {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-faint);
+}
+
+/*
+ * It lists something already declared above it, which adds nothing. Worth
+ * noticing and not worth interrupting for: an underline on the number, and the
+ * tooltip names them.
+ */
+.oof-badge-novelty.has-redeclared {
+	text-decoration: underline dotted var(--text-warning);
+	text-underline-offset: 2px;
 }
 
 /*
@@ -461,6 +805,284 @@ button.oof-new-class .svg-icon {
 	align-items: center;
 	flex: 1 1 auto;
 	min-width: 0;
+}
+
+/* ----- one bar at the bottom, scrolling the whole panel ----- */
+
+/*
+ * The other answer to a row that does not fit: leave the rows alone and widen
+ * the panel, so a single horizontal bar at the bottom moves everything at once.
+ *
+ * It goes on the scroll container — the element whose box *is* the visible panel
+ * — because that is the only place a horizontal bar sits at the bottom of what
+ * you are looking at. On anything of ours it would sit at the bottom of a stack
+ * of cards several screens tall, which is a scrollbar you have to scroll to
+ * reach.
+ */
+.oof-scroll-wide {
+	overflow-x: auto;
+}
+
+/*
+ * The panel keeps its own side padding, and that is the point of holding the
+ * pinned blocks with a transform rather than with `position: sticky`.
+ *
+ * Sticky needed the padding moved inwards to make its two measurements agree,
+ * and moving it cost every block at the top its 12px inset from the pane edge —
+ * they ended up flush against it. A transform asks nothing of the padding, so
+ * the padding can stay where it belongs and the inset comes back for free.
+ */
+
+/*
+ * Only the classes are ever wider than the panel: the wrapper is as wide as its
+ * widest card and never narrower than the pane, which is also what makes the
+ * cards one width rather than a ragged edge.
+ */
+.oof-scroll-wide .oof-panel-body {
+	width: max-content;
+	min-width: 100%;
+}
+
+/*
+ * The other wide setting, and the difference between them is this one word.
+ *
+ * `max-content` is every row laid out on one line, so the panel is as wide as
+ * the longest row of chips. `fit-content` is only as wide as the widest row
+ * *has* to be — and with the chips free to wrap, the row that has to be wide is
+ * the top line.
+ */
+.oof-scroll-wide.oof-wide-fit .oof-panel-body {
+	width: fit-content;
+}
+
+/*
+ * The header, the discrepancies and the base characteristics: **pinned at the
+ * pane's width, and they do not move.**
+ *
+ * They are prose and controls. There is nothing in them to read sideways, so
+ * widening them only cut their sentences off at the pane edge, and sliding them
+ * out of the way to read a class is worse than useless — the discrepancies are
+ * the reason you are looking at the classes.
+ *
+ * The width is handed over from the view because it cannot be worked out from
+ * in here: every length available inside a widened container names the content,
+ * and the content is the thing that is too wide.
+ */
+/*
+ * Capped at the pane's content width, which the view measures and hands over —
+ * the pane less whatever padding it actually has, rather than less the 12px this
+ * stylesheet asks for, because a theme is entitled to set its own and the two
+ * came out 2px apart when one did. Without the cap these stretch to the width of
+ * the widest class, which is what cut their sentences off at the pane edge.
+ *
+ * Nothing else is touched: their margins, and so their inset from the edge, are
+ * whatever they are in every other mode.
+ */
+.oof-scroll-wide .oof-panel-fixed {
+	box-sizing: border-box;
+	width: var(--oof-pane, 100%);
+}
+
+/*
+ * The header bleeds to both edges on its own negative margins, so an explicit
+ * width has to be the content width *plus* those margins — which is exactly what
+ * `width: auto` resolves to, and what it was doing before it landed inside a
+ * container wider than the pane. At the content width it stopped 24px short on
+ * the right.
+ */
+.oof-scroll-wide .oof-header.oof-panel-fixed {
+	width: calc(var(--oof-pane, 100%) + 24px);
+}
+
+/*
+ * **They are held still by the view, not by `position: sticky`.**
+ *
+ * Sticky was the obvious way and it very nearly worked: an element is held
+ * within its containing block, so the room it has to resist scrolling with is
+ * `wrapperWidth - itsOwnWidth`, while the distance it must resist is
+ * `scrollWidth - paneWidth`. Those are equal only while nothing outside the
+ * wrapper carries side padding — and what carries side padding is the pane,
+ * whose rules a theme is entitled to outbid. The failure mode is the worst kind:
+ * the blocks hold their place for most of the scroll and slip the last few
+ * pixels, which reads as a bug rather than as a choice, and cannot be seen in a
+ * harness that has no theme.
+ *
+ * A transform of the scroll offset cancels it exactly, whatever the padding is,
+ * and asks nothing of the layout. It is set from `syncFixedBlocks`.
+ */
+.oof-scroll-wide .oof-panel-fixed {
+	will-change: transform;
+}
+
+/*
+ * A chip row must claim the width it needs rather than yield it. `min-width: 0`
+ * is what lets it shrink inside the flex row, which is right when the row itself
+ * scrolls and wrong here — here there is nothing to shrink into.
+ */
+.oof-scroll-wide:not(.oof-wide-fit) .oof-chips {
+	min-width: max-content;
+}
+
+/* ----- the card's top row, when it runs off the side ----- */
+
+/*
+ * Same setting as the chip rows, same reasoning, different row. A name, a
+ * symbol, a rating, two badges and five icons do not fit across a 300px
+ * sidebar, and what "not fitting" looked like was a badge reading IS over A on
+ * two lines and a class name cut to four letters — the row squeezing its
+ * contents rather than admitting there were too many of them.
+ */
+.oof-object-title.is-scrolling {
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+	/* Only this row scrolls, so its own end-control is what has to stay put. */
+	/*
+	 * What the pinned icons paint over the row sliding under them. The card is
+	 * only opaque while it is open — closed, it is transparent and the ground is
+	 * the panel's — so the colour has to follow the card rather than be picked
+	 * once.
+	 */
+	--oof-card-ground: var(--background-primary);
+}
+
+.oof-object.is-closed > .oof-object-title.is-scrolling {
+	--oof-card-ground: var(--background-secondary);
+}
+
+.oof-object-title.is-scrolling::-webkit-scrollbar {
+	height: 0;
+}
+
+/*
+ * Fitting the panel: the top line wraps, and the distinction that makes it
+ * usable is **between its items, never inside one**. A badge reading IS over A
+ * is the row breaking a word; a badge moved whole onto a second line is the row
+ * breaking where it is allowed to. So every item is `nowrap` and none of them
+ * shrinks — the only give in the row is between them.
+ *
+ * The name is the single exception, and only as a last resort: it keeps the
+ * ellipsis it already had, so a class name longer than the panel is cut rather
+ * than pushing the row wider than the view, which is the one thing this setting
+ * promises not to do.
+ */
+.oof-object-title.is-wrapping {
+	flex-wrap: wrap;
+	row-gap: 4px;
+}
+
+.oof-object-title.is-wrapping > * {
+	flex: 0 0 auto;
+}
+
+.oof-object-title.is-wrapping .oof-badge,
+.oof-object-title.is-wrapping .oof-active-label {
+	white-space: nowrap;
+}
+
+.oof-object-title.is-wrapping .oof-object-name {
+	flex: 0 1 auto;
+}
+
+/* Nothing squeezed to fit; the row overflows instead. */
+.oof-object-title.is-rigid > * {
+	flex: 0 0 auto;
+}
+
+/*
+ * With the row scrolling, nothing has to give way any more — so the two things
+ * that were built to give way stop. The name keeps its full width instead of
+ * ellipsising, and the badges stop breaking mid-phrase.
+ */
+.oof-object-title.is-rigid .oof-object-name {
+	overflow: visible;
+	text-overflow: clip;
+	min-width: auto;
+}
+
+.oof-object-title.is-rigid .oof-badge,
+.oof-object-title.is-rigid .oof-active-label {
+	white-space: nowrap;
+}
+
+/*
+ * The file icons stay against the right-hand edge while the row runs under
+ * them, exactly as the + does on a chip row and for the same reason: they are
+ * the controls, and a control you have to go looking for is worse than one that
+ * covers a little of what it sits on.
+ */
+.oof-object-title.is-scrolling .oof-object-actions {
+	position: sticky;
+	right: 0;
+	z-index: 1;
+	padding-left: 4px;
+	background-color: var(--oof-card-ground);
+	box-shadow: -6px 0 6px -4px var(--oof-card-ground);
+}
+
+/*
+ * The hover tint is painted on the row, behind the pinned strip, so an opaque
+ * strip would punch a hole in it. Laid over as an image instead of swapped for
+ * it: `--background-modifier-hover` is translucent in most themes, and used as
+ * the background outright it would show the chips through.
+ */
+.oof-object-title.is-scrolling:hover .oof-object-actions {
+	background-image: linear-gradient(var(--background-modifier-hover),
+		var(--background-modifier-hover));
+}
+
+/* ----- a chip row that runs off the side ----- */
+
+/*
+ * The alternative to wrapping: one line, scrolled. Wrapping shows everything at
+ * once, which is why it was the only behaviour for a long time — the cost is
+ * that a class with a dozen characteristics makes a card taller than the panel
+ * and pushes every row under it off the screen.
+ *
+ * No scrollbar. One horizontal bar under each of four or five rows in a 300px
+ * sidebar is more furniture than the rows themselves; the wheel handler in the
+ * view is what makes the row reachable, and a chip cut off at the edge is what
+ * says there is more.
+ */
+.oof-chips.is-rigid {
+	flex-wrap: nowrap;
+}
+
+.oof-chips.is-scrolling {
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.oof-chips.is-scrolling::-webkit-scrollbar {
+	height: 0;
+}
+
+/*
+ * Nothing squeezed to fit. Flex items shrink by default, so without this the
+ * chips would compress into the width instead of overflowing it — which is the
+ * bunching this is meant to remove, arrived at by a different road.
+ */
+.oof-chips.is-rigid > * {
+	flex: 0 0 auto;
+}
+
+/*
+ * The `+` stays put while the chips run under it. It is the one control on the
+ * row, and it sits at the end: on a class with a dozen characteristics it would
+ * otherwise be off the right-hand side, so adding one more would mean scrolling
+ * to the end first to find the way to do it.
+ *
+ * The shadow is the edge of the paper rather than decoration — it is what says
+ * the chips continue underneath rather than stopping here.
+ */
+.oof-chips.is-scrolling .oof-add-wrap {
+	position: sticky;
+	right: 0;
+	z-index: 1;
+	padding-left: 4px;
+	background: var(--background-primary);
+	box-shadow: -6px 0 6px -4px var(--background-primary);
 }
 
 .oof-chip {
@@ -1192,10 +1814,27 @@ body.oof-hide-add-property .metadata-add-button {
 	gap: 2px;
 }
 
+/*
+ * Its own stacking context, and that is the whole reason `isolation` is here.
+ *
+ * The segments that light up carry z-indexes so a lit wire draws over a quiet
+ * one and a dot over both. `position: relative` alone does **not** open a
+ * context, so those numbers climbed out of the rail and competed in the panel's
+ * — where `.oof-header` is a sticky `z-index: 1`. A lit line tied it and won on
+ * document order; a lit dot at `z-index: 2` won outright. That is why the grey
+ * rails slid under the header correctly and the highlighted one was drawn
+ * across "Classes" and the search box.
+ *
+ * `isolation` rather than `z-index: 0`: it opens the context without giving the
+ * rail a stack level of its own, so nothing moves relative to the card beside
+ * it. Both highlights are fixed by the one rule — `is-lit` and `is-hover-lit`
+ * are children of this element alike.
+ */
 .oof-tree-rail {
 	position: relative;
 	flex: 0 0 auto;
 	width: calc(var(--oof-lane-width) * var(--oof-lanes));
+	isolation: isolate;
 }
 
 .oof-tree-body {

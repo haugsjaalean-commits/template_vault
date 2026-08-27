@@ -6,6 +6,8 @@ possible values:
   - active
   - simmering
   - sleeping
+  - live
+  - dead
 ---
 
 | Default location | Default value | Strict default value |

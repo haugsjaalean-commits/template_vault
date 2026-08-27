@@ -1,13 +1,13 @@
 ---
 tags:
   - class
+symbol: lucide:school-2
 is a:
 characteristics:
-  - "[[∘ project]]"
-  - "[[∘ subject]]"
+  - "[[∘ level]]"
 type of:
-  - "[[Project]]"
-created: 2026-08-21 07:51
+  - "[[Place]]"
+created: 2026-08-24 13:08
 ext links:
 related:
 note rating:

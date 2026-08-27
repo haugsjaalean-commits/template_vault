@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol: lucide:palette
 is a:
 characteristics:
 type of:

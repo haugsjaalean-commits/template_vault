@@ -18,7 +18,7 @@ tags:
 	- [[Panel Groups]]
 - [[Everything base.base]]
 - [[Structure Base.base]]
-- [[Issue Base.base]]
+- [[Improvement Base.base]]
 
 
 

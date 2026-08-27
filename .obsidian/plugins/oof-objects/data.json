@@ -13,7 +13,8 @@
       "cssclasses",
       "cssclass",
       "publish",
-      "permalink"
+      "permalink",
+      "cover image"
     ],
     "classTag": "class",
     "sortClasses": "name",
@@ -22,6 +23,7 @@
     "treeDotTone": "line",
     "treeDotFill": "transparent",
     "treeCorners": "rounded",
+    "cardOverflow": "wrap",
     "treeWireDash": "solid",
     "treeLitPaths": "all",
     "pendingPropertyRenames": [],
@@ -46,15 +48,26 @@
     "hideAddProperty": true,
     "nameSectionsAsCharacteristics": true,
     "allNotesCarryBase": true,
+    "showClassNovelty": true,
+    "symbolProperty": "symbol",
+    "writeInheritedSymbols": true,
     "strictOverridesValues": false,
-    "seedDefaultsTable": true
+    "seedDefaultsTable": true,
+    "uniqueNameFormat": "YYYY-MM-DD dddd — HH.mm.ss",
+    "symbolStyle": "text"
   },
   "drafts": {},
+  "symbolWrites": {
+    "Visual Artist": "lucide:person-standing",
+    "Creator": "lucide:person-standing",
+    "Teacher": "lucide:person-standing",
+    "Issue": "lucide:flag-triangle-right"
+  },
   "baseRefreshes": [],
   "expanded": [
     "::discrepancies",
-    "Style",
-    "Art"
+    "Obsidian Note",
+    "Improvement"
   ],
   "dismissed": [
     "conflict::Obsidian Note",
@@ -80,6 +93,7 @@
   ],
   "migrations": [
     "sort-alphabetical",
-    "defaults-table-on"
+    "defaults-table-on",
+    "cover-image-native"
   ]
 }

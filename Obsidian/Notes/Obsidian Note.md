@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol:
 is a:
 characteristics:
   - "[[∘ related]]"

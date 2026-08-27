@@ -29,7 +29,7 @@ The three things that I want to be able to change are:
 
 ---
 
-This has been folded into [[Graph Focus Plugin]].
+This has been folded into [[Graph Focus]].
 
 
 

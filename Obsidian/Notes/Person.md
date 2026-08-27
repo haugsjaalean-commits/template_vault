@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol: lucide:person-standing
 is a:
 characteristics:
   - "[[∘ children]]"

@@ -14,10 +14,4 @@ rating:
 garden:
 life stage: current
 maturity: Charmander
-entomology:
-false friend:
-friend:
-gender:
-language:
-meaning:
 ---

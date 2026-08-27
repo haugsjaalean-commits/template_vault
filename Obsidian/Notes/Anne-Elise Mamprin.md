@@ -1,9 +1,9 @@
 ---
 is a:
-  - "[[Test Class]]"
+  - "[[Teacher]]"
 characteristics:
 type of:
-created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+created: 2026-08-24 15:16
 ext links:
 related:
 note rating:
@@ -17,13 +17,5 @@ children:
 relation to me:
 historical importance:
 location:
-creation domain:
-masetery:
-importance:
-activity:
-status:
-medium:
-visual domain:
-project:
-subject:
+matière:
 ---

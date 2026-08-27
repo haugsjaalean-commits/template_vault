@@ -1,6 +1,6 @@
 filters:
   and:
-    - file.isA("Test Class")
+    - file.isA("Teacher")
     - '!file.inFolder("Obsidian/Templates")'
 formulas:
   word count: file.WordCount()
@@ -12,10 +12,12 @@ views:
     name: Table
     order:
       - file.name
-      - project
-      - subject
-      - medium
-      - visual domain
+      - children
+      - relation to me
+      - location
+      - birth day
+      - death day
+      - historical importance
       - related
       - note rating
       - rating
@@ -24,14 +26,3 @@ views:
       - life stage
       - ext links
       - maturity
-      - activity
-      - importance
-      - status
-      - creation domain
-      - masetery
-      - children
-      - relation to me
-      - location
-      - birth day
-      - death day
-      - historical importance

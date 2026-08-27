@@ -1,0 +1,34 @@
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
+*/
+
+.time-search {
+	width: calc(100% - 20px);
+}
+
+.setting-item-control.setting-error input {
+	border-color: #990000;
+}
+
+.invalid-parent-extension {
+	text-decoration: underline wavy red;
+}
+
+.inheritance-errors-container {
+	padding-inline: 4%;
+}
+
+.inheritance-errors-list {
+	padding-inline: 2px;
+}
+
+.inheritance-error-item {
+	display: flex;
+	align-items: center;
+	gap: 5%;
+}

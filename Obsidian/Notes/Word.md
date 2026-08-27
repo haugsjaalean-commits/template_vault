@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol: lucide:a-large-small
 is a:
 characteristics:
   - "[[∘ meaning]]"

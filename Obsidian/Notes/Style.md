@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol: lucide:sparkles
 is a:
 characteristics:
 type of:

@@ -1,9 +1,9 @@
 ---
 is a:
-  - "[[Location]]"
+  - "[[Todo]]"
 characteristics:
 type of:
-created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+created: 2026-08-25 09:43
 ext links:
 related:
 note rating:
@@ -11,5 +11,10 @@ rating:
 garden:
 life stage: current
 maturity: Charmander
-map link:
+done:
+duedate:
+importance:
+urgency:
+what to do:
 ---
+

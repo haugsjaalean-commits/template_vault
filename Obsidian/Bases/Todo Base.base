@@ -10,7 +10,11 @@ properties:
 views:
   - type: table
     name: Table
+    groupBy:
+      property: done
+      direction: ASC
     order:
+      - done
       - file.name
       - urgency
       - payoff

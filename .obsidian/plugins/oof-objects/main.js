@@ -45,6 +45,13 @@
 const obsidian = require('obsidian');
 
 const { Plugin, PluginSettingTab, Setting, ItemView, Modal, TFile, Notice, setIcon } = obsidian;
+/*
+ * Two the harness does not stub, and neither is load-bearing: without `Menu` the
+ * pencil opens the rename dialog directly, as it did before there was anything
+ * else on it, and without `getIconIds` the picker simply has no icons tab.
+ */
+const Menu = obsidian.Menu;
+const getIconIds = obsidian.getIconIds;
 
 const VIEW_TYPE = 'oof-objects-panel';
 
@@ -54,6 +61,14 @@ const VIEW_TYPE = 'oof-objects-panel';
  */
 const RETIRED_IGNORED_DEFAULT = ['tags', 'aliases', 'cssclasses', 'cssclass',
 	'publish', 'permalink', 'created', 'updated'];
+
+/*
+ * And the one before `cover image` joined them, for the same reason: a stored
+ * copy of it was never chosen, so it can be replaced with the current default.
+ * One that differs by so much as an entry was edited, and is his.
+ */
+const PREVIOUS_IGNORED_DEFAULT = ['tags', 'aliases', 'cssclasses', 'cssclass',
+	'publish', 'permalink'];
 
 /* The discrepancy card is expanded like a class, under a name no class can take. */
 const DISCREPANCY_CARD = '::discrepancies';
@@ -90,8 +105,16 @@ const DEFAULT_SETTINGS = {
 	 * hiding it would be hiding an incomplete model rather than a nuisance. The
 	 * honest fix is to declare it, not to silence it.
 	 */
+	/*
+	 * `cover image` joined them 2026-08-24, at his ask and "for later purpose".
+	 * It is the first entry that Obsidian does **not** own, and the first the
+	 * model would otherwise have an opinion about — the README argues, correctly
+	 * under this model, that a property every Artist carries *is* a characteristic
+	 * of Artist. He has decided it is not one, which is exactly what this setting
+	 * is for.
+	 */
 	ignoredProperties: ['tags', 'aliases', 'cssclasses', 'cssclass', 'publish',
-		'permalink'],
+		'permalink', 'cover image'],
 	/* The tag that flags a note as a class. */
 	classTag: 'class',
 	/*
@@ -145,6 +168,28 @@ const DEFAULT_SETTINGS = {
 
 	/* Whether a connexion turns in a curve or in a right angle. */
 	treeCorners: 'rounded',
+
+	/*
+	 * What a row does when it holds more than fits across the panel — both a row
+	 * of chips and the card's own top row.
+	 *
+	 *   'scroll'  each row scrolls on its own, one line at a time
+	 *   'panel'   every row keeps its full width and one bar at the bottom of the
+	 *             panel moves everything together
+	 *   'wrap'    the chips wrap onto more lines and the card is only as wide as
+	 *             its top line needs
+	 *   'fit'     nothing is wider than the panel: the chips wrap, and so does the
+	 *             top line — between its items, never inside one
+	 *
+	 * No item is ever squeezed under any of them. A badge reading IS over A is the
+	 * row breaking a word; a badge moved whole onto a second line is the row
+	 * breaking where it is allowed to, and only 'fit' does that.
+	 *
+	 * Wrapping shows everything at once and is why it was the only behaviour for
+	 * a long time; the cost is that a class with a dozen characteristics makes a
+	 * card taller than the panel, and the rows below it are then off screen.
+	 */
+	cardOverflow: 'scroll',
 
 	/*
 	 * Whether the wire to a second parent is dashed. Dashed says which of a
@@ -288,6 +333,50 @@ const DEFAULT_SETTINGS = {
 	allNotesCarryBase: false,
 
 	/*
+	 * The `+N` on each class's row: how many characteristics it declares that
+	 * nothing above it already does. On, because it is what he asked for; a
+	 * setting because it is one more thing on a row that is already busy.
+	 */
+	showClassNovelty: true,
+
+	/*
+	 * The property a class's symbol lives in, on the class note itself. The
+	 * symbol shows before the name in the panel and before the class's section in
+	 * the properties view, and it is **inherited** — a class with none shows the
+	 * nearest one above it.
+	 *
+	 * Emptying this turns the whole convention off, the way emptying
+	 * `characteristicPrefix` does.
+	 *
+	 * `symbol` rather than his `unique character` from master_vault: that one is a
+	 * property of a *note* (• before a name, ‣ before a word), and this is a
+	 * property of a class. Anyone who wants them to be the same thing can say so
+	 * here.
+	 */
+	symbolProperty: 'symbol',
+
+	/*
+	 * Write an inherited symbol onto the class that inherits it, rather than only
+	 * resolving it when something asks.
+	 *
+	 * His call, 2026-08-24: *"I want the symbol to follow inheritance… maybe you
+	 * should automatically add the symbol to the child classes."* The walk already
+	 * looked back through every generation; this puts the answer in the file, so a
+	 * class's symbol is a fact about that class's note rather than something only
+	 * the plugin knows.
+	 *
+	 * The copies are **remembered** (`symbolWrites` in `data.json`) so they stay
+	 * copies: one the plugin wrote is updated when the ancestor's changes and
+	 * removed when the ancestor's goes, while one you set yourself is never
+	 * touched. Without that record a materialised value is indistinguishable from a
+	 * deliberate one — which is the flattening trap `OOF 0.1` fell into, and the
+	 * reason this is the only place in the plugin that keeps a note of what it
+	 * wrote.
+	 */
+	writeInheritedSymbols: true,
+
+
+	/*
 	 * What a strict default does to a value that is not empty but is not the
 	 * strict one either.
 	 *
@@ -318,6 +407,22 @@ const DEFAULT_SETTINGS = {
 	 * append — see `add-defaults-table`.
 	 */
 	seedDefaultsTable: true,
+
+	/*
+	 * The name a new note is given, as a Moment format string. The plugin writes
+	 * a Templater block carrying it into every class template, and Templater does
+	 * the renaming when the template is applied — his call, 2026-08-24: *"the
+	 * chosen format will be added to every template via Templater"*.
+	 *
+	 * The time rather than a counter, because the name has to be unique and a
+	 * counter would have to read the vault to know where it was up to. Seconds are
+	 * finer than a person can create notes, but the block still checks for a
+	 * collision and suffixes rather than letting the rename throw.
+	 *
+	 * Emptying it turns the convention off the way emptying `characteristicPrefix`
+	 * does, and Update then takes the blocks back out again.
+	 */
+	uniqueNameFormat: 'YYYY-MM-DD dddd — HH.mm.ss',
 };
 
 const MAX_DEPTH = 64;
@@ -552,6 +657,500 @@ function sameNameList(a, b) {
 	return true;
 }
 
+/* ----- class symbols ----------------------------------------------------- */
+
+/*
+ * The symbols offered in the panel's picker. Typographic marks rather than
+ * emoji, because that is the ask — and because they sit on the text baseline at
+ * the weight of the surrounding UI instead of dropping a coloured sticker into
+ * it. His own vault already works this way: `•` before a name, `‣` before a
+ * word, `∘` before a characteristic.
+ *
+ * Grouped by shape so a set of classes can be told apart at a glance without
+ * reading them: filled, outlined, pointed, round, marks.
+ */
+const SYMBOL_PALETTE = [
+	'●', '■', '◆', '▲', '▼', '★',
+	'○', '□', '◇', '△', '▽', '☆',
+	'◈', '◉', '◎', '⬡', '⬢', '⟡',
+	'✦', '✧', '✱', '✳', '❖', '✚',
+	'•', '‣', '∘', '◦', '»', '§',
+	'✎', '✂', '⚑', '⚙', '☗', '♦',
+	'◐', '◑', '◒', '◓', '⊕', '⊗',
+	'↑', '↓', '→', '←', '↻', '∞',
+	'⌘', '⌂', '⏻', '⏱', '⌗', '⌾',
+	'♠', '♣', '♥', '♪', '♯', '†',
+];
+
+/*
+ * The emoji tab. A broad set rather than every emoji there is: the full list is
+ * some 1,900 characters with no runtime source to read it from, so it would have
+ * to be pasted in whole — and a picker nobody can find anything in is worse than
+ * a shorter one that is searchable. Each carries the words you would look it up
+ * by.
+ *
+ * Grouped the way every emoji picker groups them, because that is what the hand
+ * already knows.
+ */
+const EMOJI_GROUPS = [
+	['Faces', [
+		['😀', 'grin happy smile'], ['😄', 'smile happy'], ['😊', 'blush smile'],
+		['🙂', 'slight smile'], ['😉', 'wink'], ['😍', 'love heart eyes'],
+		['🤩', 'star struck wow'], ['😎', 'cool sunglasses'], ['🤔', 'think hmm'],
+		['🤨', 'raised brow doubt'], ['😐', 'neutral flat'], ['😴', 'sleep tired'],
+		['😢', 'cry sad'], ['😭', 'sob cry'], ['😤', 'huff steam'],
+		['😡', 'angry rage'], ['🥳', 'party celebrate'], ['😱', 'scream shock'],
+		['🤯', 'mind blown'], ['🤐', 'zip quiet'], ['😇', 'angel halo'],
+		['🤓', 'nerd glasses study'], ['🧐', 'monocle inspect'], ['👻', 'ghost'],
+		['💀', 'skull dead'], ['👽', 'alien'], ['🤖', 'robot bot'],
+		['🎃', 'pumpkin halloween'],
+	]],
+	['People', [
+		['👤', 'person user silhouette'], ['👥', 'people group users'],
+		['🧑', 'person'], ['👩', 'woman'], ['👨', 'man'], ['🧒', 'child'],
+		['👶', 'baby'], ['🧓', 'older elder'], ['👪', 'family'],
+		['🧑‍🎨', 'artist painter'], ['🧑‍💻', 'developer coder'],
+		['🧑‍🏫', 'teacher'], ['🧑‍🔬', 'scientist'],
+		['🧑‍🍳', 'cook chef'], ['🧑‍🌾', 'farmer'],
+		['👑', 'crown king queen royal'], ['🫂', 'hug friends'],
+		['🤝', 'handshake deal'], ['👋', 'wave hello'], ['🙏', 'thanks pray please'],
+		['💪', 'strong muscle'], ['🧠', 'brain mind think'], ['👁', 'eye see'],
+		['🗣', 'speak talk voice'],
+	]],
+	['Nature', [
+		['🌱', 'seedling sprout grow'], ['🌿', 'herb plant leaf'],
+		['🍀', 'clover luck'], ['🌳', 'tree'], ['🌲', 'evergreen pine'],
+		['🌵', 'cactus'], ['🌸', 'blossom flower'], ['🌹', 'rose flower'],
+		['🌻', 'sunflower'], ['🍁', 'maple leaf autumn'], ['🍂', 'leaves fall'],
+		['🌊', 'wave water sea'], ['🔥', 'fire flame hot'], ['💧', 'drop water'],
+		['❄', 'snow cold ice'], ['⛰', 'mountain'], ['🌋', 'volcano'],
+		['🌍', 'earth world globe'], ['🌙', 'moon night'], ['⭐', 'star'],
+		['☀', 'sun day'], ['⛅', 'cloud weather'], ['🌈', 'rainbow'],
+		['⚡', 'lightning bolt power'], ['🐝', 'bee'], ['🦋', 'butterfly'],
+		['🐦', 'bird'], ['🐕', 'dog'], ['🐈', 'cat'], ['🐟', 'fish'],
+		['🦉', 'owl'], ['🐘', 'elephant'],
+	]],
+	['Food', [
+		['🍎', 'apple fruit'], ['🍊', 'orange fruit'], ['🍋', 'lemon'],
+		['🍇', 'grapes'], ['🍓', 'strawberry'], ['🥕', 'carrot vegetable'],
+		['🍞', 'bread'], ['🧀', 'cheese'], ['🍳', 'egg cooking'],
+		['🍜', 'noodles soup'], ['🍕', 'pizza'], ['🍰', 'cake dessert'],
+		['🍫', 'chocolate'], ['☕', 'coffee tea drink'], ['🍵', 'tea'],
+		['🍷', 'wine drink'], ['🍺', 'beer'], ['🥂', 'cheers celebrate'],
+	]],
+	['Activity', [
+		['🎨', 'art paint palette'], ['🖌', 'brush paint'], ['✏', 'pencil write'],
+		['🖊', 'pen write'], ['📝', 'note memo write'], ['📖', 'book read'],
+		['📚', 'books library'], ['🎓', 'graduate school study'],
+		['🎵', 'music note'], ['🎶', 'music notes'], ['🎸', 'guitar'],
+		['🎹', 'piano keyboard'], ['🎬', 'film movie clapper'],
+		['📷', 'camera photo'], ['🎮', 'game controller'], ['♟', 'chess pawn'],
+		['🎲', 'dice random'], ['🏃', 'run exercise'], ['🚴', 'cycle bike'],
+		['🧗', 'climb'], ['⚽', 'football soccer'], ['🏆', 'trophy win'],
+		['🎯', 'target goal aim'], ['🧩', 'puzzle piece'],
+	]],
+	['Travel', [
+		['🏠', 'house home'], ['🏡', 'home garden'], ['🏢', 'office building'],
+		['🏛', 'classical museum institution'], ['🏰', 'castle'],
+		['⛺', 'tent camp'], ['🗺', 'map'], ['🧭', 'compass direction'],
+		['📍', 'pin location place'], ['🚗', 'car drive'], ['🚆', 'train'],
+		['✈', 'plane flight travel'], ['🚀', 'rocket launch'], ['⛵', 'boat sail'],
+		['🚲', 'bicycle'], ['🌆', 'city dusk'],
+	]],
+	['Objects', [
+		['💡', 'idea light bulb'], ['🔧', 'wrench tool fix'], ['🔨', 'hammer build'],
+		['⚙', 'gear settings machine'], ['🧰', 'toolbox'], ['🔬', 'microscope science'],
+		['🧪', 'test tube experiment'], ['⚗', 'alembic chemistry'],
+		['🔭', 'telescope'], ['💻', 'laptop computer'], ['🖥', 'desktop monitor'],
+		['⌨', 'keyboard type'], ['🖱', 'mouse'], ['💾', 'save disk floppy'],
+		['📀', 'disc'], ['📱', 'phone mobile'], ['☎', 'telephone call'],
+		['📡', 'satellite signal'], ['🔋', 'battery power'], ['🔌', 'plug'],
+		['💰', 'money bag'], ['💳', 'card payment'], ['📦', 'box package'],
+		['🗃', 'file box archive'], ['🗂', 'dividers folders'], ['📁', 'folder'],
+		['📄', 'page document'], ['📅', 'calendar date'], ['⏰', 'alarm clock'],
+		['⏳', 'hourglass time'], ['🔑', 'key'], ['🔒', 'lock private'],
+		['🔓', 'unlock open'], ['🔍', 'search magnify find'], ['🧲', 'magnet'],
+		['🪞', 'mirror'], ['🕯', 'candle'], ['🎁', 'gift present'],
+		['✉', 'mail envelope'], ['📌', 'pushpin'], ['📎', 'paperclip attach'],
+		['✂', 'scissors cut'], ['🧵', 'thread'], ['🪡', 'needle sew'],
+	]],
+	['Symbols', [
+		['❤', 'heart love red'], ['🧡', 'orange heart'], ['💛', 'yellow heart'],
+		['💚', 'green heart'], ['💙', 'blue heart'], ['💜', 'purple heart'],
+		['🖤', 'black heart'], ['🤍', 'white heart'], ['✨', 'sparkles'],
+		['💥', 'boom collision'], ['💤', 'sleep zzz'], ['💭', 'thought bubble'],
+		['💬', 'speech comment'], ['❗', 'exclamation important'],
+		['❓', 'question'], ['✅', 'check done tick'], ['❌', 'cross no wrong'],
+		['⚠', 'warning caution'], ['🚧', 'construction wip'], ['🔴', 'red circle'],
+		['🟠', 'orange circle'], ['🟡', 'yellow circle'], ['🟢', 'green circle'],
+		['🔵', 'blue circle'], ['🟣', 'purple circle'], ['⚫', 'black circle'],
+		['⚪', 'white circle'], ['🟥', 'red square'], ['🟧', 'orange square'],
+		['🟨', 'yellow square'], ['🟩', 'green square'], ['🟦', 'blue square'],
+		['🔶', 'orange diamond'], ['🔷', 'blue diamond'], ['🏷', 'label tag'],
+		['🔖', 'bookmark'], ['♾', 'infinity'], ['⏺', 'record dot'],
+	]],
+];
+
+/*
+ * The **icons** tab: Obsidian ships Lucide, which is the flat outline set Notion's
+ * icons look like, and `getIconIds()` hands over every one at runtime. So the
+ * "custom emoji with a more Notion-like appearance" needs no artwork shipped and
+ * no list embedded — and the names come with it, which is what makes searching a
+ * thousand of them possible.
+ *
+ * Stored as `lucide:heart`, a plain string in the frontmatter like any other
+ * symbol. Everything that draws a symbol goes through `paintSymbol`, so a class
+ * marked with an icon behaves exactly like one marked with a character.
+ */
+const ICON_PREFIX = 'lucide:';
+
+/*
+ * The icons, by what they *mean* (2026-08-24, his ask: more icons with more
+ * emoji-like meanings).
+ *
+ * Obsidian ships what it ships — there is no way to add a 1,301st icon without
+ * embedding artwork — so what can be added is **meaning**. Alphabetical is the
+ * worst order for browsing: `smile` sits between `slash` and `snail`, and the one
+ * you would have picked is fifty screens away from the one you thought of.
+ *
+ * These are the emoji categories, filled with Lucide. An id that this version of
+ * Obsidian does not have is dropped silently, so the list can name icons
+ * generously without breaking on an older build — and everything not named here
+ * still appears, under *Everything else*.
+ */
+const ICON_GROUPS = [
+	['Faces & people', [
+		'smile', 'smile-plus', 'laugh', 'meh', 'frown', 'angry', 'annoyed',
+		'user', 'users', 'user-round', 'baby', 'person-standing', 'accessibility',
+		'crown', 'venetian-mask', 'skull', 'ghost', 'bot', 'brain', 'eye', 'ear',
+		'hand', 'hand-metal', 'thumbs-up', 'thumbs-down', 'handshake',
+		'heart-handshake', 'footprints', 'contact', 'baby-carriage',
+	]],
+	['Animals', [
+		'bird', 'cat', 'dog', 'fish', 'fish-symbol', 'rabbit', 'squirrel', 'turtle',
+		'snail', 'bug', 'worm', 'rat', 'shell', 'feather', 'egg', 'paw-print',
+		'origami', 'bone',
+	]],
+	['Nature & weather', [
+		'leaf', 'leafy-green', 'sprout', 'flower', 'flower-2', 'trees',
+		'tree-pine', 'tree-deciduous', 'palmtree', 'cactus', 'clover', 'wheat',
+		'sun', 'sunrise', 'sunset', 'moon', 'moon-star', 'star', 'stars',
+		'sparkles', 'sparkle', 'cloud', 'cloud-rain', 'cloud-snow', 'cloud-sun',
+		'snowflake', 'droplet', 'droplets', 'waves', 'wind', 'rainbow', 'zap',
+		'flame', 'mountain', 'mountain-snow', 'globe', 'earth', 'tornado',
+	]],
+	['Food & drink', [
+		'apple', 'banana', 'cherry', 'grape', 'citrus', 'carrot', 'salad',
+		'sandwich', 'pizza', 'hamburger', 'popcorn', 'croissant', 'cookie',
+		'cake', 'cake-slice', 'ice-cream-cone', 'ice-cream-bowl', 'candy',
+		'dessert', 'donut', 'coffee', 'cup-soda', 'wine', 'beer', 'martini',
+		'milk', 'soup', 'ham', 'beef', 'egg-fried', 'utensils', 'utensils-crossed',
+		'chef-hat', 'cooking-pot', 'nut', 'bean',
+	]],
+	['Places & travel', [
+		'home', 'house', 'building', 'building-2', 'castle', 'church', 'hotel',
+		'store', 'factory', 'warehouse', 'school', 'university', 'landmark',
+		'tent', 'tent-tree', 'caravan', 'map', 'map-pin', 'map-pinned', 'compass',
+		'signpost', 'route', 'plane', 'plane-takeoff', 'car', 'car-front', 'bus',
+		'train-front', 'tram-front', 'bike', 'ship', 'sailboat', 'rocket',
+		'anchor', 'fuel', 'traffic-cone', 'luggage', 'backpack',
+	]],
+	['Study & making', [
+		'book', 'book-open', 'book-marked', 'notebook', 'notebook-pen', 'library',
+		'graduation-cap', 'pencil', 'pen', 'pen-tool', 'brush', 'paintbrush',
+		'paintbrush-vertical', 'palette', 'scissors', 'ruler', 'pencil-ruler',
+		'calculator', 'microscope', 'telescope', 'flask-conical', 'flask-round',
+		'test-tube', 'test-tubes', 'atom', 'dna', 'magnet', 'lightbulb',
+		'hammer', 'wrench', 'screwdriver', 'axe', 'shovel', 'drill', 'anvil',
+		'scroll', 'scroll-text', 'feather', 'stamp', 'highlighter',
+	]],
+	['Play & sport', [
+		'gamepad', 'gamepad-2', 'dices', 'dice-5', 'puzzle', 'trophy', 'medal',
+		'award', 'target', 'crosshair', 'flag', 'flag-triangle-right', 'swords',
+		'shield', 'shield-half', 'guitar', 'piano', 'drum', 'music', 'music-2',
+		'music-4', 'headphones', 'mic', 'mic-vocal', 'radio', 'tv', 'clapperboard',
+		'film', 'popcorn', 'ticket', 'dumbbell', 'bike', 'volleyball', 'tent',
+		'party-popper', 'cake',
+	]],
+	['Body & care', [
+		'heart', 'heart-pulse', 'heart-crack', 'activity', 'stethoscope', 'pill',
+		'syringe', 'bandage', 'thermometer', 'brain-circuit', 'bed', 'bath',
+		'shower-head', 'glasses', 'shirt', 'watch', 'gem', 'crown', 'umbrella',
+		'hand-heart', 'smile-plus',
+	]],
+	['Things & money', [
+		'key', 'lock', 'unlock', 'gift', 'package', 'box', 'boxes', 'archive',
+		'folder', 'folder-open', 'file', 'file-text', 'paperclip', 'pin', 'tag',
+		'tags', 'bookmark', 'calendar', 'calendar-days', 'clock', 'alarm-clock',
+		'hourglass', 'timer', 'bell', 'mail', 'send', 'phone', 'message-circle',
+		'message-square', 'camera', 'image', 'video', 'lamp', 'candle',
+		'wallet', 'banknote', 'coins', 'credit-card', 'piggy-bank',
+		'shopping-cart', 'shopping-bag', 'receipt', 'briefcase', 'scale',
+		'trash', 'trash-2', 'recycle', 'battery', 'plug', 'wrench',
+	]],
+	['Marks & signs', [
+		'check', 'check-check', 'x', 'circle', 'square', 'triangle', 'diamond',
+		'hexagon', 'octagon', 'plus', 'minus', 'asterisk', 'hash', 'at-sign',
+		'info', 'circle-help', 'circle-alert', 'triangle-alert', 'octagon-alert',
+		'ban', 'infinity', 'quote', 'link', 'anchor', 'eye-off', 'lock-keyhole',
+		'arrow-up', 'arrow-down', 'arrow-right', 'arrow-left', 'refresh-cw',
+	]],
+];
+
+/*
+ * Words that are not in an icon's name but are what you would type looking for
+ * it. Lucide's own metadata has these; Obsidian does not expose them, so the ones
+ * worth having are here — the emoji vocabulary, mostly, since that is the vocabulary
+ * he is bringing to the picker.
+ */
+const ICON_SYNONYMS = {
+	smile: 'happy joy grin emoji face',
+	laugh: 'happy lol funny face',
+	frown: 'sad unhappy face',
+	angry: 'mad rage face',
+	meh: 'neutral face',
+	annoyed: 'unamused face',
+	heart: 'love like favourite favorite red',
+	'heart-pulse': 'health life beat',
+	'heart-crack': 'broken heartbreak sad',
+	star: 'favourite favorite rating best',
+	sparkles: 'magic shine new special',
+	flame: 'fire hot burn energy',
+	zap: 'lightning bolt power fast energy',
+	droplet: 'water drop rain wet',
+	leaf: 'plant nature green eco',
+	sprout: 'seedling grow new plant',
+	trees: 'forest wood nature',
+	sun: 'day light weather hot',
+	moon: 'night sleep dark',
+	snowflake: 'cold winter ice snow',
+	rainbow: 'colour color pride weather',
+	globe: 'world earth international language',
+	bird: 'animal fly',
+	cat: 'animal pet kitten',
+	dog: 'animal pet puppy',
+	fish: 'animal sea swim',
+	bug: 'insect beetle problem',
+	apple: 'fruit food health',
+	pizza: 'food italian slice',
+	coffee: 'drink cafe morning caffeine',
+	wine: 'drink alcohol glass',
+	cake: 'birthday food dessert celebrate',
+	utensils: 'food eat restaurant meal',
+	home: 'house building live',
+	building: 'office city work',
+	tent: 'camp outdoors camping',
+	map: 'travel place geography',
+	'map-pin': 'location place where marker',
+	compass: 'direction navigate explore',
+	plane: 'travel flight fly airport',
+	car: 'drive travel vehicle',
+	rocket: 'launch space fast start',
+	book: 'read study library note',
+	'book-open': 'read study reading',
+	'graduation-cap': 'school study degree learn education',
+	pencil: 'write edit draw note',
+	brush: 'paint art draw',
+	palette: 'art colour color paint',
+	scissors: 'cut craft',
+	microscope: 'science research study biology',
+	'flask-conical': 'science chemistry experiment lab',
+	atom: 'science physics',
+	lightbulb: 'idea think insight bright',
+	hammer: 'build tool make fix',
+	wrench: 'tool fix settings repair',
+	trophy: 'win award prize best',
+	target: 'goal aim focus objective',
+	flag: 'mark country milestone',
+	music: 'song audio sound note',
+	headphones: 'listen audio music',
+	camera: 'photo picture snapshot',
+	film: 'movie cinema video',
+	'gamepad-2': 'game play controller',
+	dices: 'random chance game luck',
+	puzzle: 'piece problem solve',
+	dumbbell: 'gym exercise fitness strong',
+	bed: 'sleep rest bedroom',
+	key: 'unlock access password secret',
+	lock: 'private secure closed',
+	gift: 'present birthday surprise',
+	package: 'box parcel delivery ship',
+	calendar: 'date day schedule when',
+	clock: 'time hour when',
+	bell: 'notification alert remind',
+	mail: 'email letter message send',
+	'message-circle': 'chat talk comment speak',
+	wallet: 'money pay cash',
+	banknote: 'money cash pay currency',
+	coins: 'money cash currency',
+	'shopping-cart': 'buy shop store purchase',
+	briefcase: 'work job business office',
+	skull: 'death dead danger',
+	ghost: 'spooky halloween boo',
+	bot: 'robot ai machine',
+	brain: 'mind think memory idea',
+	eye: 'see look watch view',
+	crown: 'king queen royal best',
+	gem: 'diamond jewel precious value',
+	umbrella: 'rain weather protect',
+	check: 'done yes tick complete ok',
+	x: 'no close cancel wrong',
+	infinity: 'forever endless loop',
+	link: 'url connect chain',
+	recycle: 'reuse green eco loop',
+	trash: 'delete bin remove',
+};
+
+/* id -> the words above, once, so search can read one string per icon. */
+function iconKeywords(name) {
+	const extra = ICON_SYNONYMS[name];
+	return extra ? name.replace(/-/g, ' ') + ' ' + extra : name.replace(/-/g, ' ');
+}
+
+function isIconSymbol(value) {
+	return String(value || '').indexOf(ICON_PREFIX) === 0;
+}
+
+function iconNameOf(value) {
+	return isIconSymbol(value) ? String(value).slice(ICON_PREFIX.length) : '';
+}
+
+/*
+ * Draw a symbol into an element, whichever kind it is. One function, because the
+ * mark appears in five places — the class row, the property heading, the picker,
+ * the button that opens it, and the preview inside it — and five copies of
+ * "is this an icon or a character" is five chances to disagree.
+ *
+ * What it draws is exactly what is stored. Nothing is added on the way out any
+ * more; see `asEmoji` for where the presentation is decided instead.
+ */
+function paintSymbol(el, value) {
+	el.textContent = '';
+	el.removeClass('is-icon');
+	if (!value) return el;
+
+	if (isIconSymbol(value)) {
+		el.addClass('is-icon');
+		if (typeof setIcon === 'function') setIcon(el, iconNameOf(value));
+		return el;
+	}
+
+	el.textContent = value;
+	return el;
+}
+
+/*
+ * The three dots, by whichever name this Obsidian's Lucide calls them.
+ *
+ * A hamburger means *navigation* — the application's own menu — and three dots
+ * mean *more actions for this item*, which is what a class's menu is. His call,
+ * 2026-08-24, and the right one.
+ *
+ * Lucide renamed `more-vertical` to `ellipsis-vertical`, and which one is present
+ * depends on the Obsidian build, so the id is chosen from what is actually
+ * registered: `setIcon` with a name it does not know draws nothing at all, and an
+ * empty button is worse than the wrong glyph.
+ */
+let overflowIcon = null;
+
+function overflowIconName() {
+	/* Asked once: the answer cannot change while Obsidian is running, and this is
+	 * called for every class row on every redraw. */
+	if (overflowIcon) return overflowIcon;
+	const have = new Set(availableIcons());
+	for (const name of ['ellipsis-vertical', 'more-vertical', 'ellipsis',
+		'more-horizontal', 'menu']) {
+		if (have.has(name)) { overflowIcon = name; return overflowIcon; }
+	}
+	overflowIcon = 'menu';
+	return overflowIcon;
+}
+
+/* Every Lucide id Obsidian knows, without the `lucide-` its own ids carry. */
+function availableIcons() {
+	if (typeof getIconIds !== 'function') return [];
+	const seen = new Set();
+	const out = [];
+	for (const id of getIconIds()) {
+		const name = String(id).replace(/^lucide-/, '');
+		if (seen.has(name)) continue;
+		seen.add(name);
+		out.push(name);
+	}
+	return out.sort();
+}
+
+/*
+ * U+FE0F, the emoji variation selector.
+ *
+ * There was a setting here that appended one of these to **every** symbol, and it
+ * was wrong (2026-08-24): he picked an emoji and got a flat glyph, because dozens
+ * of emoji — ❤ ☀ ✏ ✂ ⚙ ✈ ⚠ — have a text presentation for it to switch them to.
+ *
+ * Presentation belongs to the value, not to a mode. A typographic mark is stored
+ * bare and Unicode's default presentation draws it flat, which is what it is for;
+ * an emoji picked from the emoji tab is stored with its selector, so it is an
+ * emoji wherever it appears, for ever, with nothing having to remember why.
+ */
+const EMOJI_PRESENTATION = '\uFE0F';
+
+/*
+ * The emoji tab's characters, as they should be *stored*.
+ *
+ * Everything in the astral planes (🎨 🚀 😀) is emoji-only and needs nothing. The
+ * ones that need the selector are the old BMP symbols that were emoji-fied later
+ * and still default to text — which is every dual-form character there is, and
+ * exactly the set the old setting was flattening.
+ */
+function asEmoji(symbol) {
+	const text = String(symbol === undefined || symbol === null ? '' : symbol);
+	if (!text) return '';
+	if (text.indexOf(EMOJI_PRESENTATION) !== -1) return text;
+	const points = Array.from(text);
+	if (points.length !== 1) return text;
+	return points[0].codePointAt(0) <= 0x2bff ? text + EMOJI_PRESENTATION : text;
+}
+
+/*
+ * What a class note's symbol property may hold. One grapheme — anything longer
+ * is a mistake, most often a whole word pasted in, and a five-letter "symbol"
+ * before every heading would wreck the layout it is meant to decorate.
+ *
+ * Counted with the segmenter where there is one, so a flag or a skin-toned emoji
+ * counts as the one character it looks like rather than the four it is.
+ */
+function firstGrapheme(value) {
+	/*
+	 * The selector is part of the grapheme and stays. Stripping it here is what
+	 * made a stored emoji flat again the moment it was read back.
+	 */
+	const text = String(value === undefined || value === null ? '' : value).trim();
+	if (!text) return '';
+	if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+		const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+		for (const piece of segmenter.segment(text)) return piece.segment;
+		return '';
+	}
+	return Array.from(text)[0] || '';
+}
+
+/*
+ * A symbol as it should be stored, whichever kind it is.
+ *
+ * **The one-grapheme rule is about characters, and an icon is a name.** Running
+ * `lucide:heart` through it left `l` — the whole icons tab writing a single
+ * letter into the note. Every place that stores or reads a symbol goes through
+ * here now, so there is one answer to what a symbol may be.
+ */
+function normaliseSymbol(value) {
+	const text = String(value === undefined || value === null ? '' : value).trim();
+	if (isIconSymbol(text)) {
+		const name = iconNameOf(text).trim();
+		return name ? ICON_PREFIX + name : '';
+	}
+	return firstGrapheme(text);
+}
+
 /* ----- the defaults table ------------------------------------------------ */
 
 /*
@@ -658,6 +1257,81 @@ function defaultsTableBlock() {
 		'| ' + ALL_NOTES_ROW + ' '.repeat(DEFAULTS_COLUMNS[0].length - ALL_NOTES_ROW.length)
 			+ ' | ' + ' '.repeat(DEFAULTS_COLUMNS[1].length)
 			+ ' | ' + ' '.repeat(DEFAULTS_COLUMNS[2].length) + ' |',
+	];
+}
+
+/*
+ * The sentinel inside the Templater block that names a new note after the moment
+ * it was made. The block is found by this line and not by matching the whole of
+ * it: the format inside changes with the setting, and he may reasonably edit the
+ * body around it, so the only stable thing is the mark.
+ */
+const RENAME_MARK = 'OOF Classes: unique file name';
+
+/* Where that block starts and ends in a body, or null when there is none. */
+function findRenameBlock(text) {
+	const lines = String(text || '').split('\n');
+	const mark = lines.findIndex((line) => line.indexOf(RENAME_MARK) !== -1);
+	if (mark === -1) return null;
+
+	let start = mark;
+	while (start > 0 && lines[start].indexOf('<%*') === -1) start--;
+	if (lines[start].indexOf('<%*') === -1) return null;
+
+	let end = mark;
+	while (end < lines.length - 1 && lines[end].indexOf('%>') === -1) end++;
+	if (lines[end].indexOf('%>') === -1) return null;
+
+	return { start: start, end: end, lines: lines };
+}
+
+/* The format a body's block is currently written with; '' when it carries none. */
+function renameBlockFormat(text) {
+	const found = findRenameBlock(text);
+	if (!found) return '';
+	const block = found.lines.slice(found.start, found.end + 1).join('\n');
+	const match = block.match(/tp\.date\.now\("([^"]*)"\)/);
+	return match ? match[1] : '';
+}
+
+/*
+ * The block itself.
+ *
+ * It goes *below* the frontmatter, and that is not a style choice: this plugin
+ * writes a template's properties through `processFrontMatter`, which reads the
+ * `---` on the first line. A Templater block above it would leave the file with
+ * no frontmatter as far as Obsidian is concerned, and the next Update would lay
+ * a second block of properties on top. His `Characteristic Template.md` puts its
+ * own block first and is right to — nothing generates that one.
+ *
+ * The guard is `Untitled` rather than nothing at all. A note created by
+ * following a link arrives already carrying that link's name, and with
+ * `alwaysUpdateLinks` on, renaming it rewrites the very link that made it —
+ * `[[The theory of information]]` would become a timestamp.
+ */
+function renameBlock(format) {
+	return [
+		'<%*',
+		'/*',
+		' * ' + RENAME_MARK + ' — a new note is named after the moment it was made.',
+		' *',
+		' * Only when it has no name of its own yet: a note created by following a',
+		' * link arrives carrying that link\'s name, and renaming it would rewrite',
+		' * the link that made it.',
+		' *',
+		' * Written by the plugin from its *Unique file name* setting. Edits here',
+		' * are overwritten the next time that setting changes.',
+		' */',
+		'const stamp = tp.date.now("' + format + '");',
+		'if (tp.file.title.startsWith("Untitled")) {',
+		'\tlet name = stamp, n = 2;',
+		'\twhile (app.vault.getAbstractFileByPath(',
+		'\t\t\ttp.file.path(true).replace(/[^/]*$/, name + ".md"))) {',
+		'\t\tname = stamp + " " + n++;',
+		'\t}',
+		'\tawait tp.file.rename(name);',
+		'}',
+		'-%>',
 	];
 }
 
@@ -802,6 +1476,20 @@ class OofClassesPlugin extends Plugin {
 		 * The cost is one pass over ~30 small files at startup.
 		 */
 		this.defaultsRows = new Map();
+		/*
+		 * class -> the symbol this plugin wrote onto it as a copy of an ancestor's.
+		 * The only thing here that remembers what it wrote, and it has to: a copy
+		 * and a deliberate choice look identical in the file.
+		 */
+		this.symbolWrites = new Map();
+
+		/*
+		 * The rename block each template currently carries, by path. Same shape and
+		 * same reason as `defaultsRows`: a body cannot be read synchronously, and
+		 * the planner runs synchronously, so the reading is done once in the
+		 * background and the plan consults what was found.
+		 */
+		this.templateRenames = new Map();
 
 		/* What Obsidian currently thinks each property's type is. */
 		this.registeredTypes = {};
@@ -842,15 +1530,22 @@ class OofClassesPlugin extends Plugin {
 		 * than through another pass over the vault.
 		 */
 		this.registerEvent(this.app.metadataCache.on('changed', (file, data) => {
-			if (typeof data === 'string') this.rememberDefaults(file, data);
+			if (typeof data === 'string') {
+				this.rememberDefaults(file, data);
+				this.rememberRenameBlock(file, data);
+			}
 			touched(file);
 		}));
 		this.registerEvent(this.app.vault.on('create', (file) => {
 			if (this.isCharacteristicFile(file)) this.readDefaultsTables().catch(() => {});
+			if (this.isTemplateFile(file)) this.readTemplateRenames().catch(() => {});
 			touched(file);
 		}));
 		this.registerEvent(this.app.vault.on('delete', (file) => {
-			if (file && file.path) this.defaultsRows.delete(file.path);
+			if (file && file.path) {
+				this.defaultsRows.delete(file.path);
+				this.templateRenames.delete(file.path);
+			}
 			touched(file);
 		}));
 		/*
@@ -859,8 +1554,12 @@ class OofClassesPlugin extends Plugin {
 		 */
 		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
 			this.invalidateClosures();
-			if (typeof oldPath === 'string') this.defaultsRows.delete(oldPath);
+			if (typeof oldPath === 'string') {
+				this.defaultsRows.delete(oldPath);
+				this.templateRenames.delete(oldPath);
+			}
 			if (this.isCharacteristicFile(file)) this.readDefaultsTables().catch(() => {});
+			if (this.isTemplateFile(file)) this.readTemplateRenames().catch(() => {});
 			this.notePropertyRename(file, oldPath);
 			const wasWatched = typeof oldPath === 'string'
 				&& [this.settings.notesFolder, this.settings.templatesFolder,
@@ -937,7 +1636,10 @@ class OofClassesPlugin extends Plugin {
 		 * The defaults tables. Not awaited: the panel is useful before they arrive,
 		 * and the read invalidates the picture itself when it finds anything.
 		 */
-		this.app.workspace.onLayoutReady(() => { this.readDefaultsTables().catch(() => {}); });
+		this.app.workspace.onLayoutReady(() => {
+			this.readDefaultsTables().catch(() => {});
+			this.readTemplateRenames().catch(() => {});
+		});
 
 		/* And the Add property button, hidden or not, per the setting. */
 		this.applyAddPropertyVisibility();
@@ -949,6 +1651,7 @@ class OofClassesPlugin extends Plugin {
 		await this.loadRegisteredTypes();
 		/* And a defaults table may have been edited while the panel was shut. */
 		await this.readDefaultsTables();
+		await this.readTemplateRenames();
 
 		const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE);
 		if (existing.length > 0) {
@@ -1094,6 +1797,25 @@ class OofClassesPlugin extends Plugin {
 	 * Reported as one item per key rather than one per note, because it is one
 	 * question — what was this renamed to? — asked sixty-nine times.
 	 */
+	/*
+	 * A property the **system** owns, as opposed to one describing a subject: the
+	 * base characteristics, the ones retired from that list, the native attributes,
+	 * and the class's symbol.
+	 *
+	 * One function because there are two passes that must agree about this and they
+	 * did not: `symbol` was excused in `unclaimedKeys` and not here, so the plugin
+	 * wrote `symbol:` onto five class notes and then reported those same five notes
+	 * for carrying a property nothing declares — an **insolvable** discrepancy,
+	 * which blocks Update. Two copies of one rule is one copy too many.
+	 */
+	isSystemProperty(key) {
+		if (this.settings.logicProperties.includes(key)) return true;
+		if (toArray(this.settings.retiredLogicProperties).includes(key)) return true;
+		if (this.isIgnoredProperty(key)) return true;
+		if (this.settings.symbolProperty && key === this.settings.symbolProperty) return true;
+		return false;
+	}
+
 	strandedProperties(characteristics) {
 		const found = new Map();
 
@@ -1104,9 +1826,7 @@ class OofClassesPlugin extends Plugin {
 
 			for (const key of Object.keys(frontmatter)) {
 				if (characteristics.has(key)) continue;
-				if (this.settings.logicProperties.includes(key)) continue;
-				if (toArray(this.settings.retiredLogicProperties).includes(key)) continue;
-				if (this.isIgnoredProperty(key)) continue;
+				if (this.isSystemProperty(key)) continue;
 				if (isTemplaterExpression(frontmatter[key])) continue;
 
 				if (!found.has(key)) {
@@ -1317,6 +2037,60 @@ class OofClassesPlugin extends Plugin {
 		this.defaultsRows.set(file.path, entry);
 		if (!quiet) { this.invalidatePicture(); this.refreshViews(); }
 		return true;
+	}
+
+	/* A file in the templates folder, which is the only place a block is written. */
+	isTemplateFile(file) {
+		return file instanceof TFile && file.extension === 'md'
+			&& this.inFolder(file, this.settings.templatesFolder);
+	}
+
+	/*
+	 * Read every template's body and keep the format its rename block carries.
+	 * Called at layout and whenever a template is created or renamed; an edit to
+	 * an open one arrives through `metadataCache.on('changed')` with the text
+	 * already in hand, the same as the defaults tables.
+	 */
+	async readTemplateRenames() {
+		let changed = false;
+		const seen = new Set();
+
+		for (const file of this.filesIn(this.settings.templatesFolder)) {
+			seen.add(file.path);
+			let text = '';
+			try { text = await this.app.vault.cachedRead(file); } catch (error) { continue; }
+			if (this.rememberRenameBlock(file, text, true)) changed = true;
+		}
+
+		for (const path of Array.from(this.templateRenames.keys())) {
+			if (!seen.has(path)) { this.templateRenames.delete(path); changed = true; }
+		}
+
+		if (changed) {
+			this.invalidatePicture();
+			this.refreshViews();
+		}
+		return changed;
+	}
+
+	/* One template's block. Returns whether anything moved, same as the tables. */
+	rememberRenameBlock(file, text, quiet) {
+		if (!this.isTemplateFile(file)) return false;
+
+		const entry = {
+			has: !!findRenameBlock(text),
+			format: renameBlockFormat(text),
+		};
+		const before = this.templateRenames.get(file.path);
+		if (before && before.has === entry.has && before.format === entry.format) return false;
+
+		this.templateRenames.set(file.path, entry);
+		if (!quiet) { this.invalidatePicture(); this.refreshViews(); }
+		return true;
+	}
+
+	renameEntryFor(path) {
+		return this.templateRenames.get(path) || null;
 	}
 
 	defaultsEntryFor(file) {
@@ -1568,6 +2342,9 @@ class OofClassesPlugin extends Plugin {
 			object.parents = object.values[this.settings.inheritsProperty] || [];
 			object.keys = new Set(Object.keys(fm));
 			object.tagged = this.hasClassTag(file);
+			/* One grapheme, so a word pasted into the property cannot reach the UI. */
+			object.symbol = this.settings.symbolProperty
+				? normaliseSymbol(fm[this.settings.symbolProperty]) : '';
 			/*
 			 * An absent key and an empty one both read as [], so presence is
 			 * tracked separately: it is the difference between a class that
@@ -1647,10 +2424,19 @@ class OofClassesPlugin extends Plugin {
 			values[property] = edited ? edited.slice() : (stored[property] || []).slice();
 		}
 
+		/*
+		 * `'symbol' in edit`, not a truthiness test: clearing one in the panel is an
+		 * edit to the empty string, and a falsy check would read that as "not
+		 * edited" and hand back the stored symbol for ever.
+		 */
+		const symbol = edit && 'symbol' in edit
+			? normaliseSymbol(edit.symbol) : (object.symbol || '');
+
 		return {
 			name: object.name,
 			file: object.file,
 			values: values,
+			symbol: symbol,
 			/* Named aliases for the two the engine reasons with. */
 			characteristics: values[this.settings.characteristicsProperty] || [],
 			parents: values[this.settings.inheritsProperty] || [],
@@ -1664,6 +2450,8 @@ class OofClassesPlugin extends Plugin {
 		for (const property of this.settings.logicProperties) {
 			if (!sameNameList(draft.values[property] || [], stored[property] || [])) return true;
 		}
+		if (this.settings.symbolProperty
+			&& (draft.symbol || '') !== ((object && object.symbol) || '')) return true;
 		return false;
 	}
 
@@ -2457,6 +3245,179 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		return out;
+	}
+
+	/*
+	 * How much a class actually adds.
+	 *
+	 *   { added, redeclared, carried, own }
+	 *
+	 * **New means new to the chain, not new to the note.** A class's
+	 * `characteristics:` may name something an ancestor already declares —
+	 * `Visual Artist` listing `children` when `Person` above it already does — and
+	 * that adds nothing to an instance. Counting the list as written would rate
+	 * such a class for work it did not do, which is the opposite of the question:
+	 * *how much new metadata does this class add*.
+	 *
+	 * Base characteristics are left out. `is a`, `characteristics` and `type of`
+	 * are how the system talks about itself; every class has them, so they say
+	 * nothing about any one class.
+	 *
+	 * Drafts, not files, so an edit in the panel moves the number before Update
+	 * writes anything.
+	 */
+	noveltyOf(name, objects, drafts) {
+		const draft = drafts.get(name);
+		const empty = { added: [], redeclared: [], carried: 0, own: 0 };
+		if (!draft) return empty;
+
+		const base = new Set(this.settings.logicProperties);
+
+		const own = [];
+		const seen = new Set();
+		for (const characteristic of draft.characteristics || []) {
+			if (!characteristic || base.has(characteristic)) continue;
+			if (seen.has(characteristic)) continue;
+			seen.add(characteristic);
+			own.push(characteristic);
+		}
+
+		const above = new Set();
+		for (const ancestor of this.ancestorsOf(name, objects, drafts)) {
+			const parent = drafts.get(ancestor);
+			if (!parent) continue;
+			for (const characteristic of parent.characteristics || []) above.add(characteristic);
+		}
+
+		const carried = this.effectiveCharacteristics(name, objects, drafts)
+			.filter((characteristic) => !base.has(characteristic));
+
+		return {
+			added: own.filter((characteristic) => !above.has(characteristic)),
+			redeclared: own.filter((characteristic) => above.has(characteristic)),
+			carried: carried.length,
+			own: own.length,
+		};
+	}
+
+	/*
+	 * A class's symbol, and where it came from.
+	 *
+	 *   { symbol, source, inherited }
+	 *
+	 * **Inherited, nearest first**, the same walk as characteristics and defaults:
+	 * marking `Person` marks everything below it, and a subclass overrides by
+	 * setting its own. That is what makes one symbol worth typing — otherwise
+	 * every class in a chain would need its own.
+	 *
+	 * Empty when nothing in the chain has one, which is the ordinary case and not
+	 * something to draw a placeholder for.
+	 */
+	symbolFor(name, objects, drafts) {
+		if (!this.settings.symbolProperty) return { symbol: '', source: '', inherited: false };
+
+		for (const above of this.ancestorChain(name, objects, drafts)) {
+			const draft = drafts.get(above);
+			if (!draft || !draft.symbol) continue;
+			/*
+			 * A class carrying a copy the plugin wrote is still *inheriting* it, and
+			 * says so — otherwise materialising would make every class in a marked
+			 * subtree look as though it had chosen the mark for itself, and the one
+			 * class that actually did would be indistinguishable from the rest.
+			 */
+			if (above === name && this.copiedSymbol(name) === draft.symbol) {
+				const from = this.inheritedSymbolFor(name, objects, drafts);
+				if (from.symbol === draft.symbol) {
+					return { symbol: draft.symbol, source: from.source, inherited: true };
+				}
+			}
+			return {
+				symbol: draft.symbol,
+				source: above,
+				inherited: above !== name,
+			};
+		}
+		return { symbol: '', source: '', inherited: false };
+	}
+
+	/*
+	 * The nearest symbol **above** a class, ignoring its own. What a class would
+	 * show if it declared nothing — and so what a materialised copy should hold.
+	 */
+	inheritedSymbolFor(name, objects, drafts) {
+		if (!this.settings.symbolProperty) return { symbol: '', source: '', inherited: false };
+
+		for (const above of this.ancestorChain(name, objects, drafts)) {
+			if (above === name) continue;
+			const draft = drafts.get(above);
+			if (!draft || !draft.symbol) continue;
+			return { symbol: draft.symbol, source: above, inherited: true };
+		}
+		return { symbol: '', source: '', inherited: false };
+	}
+
+	/* The symbol this plugin last wrote onto a class as a copy, if any. */
+	copiedSymbol(name) {
+		return (this.symbolWrites && this.symbolWrites.get(name)) || '';
+	}
+
+	/*
+	 * What a class's symbol property should hold once inherited symbols are
+	 * written down, and why — `{ value, reason }`, or null when nothing is due.
+	 *
+	 * Four cases, and the record is what tells them apart:
+	 *
+	 *   none of its own, one above      write the copy
+	 *   a copy, and the ancestor moved  update the copy
+	 *   a copy, and the ancestor's gone remove the copy
+	 *   anything else                   his; left alone
+	 */
+	symbolCopyFor(name, own, objects, drafts) {
+		if (!this.settings.symbolProperty) return null;
+		if (!this.settings.writeInheritedSymbols) return null;
+
+		const above = this.inheritedSymbolFor(name, objects, drafts).symbol;
+		const copied = this.copiedSymbol(name);
+
+		if (!own) {
+			return above ? { value: above, reason: 'write' } : null;
+		}
+		if (own !== copied) return null;
+		if (!above) return { value: '', reason: 'remove' };
+		if (above !== own) return { value: above, reason: 'update' };
+		return null;
+	}
+
+	/* The same, drawn: one grapheme with the presentation the setting asks for. */
+	symbolText(name, objects, drafts) {
+		return this.symbolFor(name, objects, drafts).symbol;
+	}
+
+	/* What the badge on a class's row says, in words. */
+	noveltyTooltip(name, novelty) {
+		const lines = [];
+		const added = novelty.added.length;
+
+		if (added === 0) {
+			lines.push(name + ' adds no metadata of its own.');
+			lines.push(novelty.carried > 0
+				? 'An instance of it carries ' + novelty.carried
+					+ ', every one of them inherited.'
+				: 'An instance of it carries none at all.');
+		} else {
+			lines.push(name + ' adds ' + added + ' characteristic'
+				+ (added === 1 ? '' : 's') + ' that nothing above it declares: '
+				+ novelty.added.join(', ') + '.');
+			lines.push('An instance carries ' + novelty.carried + ' in all.');
+		}
+
+		if (novelty.redeclared.length > 0) {
+			lines.push('It also lists ' + novelty.redeclared.join(', ')
+				+ ', already declared further up — so ' + (novelty.redeclared.length === 1
+					? 'that one adds' : 'those add') + ' nothing.');
+		}
+
+		return lines.join('\n');
 	}
 
 	/* ----- the Bases formula functions -------------------------------------- */
@@ -3424,8 +4385,15 @@ class OofClassesPlugin extends Plugin {
 			 *
 			 * So nothing is rebuilt unless the answer actually changed.
 			 */
+			/*
+			 * The symbols are part of the answer now, so a class gaining or losing
+			 * one has to count as a change — otherwise the headings keep the mark
+			 * they were built with until something else happens to move a row.
+			 */
 			const signature = rows.map(
-				(row, i) => labels[i] + ' :: ' + row.dataset.propertyKey).join(' | ');
+				(row, i) => labels[i] + ' :: ' + row.dataset.propertyKey).join(' | ')
+				+ ' :: ' + Array.from(new Set(labels)).filter((label) => this.isClassGroup(label))
+					.map((label) => label + this.symbolText(label, objects, drafts)).join(',');
 
 			if (container.dataset.oofGroups === signature
 				&& container.querySelector('.oof-property-group')) {
@@ -3463,6 +4431,20 @@ class OofClassesPlugin extends Plugin {
 				 */
 				const twisty = heading.createSpan({ cls: 'oof-property-group-twisty' });
 				if (typeof setIcon === 'function') setIcon(twisty, 'chevron-down');
+				/*
+				 * The class's symbol over its section, which is the other half of
+				 * what he asked for: the same mark beside the class in the panel and
+				 * above the properties that came from it. Only the class groups get
+				 * one — *Base characteristics* and *Nothing to do with classes* are
+				 * not classes and have no symbol to inherit.
+				 */
+				if (this.isClassGroup(label)) {
+					const glyph = this.symbolFor(label, objects, drafts).symbol;
+					if (glyph) {
+						paintSymbol(heading.createSpan({ cls: 'oof-property-group-symbol' }),
+							glyph);
+					}
+				}
 				heading.createSpan({
 					cls: 'oof-property-group-name', text: this.headingTextFor(label) });
 				heading.createSpan({ cls: 'oof-property-group-count' });
@@ -4435,13 +5417,64 @@ class OofClassesPlugin extends Plugin {
 			 */
 			const canonical = this.canonicalOrder(managedAfter, characteristics,
 				{ classes: ownClasses, objects: objects, drafts: drafts });
-			const misordered = !sameNameList(managedAfter, canonical);
+
+			/*
+			 * `reorderFrontMatter` lays a note out as *everything unmanaged, then the
+			 * managed keys in canonical order* — so an unmanaged key sitting after a
+			 * managed one is out of place, and the properties view says so out loud:
+			 * it heads each **run** of properties, so a native attribute stranded at
+			 * the bottom produces a second *Native attributes* heading under the
+			 * class's own.
+			 *
+			 * Only the symbol is checked, and deliberately. It is the plugin's own
+			 * property — it landed at the end because `processFrontMatter` appends a
+			 * new key and nothing then asked for a reorder, since `misordered` only
+			 * ever compared the managed keys with each other. His fields are his, and
+			 * shuffling those to tidy a heading is not something he asked for.
+			 */
+			const symbolKey = this.settings.symbolProperty;
+			const firstManaged = keysAfter.findIndex(
+				(key) => this.isManagedProperty(key, characteristics));
+			const symbolAt = symbolKey ? keysAfter.indexOf(symbolKey) : -1;
+			const symbolStranded = symbolAt !== -1 && firstManaged !== -1
+				&& symbolAt > firstManaged;
+			/*
+			 * A symbol being **added** strands itself: `processFrontMatter` appends
+			 * a new key, and the check above cannot see it, because at plan time the
+			 * note does not carry it yet. Asking for the layout in the same action is
+			 * what makes it land in place on this Update rather than on the next one
+			 * — the mutation sets the key before `applyOrder` runs, so the reorder
+			 * catches it.
+			 */
+			const symbolArriving = symbolAt === -1 && firstManaged !== -1;
+
+			const misordered = !sameNameList(managedAfter, canonical) || symbolStranded;
 
 			/* Every class says so with the tag. */
 			const needsTag = !!this.settings.classTag && !object.tagged;
 
+			/*
+			 * The symbol is an edit like any other, so it travels in the plan rather
+			 * than being written the moment it is typed. Rename is the one thing
+			 * here that happens straight away, and it has a reason: it moves files,
+			 * and a pending rename would leave the panel showing a name the vault
+			 * does not have. A symbol has neither problem.
+			 */
+			const symbolNow = (object.symbol || '');
+			const symbolOwn = (draft && draft.symbol) || '';
+			/*
+			 * The panel's value if he has set one; otherwise whatever the chain says,
+			 * written down. `symbolCopyFor` returns null when there is nothing due,
+			 * which is every class he has not marked and whose ancestors carry
+			 * nothing either.
+			 */
+			const symbolCopy = this.symbolCopyFor(name, symbolOwn, objects, drafts);
+			const symbolWanted = symbolCopy ? symbolCopy.value : symbolOwn;
+			const symbolChanged = !!this.settings.symbolProperty
+				&& symbolWanted !== symbolNow;
+
 			if (write.length > 0 || dropped.length > 0 || misordered || needsTag
-				|| shedEmpty.length > 0 || gained.length > 0) {
+				|| shedEmpty.length > 0 || gained.length > 0 || symbolChanged) {
 				const described = write.map(
 					(property) => (missing.includes(property) ? property + ' (missing)' : property));
 
@@ -4492,13 +5525,50 @@ class OofClassesPlugin extends Plugin {
 						+ ' — this note is a class, and says so.');
 				}
 
+				if (symbolChanged) {
+					described.push(symbolWanted ? 'symbol ' + symbolWanted : 'symbol removed');
+					const from = symbolCopy
+						? this.inheritedSymbolFor(name, objects, drafts).source : '';
+					const why = !symbolCopy
+						? (symbolWanted
+							? '. Shown before ' + name + ' in the panel, and before its '
+								+ 'section in the properties view — and inherited by every '
+								+ 'class below it that has none of its own.'
+							: '. Classes below it fall back to the nearest symbol above.')
+						: (symbolCopy.reason === 'remove'
+							? '. ' + name + ' was carrying a copy of an ancestor\'s symbol, '
+								+ 'and that symbol is gone, so the copy goes with it.'
+							: '. Inherited from ' + from + ' and written here, so '
+								+ name + '\'s own note says what it is marked with. Change it '
+								+ 'on ' + from + ' and this follows; change it here and it '
+								+ 'becomes ' + name + '\'s own.');
+					detail.push(this.settings.symbolProperty + ' — '
+						+ (symbolNow ? symbolNow : 'empty') + '  →  '
+						+ (symbolWanted ? symbolWanted : 'empty') + why);
+				}
+
 				if (misordered) {
 					described.push('order');
 					detail.push('Properties reordered by type then name: ' + canonical.join(', '));
+					if (symbolStranded) {
+						detail.push(symbolKey + ' moves up with the other native attributes — '
+							+ 'it was written after them, which split them into two sections '
+							+ 'in the properties view.');
+					}
 				}
 
 				actions.push({
 					kind: 'update-class',
+					symbolProperty: symbolChanged ? this.settings.symbolProperty : null,
+					symbol: symbolWanted,
+					/*
+					 * Whether this value is a copy of an ancestor's, so `applyAction`
+					 * can record it. Only a recorded copy is ever updated or removed
+					 * later; anything else is his.
+					 */
+					symbolCopied: !!symbolCopy && symbolCopy.reason !== 'remove',
+					/* The class this acts on, by name — `applyAction` keys the record on it. */
+					object: name,
 					label: 'Update class "' + name + '" — ' + described.join(', '),
 					file: object.file,
 					values: wanted,
@@ -4507,7 +5577,9 @@ class OofClassesPlugin extends Plugin {
 					add: gained,
 					missing: missing,
 					addTag: needsTag ? this.settings.classTag : null,
-					order: misordered ? canonical : null,
+					/* Also when the symbol is arriving — see `symbolArriving`. */
+					order: (misordered || (symbolChanged && symbolWanted && symbolArriving))
+						? canonical : null,
 					managed: managedAfter,
 					detail: detail,
 				});
@@ -4697,6 +5769,78 @@ class OofClassesPlugin extends Plugin {
 				types: expected.map((c) => (characteristics.get(c) || {}).propertyType || ''),
 				detail: detail,
 			});
+		}
+
+		/*
+		 * 3a-ii. the Templater block that names a new note after the moment it was
+		 * made, in every class template.
+		 *
+		 * The class templates only. `Characteristic Template.md` is not one of them
+		 * and must never be given this: a characteristic's file name *is* the
+		 * property it defines (`∘ domain` → `domain`), so a timestamp there would
+		 * cut every characteristic loose from its own property. It carries its own
+		 * prefix rename instead, which this leaves alone — the loop below only ever
+		 * looks at paths `templatePathFor()` produced.
+		 *
+		 * A template that has not been read yet is skipped rather than guessed at:
+		 * a missing action is safe, a wrong one is not. The same reasoning as the
+		 * orphan bases.
+		 */
+		{
+			const wanted = String(this.settings.uniqueNameFormat || '').trim();
+			for (const name of drafts.keys()) {
+				const path = this.templatePathFor(name);
+				const file = this.app.vault.getFileByPath(path);
+				if (!(file instanceof TFile)) continue;
+
+				const entry = this.renameEntryFor(path);
+				if (!entry) continue;
+
+				if (!wanted) {
+					if (!entry.has) continue;
+					actions.push({
+						kind: 'write-rename-block',
+						label: 'Remove the naming block from the template for "' + name + '"',
+						file: file,
+						path: path,
+						object: name,
+						format: '',
+						detail: [
+							'*Unique file name* is empty, so the convention is off and the '
+								+ 'block comes back out.',
+							'Notes made from this template keep whatever name they are '
+								+ 'created with.',
+						],
+					});
+					continue;
+				}
+
+				if (entry.has && entry.format === wanted) continue;
+
+				actions.push({
+					kind: 'write-rename-block',
+					label: (entry.has ? 'Update' : 'Add') + ' the naming block in the template for "'
+						+ name + '"',
+					file: file,
+					path: path,
+					object: name,
+					format: wanted,
+					detail: entry.has
+						? [
+							'The block names new notes `' + entry.format + '`, and *Unique file '
+								+ 'name* now says `' + wanted + '`.',
+							'Only the block is rewritten. Everything else in the template, '
+								+ 'frontmatter included, is left exactly as it is.',
+						]
+						: [
+							'A note made from this template with no name of its own is named '
+								+ 'after the moment it was made, as `' + wanted + '`.',
+							'Appended below the frontmatter, which is where it has to go — '
+								+ 'the properties above it are written through Obsidian, and '
+								+ 'that reads the `---` on the first line.',
+						],
+				});
+			}
 		}
 
 		/*
@@ -5447,9 +6591,12 @@ class OofClassesPlugin extends Plugin {
 		return Object.keys(frontmatter).filter((key) => {
 			if (renaming.has(key)) return false;
 			if (declared.has(key)) return false;
-			if (this.settings.logicProperties.includes(key)) return false;
-			if (toArray(this.settings.retiredLogicProperties).includes(key)) return false;
-			if (this.isIgnoredProperty(key)) return false;
+			/*
+			 * The base characteristics, the retired ones, the native attributes and
+			 * the class's symbol. Shared with `strandedProperties`, which is the pass
+			 * this list had already drifted out of step with.
+			 */
+			if (this.isSystemProperty(key)) return false;
 			if (isTemplaterExpression(frontmatter[key])) return false;
 			/*
 			 * A key some characteristic note *does* define is a different problem -
@@ -5914,6 +7061,15 @@ class OofClassesPlugin extends Plugin {
 			return (fm) => {
 				this.writeLogicValues(fm, action);
 				if (action.addTag) this.addTag(fm, action.addTag);
+				/*
+				 * Cleared to empty rather than deleted. An absent property and an
+				 * empty one look nothing alike in the properties view, and the same
+				 * argument settled the root's `is a` — the key being there is what
+				 * says the class *could* have a symbol.
+				 */
+				if (action.symbolProperty) {
+					fm[action.symbolProperty] = action.symbol || null;
+				}
 				this.applyOrder(fm, action);
 			};
 		}
@@ -6008,6 +7164,22 @@ class OofClassesPlugin extends Plugin {
 			};
 		}
 
+		/*
+		 * The other body change. Unlike the table this one *replaces* when a block
+		 * is already there, so the preview has a before as well as an after — he
+		 * should see the format leaving, not only the one arriving.
+		 */
+		if (action.kind === 'write-rename-block') {
+			const cached = this.renameEntryFor(action.path);
+			const before = cached && cached.has
+				? renameBlock(cached.format) : [];
+			return {
+				path: action.path,
+				before: before,
+				after: action.format ? [''].concat(renameBlock(action.format)) : [],
+			};
+		}
+
 		if (action.kind === 'create-characteristic' || action.kind === 'create-class') {
 			const mutation = this.frontmatterMutation(action);
 			const made = {};
@@ -6051,6 +7223,17 @@ class OofClassesPlugin extends Plugin {
 		 * line of the convergence loop runs. It must see what was just written.
 		 */
 		this.invalidatePicture();
+
+		/*
+		 * Remember a symbol written as a copy of an ancestor's, and forget one that
+		 * is no longer a copy. This is what lets the next Update tell a value the
+		 * plugin put there from one he chose — and so what stops a materialised
+		 * symbol turning into a permanent fork of the class above it.
+		 */
+		if (action.kind === 'update-class' && action.symbolProperty && this.symbolWrites) {
+			if (action.symbolCopied) this.symbolWrites.set(action.object, action.symbol);
+			else this.symbolWrites.delete(action.object);
+		}
 
 		if (action.kind === 'create-characteristic') {
 			await this.ensureFolder(this.settings.characteristicsFolder);
@@ -6101,6 +7284,50 @@ class OofClassesPlugin extends Plugin {
 			}
 			/* Same reason as above: the loop re-plans before the event arrives. */
 			if (written !== null) this.rememberDefaults(action.file, written, true);
+			return;
+		}
+
+		if (action.kind === 'write-rename-block') {
+			/*
+			 * The second write into a body, and the only one that removes anything.
+			 * It is still narrow: the block is located by its mark, and only the
+			 * lines between its `<%*` and its `%>` are replaced. Every other line
+			 * comes out byte-identical — the same rule the .base surgery follows.
+			 */
+			let written = null;
+			const rewrite = (data) => {
+				const text = String(data);
+				const found = findRenameBlock(text);
+				const block = action.format ? renameBlock(action.format) : null;
+
+				if (found) {
+					const lines = found.lines.slice();
+					if (block) {
+						lines.splice(found.start, found.end - found.start + 1, ...block);
+					} else {
+						/* Take the blank line above it too, or removal leaves a gap. */
+						let from = found.start;
+						while (from > 0 && lines[from - 1].trim() === '') from--;
+						lines.splice(from, found.end - from + 1);
+					}
+					written = lines.join('\n');
+				} else if (block) {
+					written = text.replace(/\s*$/, '') + '\n\n' + block.join('\n') + '\n';
+				} else {
+					written = text;
+				}
+				return written;
+			};
+
+			if (typeof this.app.vault.process === 'function') {
+				await this.app.vault.process(action.file, rewrite);
+			} else {
+				const data = await this.app.vault.read(action.file);
+				const next = rewrite(data);
+				if (next !== data) await this.app.vault.modify(action.file, next);
+			}
+			/* The loop re-plans before the vault event lands, so record it now. */
+			if (written !== null) this.rememberRenameBlock(action.file, written, true);
 			return;
 		}
 
@@ -6404,6 +7631,67 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/* What a rename would touch, for the confirmation. */
+	/*
+	 * What a class leaves behind: the notes that call themselves one of it, and
+	 * the classes that descend from it. Neither is touched by deleting it — a note
+	 * is his, and a class below it is a class — but both end up pointing at
+	 * nothing, so the dialog names them before anything moves.
+	 */
+	deleteFallout(name) {
+		const objects = this.scanClasses();
+		const drafts = this.allDrafts(objects);
+
+		const children = [];
+		for (const [other, draft] of drafts) {
+			if (other === name) continue;
+			if ((draft.parents || []).indexOf(name) !== -1) children.push(other);
+		}
+
+		const instances = [];
+		for (const found of this.scanInstances(objects)) {
+			if (found.classes.indexOf(name) !== -1) instances.push(found.file.basename);
+		}
+
+		return { children: children, instances: instances };
+	}
+
+	/*
+	 * Delete a class: its note, its template and its base, to the **trash**.
+	 *
+	 * Straight away rather than on Update, for the reason rename is: it moves
+	 * files, and a deletion left pending would leave the panel showing a class the
+	 * vault is meant to be rid of. Trash rather than erase, the same as every other
+	 * removal here — this is the one action in the plugin that takes away a note he
+	 * wrote, so it has to be undoable by the ordinary means.
+	 */
+	async deleteClass(name) {
+		const objects = this.scanClasses();
+		const klass = objects.get(name);
+		const trashed = [];
+
+		const bin = async (file) => {
+			if (!file) return;
+			if (this.app.fileManager.trashFile) await this.app.fileManager.trashFile(file);
+			else await this.app.vault.trash(file, true);
+			trashed.push(file.path);
+		};
+
+		await bin(klass && klass.file);
+		await bin(this.app.vault.getFileByPath(this.templatePathFor(name)));
+		await bin(this.app.vault.getFileByPath(this.basePathFor(name)));
+
+		/* Everything the panel remembers about it goes too, or it comes back. */
+		this.drafts.delete(name);
+		this.expanded.delete(name);
+		this.baseRefreshes.delete(name);
+		if (this.symbolWrites) this.symbolWrites.delete(name);
+		await this.persist();
+
+		this.invalidateClosures();
+		this.invalidatePicture();
+		return { ok: true, trashed: trashed };
+	}
+
 	renameTargets(name) {
 		const targets = [];
 		const klass = this.scanClasses().get(name);
@@ -6498,6 +7786,30 @@ class OofClassesPlugin extends Plugin {
 			add: add,
 			kept: kept,
 		};
+	}
+
+	/*
+	 * The name a new instance is given, from the same *Unique file name* format
+	 * the templates carry.
+	 *
+	 * Formatted here rather than left to the template's own block, because
+	 * `createInstance` falls back to copying the template when Templater is not
+	 * available — and on that path nothing expands the block at all, so the note
+	 * would be called "Untitled" and carry the block as literal text. Deciding the
+	 * name up front makes it right on both paths, and the block then sees a title
+	 * that is not "Untitled" and stands down.
+	 *
+	 * `obsidian.moment` and not `formatMoment`: that one knows six tokens, and the
+	 * default format uses `dddd`, which it would leave standing in the file name.
+	 */
+	uniqueInstanceName(format, folder) {
+		const target = folder || this.settings.notesFolder;
+		const stamp = obsidian.moment().format(format);
+		let name = stamp;
+		for (let n = 2; this.app.vault.getAbstractFileByPath(target + '/' + name + '.md'); n++) {
+			name = stamp + ' ' + n;
+		}
+		return name;
 	}
 
 	async createInstance(objectName, noteName, folder) {
@@ -6626,6 +7938,32 @@ class OofClassesPlugin extends Plugin {
 				this.migrationPending = true;
 			}
 
+			/*
+			 * `cover image` was added to the native attributes 2026-08-24. Adding it
+			 * to the default reaches nobody who already has the plugin — a value
+			 * saved once outranks every default that follows — so it is added to the
+			 * stored list instead.
+			 *
+			 * One-shot, and *added* rather than the list being replaced: the list
+			 * may be his by now, and replacing it would throw away whatever else he
+			 * had put there. Running once is what leaves him free to take it out
+			 * again.
+			 */
+			if (!this.migrations.has('cover-image-native')) {
+				/*
+				 * Only an **untouched** list, the same test the retired default gets
+				 * above: if it matches the previous default exactly he never chose
+				 * it, so the new default is what he asked for. A list he has edited
+				 * is his, and appending to it on his behalf is the thing this file
+				 * keeps promising not to do.
+				 */
+				if (sameNameList(toArray(stored.ignoredProperties), PREVIOUS_IGNORED_DEFAULT)) {
+					stored.ignoredProperties = DEFAULT_SETTINGS.ignoredProperties.slice();
+				}
+				this.migrations.add('cover-image-native');
+				this.migrationPending = true;
+			}
+
 			Object.assign(this.settings, stored);
 		}
 
@@ -6641,7 +7979,16 @@ class OofClassesPlugin extends Plugin {
 					values[this.settings.inheritsProperty] = toArray(draft.parents);
 				}
 
-				this.drafts.set(name, { values: values });
+				const restored = { values: values };
+				/* Only when it was actually edited — see `draftOf`. */
+				if ('symbol' in draft) restored.symbol = draft.symbol;
+				this.drafts.set(name, restored);
+			}
+		}
+
+		if (data.symbolWrites) {
+			for (const name of Object.keys(data.symbolWrites)) {
+				this.symbolWrites.set(name, data.symbolWrites[name]);
 			}
 		}
 
@@ -6657,6 +8004,11 @@ class OofClassesPlugin extends Plugin {
 		await this.saveData({
 			settings: this.settings,
 			drafts: drafts,
+			symbolWrites: (() => {
+				const out = {};
+				for (const [name, value] of (this.symbolWrites || new Map())) out[name] = value;
+				return out;
+			})(),
 			baseRefreshes: Array.from(this.baseRefreshes),
 			expanded: Array.from(this.expanded),
 			dismissed: Array.from(this.dismissed),
@@ -6805,7 +8157,9 @@ class ClassesView extends ItemView {
 		for (const [name, draft] of drafts) {
 			parts.push(name + '{' + plugin.settings.logicProperties
 				.map((property) => (draft.values[property] || []).join(','))
-				.join('|') + '}');
+				.join('|') + '}'
+				/* Its symbol is drawn on the row, so a change to one is a redraw. */
+				+ (draft.symbol ? '@' + draft.symbol : ''));
 		}
 
 		const characteristics = plugin.scanCharacteristics();
@@ -6916,13 +8270,34 @@ class ClassesView extends ItemView {
 			names = names.filter((name) => name.toLowerCase().indexOf(filter) !== -1);
 		}
 
-		this.renderHeader(container, drafts, objects, { shown: names.length, total });
+		/*
+		 * Everything in one wrapper, and the classes in a second inside it.
+		 *
+		 * **Only the classes are ever wider than the panel.** The header, the
+		 * discrepancies and the base characteristics are prose and controls; there
+		 * is nothing in them to read sideways, and widening them only cut their
+		 * sentences off at the pane edge. So the outer wrapper is what the
+		 * scrollbar widens, the inner one is what makes it wide, and the three
+		 * blocks between them are pinned at the panel's own width — they neither
+		 * stretch nor move when the classes scroll under them.
+		 *
+		 * All three are inside the wrapper rather than outside it, because a
+		 * sticky element can only be moved *within* its containing block: as a
+		 * child of the scroll container each of them filled that box exactly,
+		 * leaving no room to hold it back with, and it slid away with the rest.
+		 */
+		const body = container.createDiv({ cls: 'oof-panel-body' });
+
+		this.renderHeader(body, drafts, objects, { shown: names.length, total });
 
 		/* When he is hunting for a class, the rest of the panel is noise. */
 		if (!filter) {
-			this.renderDiscrepancies(container);
-			this.renderBaseCharacteristics(container, characteristics);
+			this.renderDiscrepancies(body);
+			this.renderBaseCharacteristics(body, characteristics);
 		}
+
+		/* The one thing the sideways scroll acts on. */
+		const list = body.createDiv({ cls: 'oof-class-list' });
 
 		/*
 		 * The classes the active note is about — itself if it is a class, else
@@ -6953,12 +8328,12 @@ class ClassesView extends ItemView {
 		this.hovered = [];
 
 		if (plugin.settings.classLayout === 'brackets' && !filter) {
-			this.renderClassBrackets(container, names, objects, drafts, characteristics);
+			this.renderClassBrackets(list, names, objects, drafts, characteristics);
 		} else if (plugin.settings.classLayout === 'tree' && !filter) {
-			this.renderClassTree(container, names, objects, drafts, characteristics);
+			this.renderClassTree(list, names, objects, drafts, characteristics);
 		} else {
 			for (const name of names) {
-				this.renderObject(container, drafts.get(name), objects, drafts, characteristics);
+				this.renderObject(list, drafts.get(name), objects, drafts, characteristics);
 			}
 		}
 
@@ -6970,7 +8345,7 @@ class ClassesView extends ItemView {
 		}
 
 		if (names.length === 0) {
-			container.createEl('p', {
+			list.createEl('p', {
 				text: filter
 					? 'No class matches "' + this.filter + '".'
 					: 'No classes yet. A class is a note tagged #class, or one that lists '
@@ -6978,6 +8353,30 @@ class ClassesView extends ItemView {
 				cls: 'oof-empty',
 			});
 		}
+
+		/*
+		 * One bar at the bottom of the panel, when that is the mode. It goes on
+		 * the scroll container rather than on anything of ours, because that is
+		 * the element whose box is the visible panel — a horizontal bar belongs at
+		 * the bottom of what you are looking at, not at the bottom of a stack of
+		 * cards several screens tall.
+		 */
+		const scroller = this.containerEl.children[1];
+		if (scroller && scroller.classList) {
+			const mode = plugin.settings.cardOverflow;
+			/* Both of the settings that keep a row whole widen the panel. */
+			scroller.classList.toggle('oof-scroll-wide',
+				mode === 'panel' || mode === 'wrap');
+			/*
+			 * How wide. `max-content` is every row on one line; `fit-content` is
+			 * only as wide as the widest row *has* to be — which, with the chips
+			 * free to wrap, is the top line. That one word is the whole difference
+			 * between the two wide settings.
+			 */
+			scroller.classList.toggle('oof-wide-fit', mode === 'wrap');
+		}
+		this.syncPortWidth();
+		this.syncFixedBlocks();
 
 		this.watchScroll();
 		this.syncStuckHeader();
@@ -7006,6 +8405,67 @@ class ClassesView extends ItemView {
 	}
 
 	/*
+	 * How wide the pane actually is, published to the stylesheet.
+	 *
+	 * Only the two widening settings need it, and only the pinned blocks use it —
+	 * everything else in there is *meant* to be as wide as the content. From
+	 * inside a container widened past its scrollport there is no length left that
+	 * still names the scrollport, so it is measured here and handed over.
+	 *
+	 * Measured at the end of a render, when the content exists: taken before, a
+	 * vertical scrollbar that is about to appear is not counted, and the pinned
+	 * blocks come out 15px too wide.
+	 */
+	syncPortWidth() {
+		const scroller = this.containerEl.children[1];
+		if (!scroller || !scroller.style) return;
+		/*
+		 * The *content* width, not `clientWidth`: the blocks are capped at what a
+		 * block in this pane would ordinarily get, and that is the pane less the
+		 * padding it actually has. Subtracting the 12px the stylesheet asks for
+		 * would be a guess, and a theme setting 10px made it a wrong one.
+		 */
+		const style = window.getComputedStyle(scroller);
+		const inner = scroller.clientWidth
+			- (parseFloat(style.paddingLeft) || 0)
+			- (parseFloat(style.paddingRight) || 0);
+		scroller.style.setProperty('--oof-pane', Math.max(0, inner) + 'px');
+	}
+
+	/* The pane can be dragged wider without the panel redrawing. */
+	onResize() {
+		this.syncPortWidth();
+		this.syncFixedBlocks();
+	}
+
+	/*
+	 * Holds the header, the discrepancies and the base characteristics still
+	 * while the classes scroll sideways under them.
+	 *
+	 * `position: sticky` was the obvious way and very nearly worked: a sticky
+	 * element is held within its containing block, so the room it has to resist
+	 * scrolling with is `wrapperWidth - itsOwnWidth`, while the distance it must
+	 * resist is `scrollWidth - paneWidth`. Those agree only while nothing outside
+	 * the wrapper carries side padding — and what carries side padding is the
+	 * pane, whose rules a theme is entitled to outbid. The failure mode is the
+	 * worst kind: the blocks hold for most of the scroll and slip the last few
+	 * pixels, which reads as a bug, and is invisible in a harness with no theme.
+	 *
+	 * Cancelling the scroll with a transform needs no arithmetic and no
+	 * assumption about anyone else's padding. Reading `scrollLeft` here is the
+	 * measurement the layout would otherwise have had to imply.
+	 */
+	syncFixedBlocks() {
+		const scroller = this.containerEl.children[1];
+		if (!scroller || typeof scroller.querySelectorAll !== 'function') return;
+		const x = scroller.scrollLeft;
+		const shift = x ? 'translateX(' + x + 'px)' : '';
+		for (const el of Array.from(scroller.querySelectorAll('.oof-panel-fixed'))) {
+			el.style.transform = shift;
+		}
+	}
+
+	/*
 	 * Registered against the scroll container, which survives a render, and only
 	 * once - the panel redraws on every metadata change and every chip edit, so
 	 * doing this per render would stack up listeners.
@@ -7014,7 +8474,10 @@ class ClassesView extends ItemView {
 		const scroller = this.containerEl.children[1];
 		if (!scroller || !scroller.dataset || scroller.dataset.oofScroll) return;
 		scroller.dataset.oofScroll = 'on';
-		const sync = () => this.syncStuckHeader();
+		const sync = () => {
+			this.syncStuckHeader();
+			this.syncFixedBlocks();
+		};
 		if (typeof this.registerDomEvent === 'function') this.registerDomEvent(scroller, 'scroll', sync);
 		else scroller.addEventListener('scroll', sync);
 	}
@@ -7032,7 +8495,7 @@ class ClassesView extends ItemView {
 		 */
 		const stuck = (this.keptScrollForHeader || 0) > 2;
 		const header = container.createDiv({
-			cls: stuck ? 'oof-header is-scrolled' : 'oof-header',
+			cls: 'oof-header oof-panel-fixed' + (stuck ? ' is-scrolled' : ''),
 		});
 
 		const title = header.createDiv({ cls: 'oof-header-title' });
@@ -7288,13 +8751,13 @@ class ClassesView extends ItemView {
 		const quiet = found.solvable.length === 0 && found.insolvable.length === 0;
 
 		const card = container.createDiv({
-			cls: 'oof-object oof-discrepancies'
+			cls: 'oof-object oof-panel-fixed oof-discrepancies'
 				+ (found.insolvable.length > 0 ? ' oof-discrepancies-blocking' : '')
 				+ (quiet ? ' oof-discrepancies-quiet' : '')
 				+ (open ? ' is-open' : ' is-closed'),
 		});
 
-		const title = card.createDiv({ cls: 'oof-object-title' });
+		const title = this.titleRow(card);
 		title.onclick = async () => {
 			await plugin.toggleExpanded(DISCREPANCY_CARD);
 			this.render();
@@ -7451,10 +8914,10 @@ class ClassesView extends ItemView {
 	 */
 	renderBaseCharacteristics(container, characteristics) {
 		const plugin = this.plugin;
-		const card = container.createDiv({ cls: 'oof-object oof-base' });
+		const card = container.createDiv({ cls: 'oof-object oof-panel-fixed oof-base' });
 
 		/* No dropdown on this one: it is one short list, and it applies to all. */
-		const title = card.createDiv({ cls: 'oof-object-title oof-title-static' });
+		const title = this.titleRow(card, 'oof-title-static');
 		title.createSpan({ text: 'Base characteristics', cls: 'oof-object-name' });
 		title.createSpan({ text: 'logic', cls: 'oof-badge oof-badge-root' });
 
@@ -8146,7 +9609,7 @@ class ClassesView extends ItemView {
 		 * The row is the dropdown's handle, so a click anywhere on it that is not
 		 * an icon opens or closes the card.
 		 */
-		const title = card.createDiv({ cls: 'oof-object-title' });
+		const title = this.titleRow(card);
 		title.onclick = async () => {
 			await plugin.toggleExpanded(draft.name);
 			this.render();
@@ -8155,26 +9618,164 @@ class ClassesView extends ItemView {
 		const twisty = title.createSpan({ cls: 'oof-twisty' });
 		if (typeof setIcon === 'function') setIcon(twisty, 'chevron-right');
 
+		/*
+		 * The symbol, before the name — the position his own vault already uses for
+		 * one (`• Violet`, `‣ snag`, `∘ domain`), and the reason it reads as
+		 * belonging to the name rather than as another badge after it.
+		 *
+		 * An inherited one is drawn faintly, so a chain marked once at the top does
+		 * not look like six classes each claiming the same symbol.
+		 */
+		const symbol = plugin.symbolFor(draft.name, objects, drafts);
+		if (symbol.symbol) {
+			const mark = title.createSpan({
+				cls: 'oof-symbol' + (symbol.inherited ? ' is-inherited' : ''),
+				attr: {
+					title: symbol.inherited
+						? 'Inherited from ' + symbol.source
+						: draft.name + '’s own symbol',
+				},
+			});
+			paintSymbol(mark, symbol.symbol);
+		}
+
 		title.createSpan({ text: draft.name, cls: 'oof-object-name' });
 
-		/* Rename belongs to the name, so it stays beside it rather than joining
-		 * the file links: those open a file, this one changes one. */
-		this.iconButton(title, 'pencil', {
-			cls: 'oof-rename',
-			label: 'Rename',
-			tooltip: 'Rename this class',
-			onClick: () => {
-				new RenameClassModal(this.app, plugin, draft.name, async (next) => {
-					const result = await plugin.renameClass(draft.name, next);
-					if (!result.ok) {
-						if (result.reason !== 'unchanged') new Notice('OOF Classes: ' + result.reason, 6000);
-						return;
-					}
-					new Notice('OOF Classes: renamed to "' + next + '". Obsidian updated the links.');
+		/*
+		 * The pencil belongs to the name, so it stays beside it rather than joining
+		 * the file links: those open a file, these change one.
+		 *
+		 * It is a **menu** rather than a straight rename (his call, 2026-08-24), and
+		 * the reason is the row rather than the menu: it is already full — a symbol
+		 * button of its own was what crushed the class name last time — and both of
+		 * these change what the class *is called*, by name or by mark.
+		 */
+		const rename = () => {
+			new RenameClassModal(this.app, plugin, draft.name, async (next) => {
+				const result = await plugin.renameClass(draft.name, next);
+				if (!result.ok) {
+					if (result.reason !== 'unchanged') new Notice('OOF Classes: ' + result.reason, 6000);
+					return;
+				}
+				new Notice('OOF Classes: renamed to "' + next + '". Obsidian updated the links.');
+				this.render();
+			}).open();
+		};
+
+		const pickSymbol = () => {
+			new SymbolPickerModal(this.app, plugin, {
+				className: draft.name,
+				current: draft.symbol || '',
+				inherited: plugin.symbolFor(draft.name, objects, drafts),
+				onPick: (value) => { this.setDraftSymbol(draft, value); },
+			}).open();
+		};
+
+		const remove = () => {
+			const fallout = plugin.deleteFallout(draft.name);
+			const targets = plugin.renameTargets(draft.name);
+			const lines = [];
+
+			lines.push(targets.length > 0
+				? 'These go to the trash: ' + targets.join(', ') + '.'
+				: 'This class has no note yet, so only the panel changes.');
+
+			if (fallout.children.length > 0) {
+				lines.push(fallout.children.join(', ')
+					+ (fallout.children.length === 1 ? ' is a type of ' : ' are types of ')
+					+ draft.name + ' and will be left pointing at nothing. They are not '
+					+ 'touched — give them another parent afterwards.');
+			}
+			if (fallout.instances.length > 0) {
+				lines.push(fallout.instances.length + ' note'
+					+ (fallout.instances.length === 1 ? '' : 's') + ' say '
+					+ '`' + plugin.settings.isAProperty + ': ' + draft.name + '`'
+					+ ' — they keep every property they carry, and nothing will declare '
+					+ 'those properties any more.');
+			}
+			lines.push('The files go to Obsidian\'s trash, so this is undoable there. '
+				+ 'Nothing else is written.');
+
+			new ConfirmCodeModal(this.app, {
+				title: 'Delete the class "' + draft.name + '"?',
+				lines: lines,
+				confirmText: 'Delete the class',
+				onConfirm: async () => {
+					const done = await plugin.deleteClass(draft.name);
+					new Notice('OOF Classes: "' + draft.name + '" deleted — '
+						+ (done.trashed.length > 0
+							? done.trashed.length + ' file'
+								+ (done.trashed.length === 1 ? '' : 's') + ' in the trash.'
+							: 'it had no files.'));
 					this.render();
-				}).open();
+				},
+			}).open();
+		};
+
+		/*
+		 * Three dots rather than a pencil (his call, 2026-08-24, in two steps: first
+		 * a hamburger, then this). The button opens a menu of things that act on the
+		 * class, and a pencil says "rename" — which it was, back when renaming was
+		 * all it did. A hamburger says *navigation*, the application's own menu;
+		 * three dots say *more actions for this item*, which is what this is.
+		 */
+		this.iconButton(title, overflowIconName(), {
+			cls: 'oof-rename',
+			label: 'Class menu',
+			tooltip: 'Rename, change the symbol, or delete this class',
+			onClick: (event) => {
+				/* No Menu in the harness, and none needed: rename is what it was. */
+				if (typeof Menu !== 'function') {
+					rename();
+					return;
+				}
+
+				const menu = new Menu();
+				menu.addItem((item) => item
+					.setTitle('Rename…')
+					.setIcon('pencil')
+					.onClick(rename));
+				if (plugin.settings.symbolProperty) {
+					/*
+					 * No *Remove symbol* here, his call: removing one is a thing you do
+					 * having looked at what it is, and the picker already offers it. A
+					 * menu that both opens a chooser and quietly throws the choice away
+					 * puts a destructive item one slip below an ordinary one.
+					 */
+					menu.addItem((item) => item
+						.setTitle(draft.symbol ? 'Change symbol…' : 'Add a symbol…')
+						.setIcon('shapes')
+						.onClick(pickSymbol));
+				}
+				if (typeof menu.addSeparator === 'function') menu.addSeparator();
+				menu.addItem((item) => item
+					.setTitle('Delete class…')
+					.setIcon('trash-2')
+					.onClick(remove));
+				if (event && typeof menu.showAtMouseEvent === 'function') {
+					menu.showAtMouseEvent(event);
+				} else if (typeof menu.showAtPosition === 'function') {
+					menu.showAtPosition({ x: 0, y: 0 });
+				}
 			},
 		});
+
+		/*
+		 * How much this class adds. First of the badges, because it is about the
+		 * class itself rather than about its relation to what you have open, and
+		 * because a column of numbers in the same place down the panel can be read
+		 * at a glance — which is the whole point of rating them.
+		 */
+		if (plugin.settings.showClassNovelty) {
+			const novelty = plugin.noveltyOf(draft.name, objects, drafts);
+			title.createSpan({
+				text: '+' + novelty.added.length,
+				cls: 'oof-badge oof-badge-novelty'
+					+ (novelty.added.length === 0 ? ' is-nothing' : '')
+					+ (novelty.redeclared.length > 0 ? ' has-redeclared' : ''),
+				attr: { title: plugin.noveltyTooltip(draft.name, novelty) },
+			});
+		}
 
 		/* Said, not only coloured: nothing else in the panel explains the pinning. */
 		if (isRoot) title.createSpan({ text: 'root', cls: 'oof-badge oof-badge-root' });
@@ -8335,6 +9936,20 @@ class ClassesView extends ItemView {
 				label: 'New ' + draft.name,
 				tooltip: 'New ' + draft.name + ', from its template',
 				onClick: () => {
+					/*
+					 * No name is asked for — his call, 2026-08-24. The note is named
+					 * after the moment it was made, which is the whole point of the
+					 * *Unique file name* setting: there is nothing to ask.
+					 *
+					 * The modal survives for the one case that still has a question to
+					 * answer: with the format emptied the convention is off, and there
+					 * is no name to generate.
+					 */
+					const format = String(plugin.settings.uniqueNameFormat || '').trim();
+					if (format) {
+						plugin.createInstance(draft.name, plugin.uniqueInstanceName(format));
+						return;
+					}
 					new NewInstanceModal(this.app, draft.name, (noteName) => {
 						plugin.createInstance(draft.name, noteName);
 					}).open();
@@ -8392,6 +10007,13 @@ class ClassesView extends ItemView {
 		};
 
 		const objectNames = Array.from(drafts.keys()).filter((n) => n !== draft.name);
+
+		/*
+		 * The symbol had a row of its own here, with a box and a small palette. It
+		 * moved into the pencil's menu 2026-08-24 at his ask — one place to change
+		 * what a class is called, whether by name or by mark, and a card that is not
+		 * carrying a picker it rarely needs.
+		 */
 
 		/*
 		 * --- 2 and 3. one row per base characteristic, in the order he lists
@@ -8504,7 +10126,8 @@ class ClassesView extends ItemView {
 		button.onclick = (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			options.onClick();
+			/* Handed the event, so a menu can open where the pointer is. */
+			options.onClick(event);
 		};
 		return button;
 	}
@@ -8515,6 +10138,102 @@ class ClassesView extends ItemView {
 	 * With `onChange` the chips gain a remove button and the row gains an input
 	 * to add one; without it the row is read-only, which is what `inherited` is.
 	 */
+	/*
+	 * Like `setDraftValue`, for the one field on a class that is not a list. The
+	 * values have to be carried across: a draft holding only a symbol would read
+	 * as every base characteristic having been emptied.
+	 */
+	setDraftSymbol(draft, symbol) {
+		const existing = this.plugin.drafts.get(draft.name);
+		const values = existing && existing.values
+			? Object.assign({}, existing.values)
+			: Object.assign({}, draft.values);
+
+		this.plugin.drafts.set(draft.name, {
+			values: values,
+			symbol: normaliseSymbol(symbol),
+		});
+		this.plugin.saveDrafts().then(() => { this.render(); });
+	}
+
+	/* ----- a row that runs off the side instead of down the page ----- */
+
+	/*
+	 * The card's top row. Made here rather than inline in each of the three cards
+	 * so the overflow setting reaches all of them — it went in for the chip rows
+	 * and missed this one, which is the row that actually runs out of width: a
+	 * name, a symbol, a rating, two badges and five icons across 300px.
+	 */
+	titleRow(card, extra) {
+		return this.fitRow(card.createDiv({
+			cls: 'oof-object-title' + (extra ? ' ' + extra : ''),
+		}), true);
+	}
+
+	/*
+	 * What a row does when it holds more than fits.
+	 *
+	 * `alwaysRigid` is the top line, and it is rigid under every setting — there
+	 * is no reading of a card on which a badge broken across two lines and a name
+	 * cut to four letters is the wanted answer. Wrapping is a real answer for
+	 * *chips*, which are a list and read as one however many lines they take; the
+	 * top line is not a list, it is one statement about the class.
+	 *
+	 * So the card widens to whatever its top line needs, and the chips wrap inside
+	 * that width. Which is the third setting.
+	 */
+	fitRow(row, isTitle) {
+		const mode = this.plugin.settings.cardOverflow;
+		/*
+		 * Fitting the panel: the top line wraps too, but **between** its items and
+		 * never inside one. That distinction is the whole of it — a badge reading
+		 * IS over A is the row breaking a word, and a badge moved whole onto a
+		 * second line is the row breaking where it is allowed to.
+		 */
+		if (mode === 'fit') {
+			if (isTitle) row.addClass('is-wrapping');
+			return row;
+		}
+		if (isTitle || mode !== 'wrap') row.addClass('is-rigid');
+		if (mode === 'scroll') this.scrollSideways(row);
+		return row;
+	}
+
+	/*
+	 * One line that scrolls, for a row with more chips than fit across the panel.
+	 *
+	 * The wheel is the whole of the point. A horizontal scroller in a page that
+	 * scrolls vertically is unreachable with an ordinary mouse — Chromium only
+	 * turns a wheel sideways when shift is held — so without this the row would
+	 * be scrollable in principle and stuck in practice. A trackpad's sideways
+	 * gesture arrives as `deltaX` and is left alone.
+	 *
+	 * It gives the wheel back at each end rather than swallowing it: once the row
+	 * has nowhere further to go the event is not consumed, so the panel carries on
+	 * scrolling and the pointer resting over a chip row never traps the page.
+	 *
+	 * The handing back is decided by where the row **is**, not by where the tick
+	 * would land, and that distinction is the whole of it. Refusing any tick that
+	 * would overshoot left the last stretch unreachable: a row with 98px of travel
+	 * took one 50px tick and then declined the second for ever, because 100 is
+	 * past 98. So the tick that overshoots is clamped and consumed, and only the
+	 * one after it — with the row already against the stop — goes to the page.
+	 */
+	scrollSideways(el) {
+		el.addClass('is-scrolling');
+		el.addEventListener('wheel', (event) => {
+			if (event.deltaX !== 0 || event.deltaY === 0) return;
+			const room = el.scrollWidth - el.clientWidth;
+			if (room <= 0) return;
+			const at = el.scrollLeft;
+			if (event.deltaY > 0 && at >= room - 0.5) return;
+			if (event.deltaY < 0 && at <= 0.5) return;
+			event.preventDefault();
+			el.scrollLeft = Math.max(0, Math.min(room, at + event.deltaY));
+		}, { passive: false });
+		return el;
+	}
+
 	renderChipRow(card, label, values, options) {
 		/*
 		 * A name that survives a rebuild: the card it belongs to plus the row. The
@@ -8526,7 +10245,7 @@ class ClassesView extends ItemView {
 		const row = card.createDiv({ cls: options.muted ? 'oof-row oof-row-muted' : 'oof-row' });
 		row.createSpan({ text: label, cls: 'oof-row-label' });
 
-		const chips = row.createDiv({ cls: 'oof-chips' });
+		const chips = this.fitRow(row.createDiv({ cls: 'oof-chips' }));
 
 		for (const value of values) {
 			let cls = 'oof-chip';
@@ -8836,6 +10555,201 @@ class NewObjectModal extends Modal {
  * it happens at once — so the modal says plainly which files move and who
  * updates the links.
  */
+/*
+ * The symbol picker: three tabs, a search box, and a grid.
+ *
+ *   Symbols  typographic marks — the default, and what he asked for
+ *   Icons    Lucide, which is what Obsidian ships and what Notion's icons look
+ *            like. Stored as `lucide:<name>`
+ *   Emoji    a broad set, grouped and searchable
+ *
+ * Icons are their own tab rather than mixed in, because they are a different kind
+ * of value — everything else here is one character, and `lucide:box` is a name.
+ * Keeping them apart is what stops the grid pretending they are interchangeable.
+ */
+class SymbolPickerModal extends Modal {
+	constructor(app, plugin, options) {
+		super(app);
+		this.plugin = plugin;
+		this.className = options.className;
+		this.current = options.current || '';
+		this.inherited = options.inherited || null;
+		this.onPick = options.onPick;
+		/* Whichever tab the current symbol came from, so it opens where it is. */
+		this.tab = isIconSymbol(this.current) ? 'icons'
+			: (this.current && SYMBOL_PALETTE.indexOf(this.current) === -1 ? 'emoji' : 'symbols');
+		this.query = '';
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('oof-picker');
+
+		const head = contentEl.createDiv({ cls: 'oof-picker-head' });
+		const preview = head.createSpan({ cls: 'oof-picker-preview' });
+		paintSymbol(preview, this.current);
+		head.createDiv({ cls: 'oof-picker-title' })
+			.createEl('h3', { text: 'Symbol for "' + this.className + '"' });
+
+		/*
+		 * What it would show with nothing of its own — said here rather than in the
+		 * grid, because "inherits ◆ from Person" is the reason you might choose to
+		 * set nothing at all.
+		 */
+		if (this.inherited && this.inherited.symbol && this.inherited.inherited) {
+			const line = head.createDiv({ cls: 'oof-picker-inherited' });
+			line.createSpan({ text: 'inherits ' });
+			paintSymbol(line.createSpan({ cls: 'oof-picker-inline' }),
+				this.inherited.symbol);
+			line.createSpan({ text: ' from ' + this.inherited.source });
+		}
+
+		const tabs = contentEl.createDiv({ cls: 'oof-picker-tabs' });
+		const grid = contentEl.createDiv({ cls: 'oof-picker-grid' });
+		const search = contentEl.createEl('input', {
+			cls: 'oof-picker-search',
+			attr: { type: 'text', placeholder: 'Search…' },
+		});
+		/* Under the tabs in the DOM, above the grid on screen — see styles.css. */
+		contentEl.insertBefore(search, grid);
+
+		const names = [
+			['symbols', 'Symbols'],
+			['icons', 'Icons'],
+			['emoji', 'Emoji'],
+		];
+
+		const drawTabs = () => {
+			tabs.empty();
+			for (const [key, label] of names) {
+				if (key === 'icons' && availableIcons().length === 0) continue;
+				const tab = tabs.createEl('a', {
+					text: label,
+					cls: 'oof-picker-tab' + (this.tab === key ? ' is-active' : ''),
+				});
+				tab.onclick = (event) => {
+					event.preventDefault();
+					this.tab = key;
+					drawTabs();
+					draw();
+				};
+			}
+		};
+
+		const cell = (value, label) => {
+			const el = grid.createSpan({
+				cls: 'oof-picker-cell' + (value === this.current ? ' is-current' : ''),
+				attr: { 'aria-label': label, title: label },
+			});
+			paintSymbol(el, value);
+			el.onclick = (event) => {
+				event.preventDefault();
+				/* The one already set, chosen again, means "none" — the same click undone. */
+				this.onPick(value === this.current ? '' : value);
+				this.close();
+			};
+			return el;
+		};
+
+		const draw = () => {
+			grid.empty();
+			const query = this.query.trim().toLowerCase();
+
+			if (this.tab === 'symbols') {
+				grid.addClass('is-wide');
+				for (const glyph of SYMBOL_PALETTE) cell(glyph, glyph);
+				return;
+			}
+
+			if (this.tab === 'icons') {
+				grid.addClass('is-wide');
+				const icons = availableIcons();
+
+				/*
+				 * Searched, it is a flat list — and it reads the **keywords**, not
+				 * just the id, so the words you would use for an emoji find the icon
+				 * that means it: "happy" finds `smile`, "love" finds `heart`, "idea"
+				 * finds `lightbulb`. Lucide keeps those words in its own metadata and
+				 * Obsidian does not expose them, so the ones worth having are ours.
+				 */
+				if (query) {
+					const found = icons.filter(
+						(name) => iconKeywords(name).indexOf(query) !== -1);
+					for (const name of found) {
+						cell(ICON_PREFIX + name, name.replace(/-/g, ' '));
+					}
+					if (found.length === 0) {
+						grid.createDiv({ cls: 'oof-picker-more', text: 'No icon called that.' });
+					}
+					return;
+				}
+
+				/*
+				 * Unsearched, **all of them, by meaning**. Alphabetical is the worst
+				 * order for browsing an icon set: `smile` sits between `slash` and
+				 * `snail`, and the one you would have chosen is fifty screens from
+				 * the one you thought of. So the emoji categories, filled with
+				 * Lucide — and everything not spoken for still shown, under a
+				 * heading that says so, because a picker that hides two thirds of
+				 * what it has is worse than an unsorted one.
+				 */
+				const have = new Set(icons);
+				const placed = new Set();
+				for (const [group, names] of ICON_GROUPS) {
+					const present = names.filter(
+						(name) => have.has(name) && !placed.has(name));
+					if (present.length === 0) continue;
+					grid.createDiv({ cls: 'oof-picker-group', text: group });
+					for (const name of present) {
+						placed.add(name);
+						cell(ICON_PREFIX + name, name.replace(/-/g, ' '));
+					}
+				}
+
+				const rest = icons.filter((name) => !placed.has(name));
+				if (rest.length > 0) {
+					grid.createDiv({ cls: 'oof-picker-group', text: 'Everything else' });
+					for (const name of rest) cell(ICON_PREFIX + name, name.replace(/-/g, ' '));
+				}
+				return;
+			}
+
+			grid.removeClass('is-wide');
+			for (const [group, entries] of EMOJI_GROUPS) {
+				const matching = entries.filter(
+					([glyph, words]) => !query
+						|| words.indexOf(query) !== -1 || glyph === query);
+				if (matching.length === 0) continue;
+				grid.createDiv({ cls: 'oof-picker-group', text: group });
+				/*
+				 * Stored *as an emoji* — `asEmoji` adds the selector to the ones that
+				 * would otherwise come out as flat glyphs. Picking ❤ here must give a
+				 * red heart, not an outline, whatever else is on screen.
+				 */
+				for (const [glyph, words] of matching) cell(asEmoji(glyph), words.split(' ')[0]);
+			}
+		};
+
+		search.oninput = () => { this.query = search.value; draw(); };
+		search.onkeydown = (event) => { if (event.key === 'Escape') this.close(); };
+
+		drawTabs();
+		draw();
+		window.setTimeout(() => { search.focus(); }, 0);
+
+		const buttons = contentEl.createDiv({ cls: 'oof-modal-buttons' });
+		if (this.current) {
+			const clear = buttons.createEl('button', { text: 'Remove symbol' });
+			clear.onclick = () => { this.onPick(''); this.close(); };
+		}
+		const cancel = buttons.createEl('button', { text: 'Cancel', cls: 'mod-cta' });
+		cancel.onclick = () => this.close();
+	}
+
+	onClose() { this.contentEl.empty(); }
+}
+
 class RenameClassModal extends Modal {
 	constructor(app, plugin, name, onSubmit) {
 		super(app);
@@ -9368,12 +11282,21 @@ class OofClassesSettingTab extends PluginSettingTab {
 		this.addText(containerEl, 'Characteristics folder', 'Where characteristic notes live.', 'characteristicsFolder');
 		this.addText(containerEl, 'Templates folder', 'Where the generated templates go.', 'templatesFolder');
 		this.addText(containerEl, 'Template suffix', 'Appended to a class name to name its template.', 'templateSuffix');
-		this.addText(containerEl, 'Ignored properties',
-			'Comma-separated properties the class system has no opinion about, so they '
-				+ 'are never flagged as unaccounted for on a note: the ones Obsidian '
-				+ 'owns (tags, aliases, cssclasses) and the ones your templates write '
-				+ '(created). Everything else a note carries that its class does not '
-				+ 'declare is reported.',
+		/*
+		 * Called "Ignored properties" until 2026-08-24, when he asked for "an option
+		 * in the settings for deciding which attributes are native" — which is this
+		 * one, under a name that did not say so. The properties view has been
+		 * heading them **Native attributes** all along; the setting now says the
+		 * same word, so the thing and the switch for it can be found from each
+		 * other. The stored key is unchanged.
+		 */
+		this.addText(containerEl, NATIVE_LABEL,
+			'Comma-separated properties the class system has no opinion about — they '
+				+ 'are never reported as unaccounted for, and they are grouped under '
+				+ '"' + NATIVE_LABEL + '" in the properties view. The ones Obsidian owns '
+				+ '(tags, aliases, cssclasses), plus whichever of your own you decide are '
+				+ 'not characteristics (cover image). Everything else a note carries that '
+				+ 'its class does not declare is reported.',
 			'ignoredProperties');
 
 		this.addText(containerEl, 'Characteristic prefix',
@@ -9552,6 +11475,35 @@ class OofClassesSettingTab extends PluginSettingTab {
 					}));
 		}
 
+		/* Applies in every layout: an open card is an open card. */
+		new Setting(containerEl)
+			.setName('A row with more in it than fits')
+			.setDesc('No item is ever squeezed under any of these — a badge broken '
+				+ 'mid-phrase and a name cut short is nobody’s idea of the right '
+				+ 'answer. What differs is where the extra room comes from. Each row '
+				+ 'on its own turns that row sideways under the wheel, and the control '
+				+ 'at its end — the + on a chip row, the file icons on a top line — '
+				+ 'stays against the right-hand edge. One bar at the bottom keeps '
+				+ 'every row on one line and moves the whole panel instead, so '
+				+ 'everything stays lined up and you read across the cards together. '
+				+ 'Wrapping the chips lets them take as many lines as they need and '
+				+ 'the card comes out as wide as its top line. Wrapping everything '
+				+ 'takes no room at all: the top line wraps between its items, so '
+				+ 'nothing is ever wider than the panel and there is no sideways '
+				+ 'scrolling anywhere — the tallest of the four, and the only one you '
+				+ 'never have to scroll.')
+			.addDropdown((dropdown) => dropdown
+				.addOption('scroll', 'Each row scrolls on its own')
+				.addOption('panel', 'One bar at the bottom scrolls everything')
+				.addOption('wrap', 'The chips wrap; the card widens for the top line')
+				.addOption('fit', 'Everything wraps to fit the panel')
+				.setValue(this.plugin.settings.cardOverflow)
+				.onChange(async (value) => {
+					this.plugin.settings.cardOverflow = value;
+					await this.plugin.saveSettings();
+					this.plugin.refreshViews();
+				}));
+
 		new Setting(containerEl)
 			.setName('Trash what nothing uses')
 			.setDesc('On Update, send to the trash: a characteristic note once no class lists '
@@ -9681,6 +11633,46 @@ class OofClassesSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
+		containerEl.createEl('h3', { text: 'Class symbols' });
+
+		this.addText(containerEl, 'Symbol property',
+			'The property a class\'s symbol lives in, on the class note. It shows '
+				+ 'before the class name in the panel and before its section in the '
+				+ 'properties view, and a class with none shows the nearest one above '
+				+ 'it. Leave this empty to turn symbols off.',
+			'symbolProperty');
+
+		new Setting(containerEl)
+			.setName('Write an inherited symbol onto the class that inherits it')
+			.setDesc('On, Update gives every class below a marked one its own copy of '
+				+ 'that symbol, so the class note itself says what it is marked with. '
+				+ 'The copies are remembered: change the symbol on the class above and '
+				+ 'they follow, remove it and they go — but a symbol you set on a class '
+				+ 'yourself is never touched. Off, the symbol is only resolved when '
+				+ 'something asks, and the child notes stay empty.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.writeInheritedSymbols)
+				.onChange(async (value) => {
+					this.plugin.settings.writeInheritedSymbols = value;
+					await this.plugin.saveSettings();
+					this.plugin.invalidatePicture();
+					this.plugin.refreshViews();
+				}));
+
+		new Setting(containerEl)
+			.setName('Rate each class by what it adds')
+			.setDesc('A "+N" beside every class name: how many characteristics it '
+				+ 'declares that nothing above it already declares. A class showing +0 '
+				+ 'adds no metadata of its own — it only narrows what its parent already '
+				+ 'says. Hover it for the list.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.showClassNovelty)
+				.onChange(async (value) => {
+					this.plugin.settings.showClassNovelty = value;
+					await this.plugin.saveSettings();
+					this.plugin.refreshViews();
+				}));
+
 		containerEl.createEl('h3', { text: 'Default values' });
 		containerEl.createEl('p', {
 			text: 'Each characteristic note carries a table saying what its value should '
@@ -9713,6 +11705,24 @@ class OofClassesSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.seedDefaultsTable)
 				.onChange(async (value) => {
 					this.plugin.settings.seedDefaultsTable = value;
+					await this.plugin.saveSettings();
+					this.plugin.invalidatePicture();
+					this.plugin.refreshViews();
+				}));
+
+		new Setting(containerEl)
+			.setName('Unique file name')
+			.setDesc('A new note with no name of its own is named after the moment it '
+				+ 'was made. Moment format — YYYY-MM-DD dddd — HH.mm.ss gives '
+				+ '"2026-08-24 Monday — 15.42.07". Update writes a Templater block '
+				+ 'carrying this into every class template, and rewrites it here when '
+				+ 'you change it. Colons cannot appear in a file name. Empty turns the '
+				+ 'convention off and takes the blocks back out.')
+			.addText((text) => text
+				.setPlaceholder('YYYY-MM-DD dddd — HH.mm.ss')
+				.setValue(this.plugin.settings.uniqueNameFormat)
+				.onChange(async (value) => {
+					this.plugin.settings.uniqueNameFormat = value.trim();
 					await this.plugin.saveSettings();
 					this.plugin.invalidatePicture();
 					this.plugin.refreshViews();

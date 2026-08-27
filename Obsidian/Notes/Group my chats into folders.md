@@ -11,7 +11,7 @@ rating:
 garden:
 life stage: current
 maturity:
-done: false
+done: true
 duedate:
 importance:
 urgency:

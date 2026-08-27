@@ -11,4 +11,4 @@ default value: current
 
 | Default location | Default value | Strict default value |
 | ---------------- | ------------- | -------------------- |
-| All notes        |               |                      |
+| All notes        | current       |                      |

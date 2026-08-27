@@ -1,6 +1,6 @@
 filters:
   and:
-    - file.isA("Issue")
+    - file.isA("Improvement")
     - '!file.inFolder("Obsidian/Templates")'
 formulas:
   word count: file.WordCount()
@@ -25,6 +25,8 @@ views:
         direction: ASC
       - property: created
         direction: ASC
+      - property: file.mtime
+        direction: DESC
     columnSize:
       file.name: 349
       note.activity: 95

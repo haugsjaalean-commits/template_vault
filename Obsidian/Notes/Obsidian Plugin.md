@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol: lucide:puzzle
 is a:
 characteristics:
 type of:

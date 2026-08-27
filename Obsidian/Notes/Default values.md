@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Issue]]"
+  - "[[Improvement]]"
 characteristics:
 type of:
 created: 2026-08-24 08:45
@@ -14,8 +14,9 @@ garden:
 life stage: current
 maturity: Charmander
 importance:
-activity: active
-status: effort
+activity: simmering
+status: draft
+category:
 project:
   - "[[Class Manager]]"
 subject:
@@ -44,5 +45,18 @@ N.B. The locations will always be links.
 | Default location | Default value | Strict default value |
 | ---------------- | ------------- | -------------------- |
 | All notes        |               |                      |
+
+
+
+
+## New new idea
+
+
+There should be a column for `None replacement`. This column will decide what value to replace any None or non conforming values with. 
+
+
+| Default location | Default starting value | None replacement | Value must contain | Value must be |
+| ---------------- | ---------------------- | ---------------- | ------------------ | ------------- |
+| All notes        |                        |                  |                    |               |
 
 

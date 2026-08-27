@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Issue]]"
+  - "[[Improvement]]"
 characteristics:
 type of:
 created: 2026-08-21 16:44
@@ -14,6 +14,7 @@ maturity:
 importance:
 activity: active
 status: effort
+category:
 project:
   - "[[Global graph views]]"
 subject:

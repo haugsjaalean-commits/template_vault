@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Issue]]"
+  - "[[Improvement]]"
 characteristics:
 type of:
 created: 2026-08-21 17:56
@@ -12,8 +12,9 @@ garden:
 life stage: current
 maturity:
 importance: 10
-activity: active
-status: draft
+activity: sleeping
+status: implemented
+category:
 project:
   - "[[Class Manager]]"
 subject:

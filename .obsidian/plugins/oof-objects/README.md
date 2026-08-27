@@ -678,6 +678,74 @@ lane — the brackets used to run straight through each other. And the bracket
 drawing **shows second parents at all** now; until this it drew only the descent,
 which meant a class could be a `type of` two things and the picture said one.
 
+**Settings - A row with more in it than fits** decides what a card does when a
+row holds more than the panel is wide. It covers **both** rows of a card: the
+chips, and the card's own top line — the name, the symbol, the rating, the badges
+and the file icons.
+
+**No item is ever squeezed under any of the four.** A badge reading `IS` over `A`
+is the row breaking a word, and a name cut to four letters is the row deleting
+one; neither is an answer. What the settings differ on is where the extra room
+comes from.
+
+**Each row scrolls on its own** (the default) turns one row sideways under the
+wheel and leaves the rest of the panel where it is.
+
+**One bar at the bottom scrolls everything** keeps every row on one line and
+widens the panel instead, so a single horizontal scrollbar at the bottom moves
+the lot. Everything stays lined up, which is the case for it: you read across the
+cards together rather than scrolling each row into place.
+
+**The chips wrap; the card widens for the top line** lets the chips take as many
+lines as they need, so the card comes out only as wide as its top line.
+
+**Everything wraps to fit the panel** takes no room at all. The top line wraps
+too — **between its items, never inside one**, which is the distinction that
+makes it work: a badge moved whole onto a second line is the row breaking where
+it is allowed to. Nothing is ever wider than the panel and there is no sideways
+scrolling anywhere. The only thing that can still give way is a class name longer
+than the panel, which keeps its ellipsis as a last resort rather than push the
+card past the edge.
+
+Measured on three cards of six characteristics each, in a 300px sidebar:
+
+| | card | panel scroll | top line | chips | height |
+|---|---|---|---|---|---|
+| each row on its own | 276px | none | 1 line | 1 line | 340px |
+| one bar at the bottom | 602px | 379px | 1 line | 1 line | 376px |
+| chips wrap, card widens | 420px | 197px | 1 line | 2 lines | 478px |
+| everything wraps to fit | fits | **none** | 2-3 lines | 4-5 lines | 670px |
+
+The last one is the tallest and the only one you never have to scroll — in the
+tree drawing its top line comes out as `name + pencil + rating`, then
+`active note + is a`, then the file icons.
+
+**Only the classes are ever wider than the panel, and only the classes move.**
+The header, the discrepancies and the base characteristics stay at the pane's
+width and stay where they are while the class cards scroll under them. They are
+prose and controls — there is nothing in them to read sideways, widening them
+only cut their sentences off at the pane edge, and sliding the discrepancies out
+of the way to read a class is worse than useless, since the discrepancies are the
+reason you are looking at the classes.
+
+Two other details are shared by the two settings that widen. The bar is the
+panel's own scroll container, because that is the only element whose box is the
+part you are looking at — anywhere else it would sit at the bottom of a stack of
+cards several screens tall. And the cards come out **one width**, so the edge is
+not ragged.
+
+Those three blocks are held still by the view rather than by `position: sticky`,
+and the reason is worth writing down. A sticky element is held within its
+containing block, so the room it has to resist scrolling with is
+`wrapperWidth - itsOwnWidth`, while the distance it must resist is
+`scrollWidth - paneWidth`. Those agree only while nothing **outside** the wrapper
+carries side padding — and what carries side padding is the pane, whose rules a
+theme is entitled to outbid. The failure mode is the worst kind: the blocks hold
+for most of the scroll and slip the last few pixels, which reads as a bug rather
+than as a choice, and cannot be seen at all in a harness with no theme loaded.
+Cancelling the scroll offset with a transform needs no arithmetic and no
+assumption about anyone else's padding.
+
 **Settings - The wire to a second parent** draws it dashed or solid. Dashed is
 the default and tells the two parentages apart at a glance. Solid draws them
 alike, which is arguably the truer reading: both are ordinary `type of`, and
@@ -794,6 +862,159 @@ which used to throw the list back to the top and drop the caret. The scroll
 position and the focused box are carried across the rebuild, and the box is
 cleared as the chip appears — so you can type, Enter, type, Enter without touching
 the mouse. Escape empties the box and steps out of it.
+
+### A symbol per class
+
+A class can carry a mark, and it shows in the two places a class appears:
+
+```
+▾ ◆ Person          +6
+    ◆ Artist        +2      ← inherited, drawn faintly
+      ▲ Visual Artist  +2   ← its own
+```
+
+and over that class's section in the properties view:
+
+```
+── ▲ Visual Artist characteristics ──
+```
+
+It lives in the class note's own `symbol:` property, and it is **inherited,
+nearest first** — the same walk as characteristics and defaults. Marking `Person`
+marks everything below it; a subclass overrides by setting its own. That is what
+makes one symbol worth typing, and why an inherited one is drawn faint: the mark
+is true of all of them, but only one of them said it.
+
+**Set it from the pencil beside the class name** — see below.
+
+Like every other edit here it goes through **Update**: the plan says
+`symbol — empty → ◆` before anything is written. Clearing one empties the property
+rather than removing it, for the same reason the root's `is a` is written empty —
+an absent property and an empty one look nothing alike in the properties view.
+
+### Setting one: the pencil's menu
+
+The **pencil** beside a class name opens a menu:
+
+```
+✎ Rename…
+◈ Change symbol…
+✕ Remove symbol
+```
+
+Both change what the class is *called* — by name, or by mark — which is why they
+share a button rather than costing the row another icon. That row is full; a
+symbol button of its own is what squeezed the class name to nothing the first
+time round.
+
+**Change symbol…** opens the picker, with three tabs:
+
+| tab | what |
+|---|---|
+| **Symbols** | 60 typographic marks — the default, and the ask |
+| **Icons** | every Lucide icon Obsidian ships — all of them, searchable by name |
+| **Emoji** | a broad set, grouped and searchable by word |
+
+It opens on whichever tab the current symbol came from, and choosing the one
+already set removes it — the same click, undone.
+
+**The Icons tab is the Notion-looking one.** Obsidian bundles Lucide, which is the
+flat outline set Notion's icons are drawn from, and `getIconIds()` hands over
+every one at runtime — so nothing is shipped as artwork and nothing is embedded as
+a list, and the names come with them, which is what makes a thousand icons
+searchable. An icon is stored as `lucide:heart`: still a plain string in the
+frontmatter, still one value, and every place that draws a symbol goes through one
+painter, so a class marked with an icon behaves exactly like one marked with a
+character.
+
+**All of them, unsearched, and grouped by what they mean** — Faces & people,
+Animals, Nature & weather, Food & drink, Places & travel, Study & making, Play &
+sport, Body & care, Things & money, Marks & signs, then *Everything else*. The
+emoji categories, filled with Lucide.
+
+Alphabetical is the worst order for browsing an icon set: `smile` sits between
+`slash` and `snail`, and the one you would have chosen is fifty screens from the
+one you thought of. Nothing is hidden — an icon no group claims is still there,
+under a heading that says so. Measured: 1,500 cells build and lay out in **29ms**,
+so there was nothing to protect.
+
+**Search reads meanings, not just names.** "happy" finds `smile`, "love" finds
+`heart`, "idea" finds `lightbulb`, "launch" finds `rocket`, "pet" finds `cat`.
+Lucide keeps those words in its own metadata and Obsidian does not expose them, so
+the ones worth having ship with the plugin.
+
+### Symbols and emoji
+
+Nothing is converted. A symbol is drawn exactly as it is stored: a typographic
+mark from the Symbols tab is flat because Unicode says that character is flat, and
+an emoji from the Emoji tab is an emoji because it is stored as one.
+
+There was a **How symbols are drawn** setting here, and it was a mistake. It
+appended a variation selector to every symbol, and *Symbols* — the default —
+appended the **text** one, which flattens any emoji that has a text form. Measured
+at 16px:
+
+| | drawn bare | forced to text |
+|---|---|---|
+| ❤ ☀ ✏ ✂ ⚙ | 13.5–16px | same, and flat |
+| ❤ as an emoji | **22px** | 15.5px |
+| 🚀 | **22px** | **16px** — flattened as well |
+
+So picking a heart gave an outline, and even a rocket lost its colour. The setting
+is gone. **Presentation belongs to the value**: the Emoji tab stores its picks with
+U+FE0F, so they are emoji wherever they appear and for ever, with nothing having to
+remember why. The Symbols tab stores bare characters, which Unicode already draws
+flat.
+
+The property holds **one grapheme** — a variation selector is part of that
+grapheme, so it survives being read back. A word pasted in is still cut to its
+first character.
+
+Rename the property with **Settings → Symbol property**, or empty it to turn the
+whole convention off.
+
+### What the `+N` says
+
+Every class is rated by **how much new metadata it adds** — a number beside its
+name, and the busiest thing about it is how often it turns out to be zero:
+
+```
+▸ Obsidian Note   +8
+▸ Person          +6
+▸ Visual Artist   +2
+▸ Style           +0
+```
+
+**New means new to the chain, not new to the note.** A class that lists
+`children` when `Person` above it already declares `children` has added nothing —
+an instance carries it either way — so the badge counts only what no ancestor
+already declares. Counting the `characteristics:` list as written would credit a
+class for work it did not do, which is the opposite of the question being asked.
+
+A redeclaration is not an error, so it is not reported as one; the number is
+underlined and the tooltip names it.
+
+**`+0` is worth seeing.** It means the class adds no metadata of its own — it
+exists to *narrow* what its parent already says, which is a real thing to want
+(`Obsidian Plugin` is a kind of `Project` and nothing more) and equally the shape
+a class takes when it is redundant. The badge does not decide which; it just
+stops the question being invisible.
+
+Base characteristics are left out. `is a`, `characteristics` and `type of` are how
+the system talks about itself, and every class has them, so they say nothing about
+any one class.
+
+Hovering gives the whole of it:
+
+```
+Artist adds 2 characteristics that nothing above it declares: domain, medium.
+An instance carries 4 in all.
+```
+
+The number follows the **panel**, not the files — add a characteristic to a class
+and it moves before Update writes anything.
+
+Turn it off with **Settings → Rate each class by what it adds**.
 
 ### The icons on the row
 
@@ -1347,14 +1568,18 @@ A note is what its class says it is, so a field its class does not declare is
 reported there too — same split: empty is removed, populated is reported and left
 alone.
 
-**`ignoredProperties`** holds the properties the class system has no opinion
-about. Nothing in it is ever flagged, and it is deliberately short:
+**Native attributes** are the properties the class system has no opinion about.
+Nothing in one is ever flagged, and they are grouped under that heading in the
+properties view. **Settings → Native attributes** is the list:
 
 ```
-tags, aliases, cssclasses, cssclass, publish, permalink
+tags, aliases, cssclasses, cssclass, publish, permalink, cover image
 ```
 
-Obsidian owns all six.
+Obsidian owns the first six. `cover image` is his (2026-08-24) — the first entry
+that is a decision rather than a fact, and exactly the decision this setting
+exists for: under this model a property every Artist carries *is* a
+characteristic of Artist, and he has said this one is not.
 
 **Everything else is reported, `created` included.** A timestamp your template
 wrote is still a property your class does not declare, and the model says what to
@@ -1362,9 +1587,9 @@ do about it: declare it. Adding `created` to the root class settles every note
 that inherits from it at once. Silencing it would be hiding an incomplete model
 rather than a nuisance.
 
-The same goes for fields of your own like `cover image` — under this model, a
-property every Artist carries **is** a characteristic of Artist. If you disagree
-in a particular case, the setting takes a comma-separated list.
+The same goes for fields of your own — under this model, a property every Artist
+carries **is** a characteristic of Artist. If you disagree in a particular case,
+add it to **Native attributes**, which is what `cover image` is doing there.
 
 > A class note is not an instance of anything unless it says so, so it inherits
 > nothing — which means a `created:` on a *class* note is reported even after the
@@ -1395,6 +1620,8 @@ Folders (`Obsidian/Notes`, `Obsidian/Characteristics`, `Obsidian/Templates`),
 the template suffix (` Template`), the **characteristic prefix** (`∘ `), the base
 characteristics, the bases options above, and **A class is its own instance** for
 the base functions.
+
+**Symbol property** for the mark before a class name; **Rate each class by what it adds** for the `+N` after it.
 
 Two for the [defaults table](#the-defaults-table): **Strict defaults also override
 differing values**, and **Every characteristic note carries the table** — the only

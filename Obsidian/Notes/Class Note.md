@@ -1,11 +1,14 @@
 ---
 tags:
   - class
+symbol: lucide:notebook-pen
 is a:
 characteristics:
-  - "[[∘ map link]]"
+  - "[[∘ cours]]"
+  - "[[∘ class date]]"
+  - "[[∘ class number]]"
 type of:
-created: 2026-08-17 12:22
+created: 2026-08-24 12:20
 ext links:
 related:
 note rating:

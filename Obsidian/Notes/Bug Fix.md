@@ -1,18 +1,18 @@
 ---
+tags:
+  - class
+symbol: lucide:bug
 is a:
 characteristics:
 type of:
-created: 2026-08-21 18:23
+  - "[[Improvement]]"
+created: 2026-08-27 10:09
 ext links:
 related:
 note rating:
 rating:
 garden:
 life stage: current
-maturity:
+maturity: Charmander
 ---
-
-Status could be:
-- surfaced (idea)
-- 
 

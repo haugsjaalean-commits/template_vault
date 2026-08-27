@@ -30,7 +30,7 @@ views:
       colorGroups: []
       collapse-display: false
       showArrow: true
-      textFadeMultiplier: 0
+      textFadeMultiplier: -0.7
       nodeSizeMultiplier: 1
       lineSizeMultiplier: 1
       collapse-forces: false
@@ -38,7 +38,7 @@ views:
       repelStrength: 20
       linkStrength: 1
       linkDistance: 30
-      scale: 0.22920135941748476
+      scale: 0.1635553349891084
       close: true
     ringRank: value
     ringSpread: 1.5

@@ -1,6 +1,7 @@
 ---
 tags:
   - class
+symbol: lucide:check-circle
 is a:
 characteristics:
   - "[[∘ importance]]"

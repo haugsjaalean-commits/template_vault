@@ -1,19 +1,21 @@
 ---
 is a:
-  - "[[Issue]]"
+  - "[[Improvement]]"
 characteristics:
 type of:
 created: 2026-08-21 16:03
 ext links:
 related:
+  - "[[Allow the option for one instance to have multiple classes]]"
 note rating:
 rating:
 garden:
-life stage: current
+life stage: dated
 maturity:
 importance:
-activity: simmering
+activity: sleeping
 status: idea
+category:
 project:
   - "[[Class Manager]]"
 subject:
