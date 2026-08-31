@@ -46,7 +46,182 @@
       "link distance": "file.linkDistance()",
       "value": "(payoff/difficulty).round(2)"
     },
+    "Obsidian/Bases/Class Bases/ABC Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Acquaintance Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Air Monitor Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Art Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Bicycle Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Bug Fix Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Class Note Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Company Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Concept Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Cours Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Creator Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Ear (from Nothing) Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Earbud Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Effort Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Headphone Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Improvement Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Keyboard Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Listening device Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Matière Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Object Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Obsidian Note Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Obsidian Theme Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Person Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Place Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Practice Word Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Project Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/School Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Session Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Style Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Teacher Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Todo Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Visual Artist Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Class Bases/Word Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
     "Obsidian/Bases/Everything base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)"
+    },
+    "Obsidian/Bases/Inline Todo Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
       "value": "(payoff/difficulty).round(2)"
@@ -65,218 +240,49 @@
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
       "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Inline Todo Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Word Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Visual Artist Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Todo Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Teacher Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Style Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Session Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/School Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Project Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Practice Word Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Place Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Person Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Obsidian Theme Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Obsidian Note Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Object Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Matière Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Listening device Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Improvement Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Keyboard Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Headphone Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Effort Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Earbud Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Ear (from Nothing) Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Cours Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Creator Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Concept Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Company Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Class Note Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Bug Fix Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Bicycle Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Art Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Air Monitor Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
-    },
-    "Obsidian/Bases/Class Bases/Acquaintance Base.base": {
-      "word count": "file.WordCount()",
-      "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
     }
   },
   "viewSnapshots": {
     "Obsidian/Bases/Base Base.base": {},
-    "Obsidian/Bases/Everything base.base": {},
-    "Obsidian/Bases/Local Graph Base.base": {},
-    "Obsidian/Bases/Structure Base.base": {},
-    "Obsidian/Bases/Templates Base.base": {},
-    "Obsidian/Bases/Inline Todo Base.base": {},
-    "Obsidian/Bases/Class Bases/Word Base.base": {},
-    "Obsidian/Bases/Class Bases/Visual Artist Base.base": {},
-    "Obsidian/Bases/Class Bases/Todo Base.base": {},
-    "Obsidian/Bases/Class Bases/Teacher Base.base": {},
-    "Obsidian/Bases/Class Bases/Style Base.base": {},
-    "Obsidian/Bases/Class Bases/Session Base.base": {},
-    "Obsidian/Bases/Class Bases/School Base.base": {},
-    "Obsidian/Bases/Class Bases/Project Base.base": {},
-    "Obsidian/Bases/Class Bases/Practice Word Base.base": {},
-    "Obsidian/Bases/Class Bases/Place Base.base": {},
-    "Obsidian/Bases/Class Bases/Person Base.base": {},
-    "Obsidian/Bases/Class Bases/Obsidian Theme Base.base": {},
-    "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base": {},
-    "Obsidian/Bases/Class Bases/Obsidian Note Base.base": {},
-    "Obsidian/Bases/Class Bases/Object Base.base": {},
-    "Obsidian/Bases/Class Bases/Matière Base.base": {},
-    "Obsidian/Bases/Class Bases/Listening device Base.base": {},
-    "Obsidian/Bases/Class Bases/Improvement Base.base": {},
-    "Obsidian/Bases/Class Bases/Keyboard Base.base": {},
-    "Obsidian/Bases/Class Bases/Headphone Base.base": {},
-    "Obsidian/Bases/Class Bases/Effort Base.base": {},
-    "Obsidian/Bases/Class Bases/Earbud Base.base": {},
-    "Obsidian/Bases/Class Bases/Ear (from Nothing) Base.base": {},
+    "Obsidian/Bases/Class Bases/ABC Base.base": {},
+    "Obsidian/Bases/Class Bases/Acquaintance Base.base": {},
+    "Obsidian/Bases/Class Bases/Air Monitor Base.base": {},
+    "Obsidian/Bases/Class Bases/Art Base.base": {},
+    "Obsidian/Bases/Class Bases/Bicycle Base.base": {},
+    "Obsidian/Bases/Class Bases/Bug Fix Base.base": {},
+    "Obsidian/Bases/Class Bases/Class Note Base.base": {},
+    "Obsidian/Bases/Class Bases/Company Base.base": {},
+    "Obsidian/Bases/Class Bases/Concept Base.base": {},
     "Obsidian/Bases/Class Bases/Cours Base.base": {},
     "Obsidian/Bases/Class Bases/Creator Base.base": {},
-    "Obsidian/Bases/Class Bases/Concept Base.base": {},
-    "Obsidian/Bases/Class Bases/Company Base.base": {},
-    "Obsidian/Bases/Class Bases/Class Note Base.base": {},
-    "Obsidian/Bases/Class Bases/Bug Fix Base.base": {},
-    "Obsidian/Bases/Class Bases/Bicycle Base.base": {},
-    "Obsidian/Bases/Class Bases/Art Base.base": {},
-    "Obsidian/Bases/Class Bases/Air Monitor Base.base": {},
-    "Obsidian/Bases/Class Bases/Acquaintance Base.base": {}
+    "Obsidian/Bases/Class Bases/Ear (from Nothing) Base.base": {},
+    "Obsidian/Bases/Class Bases/Earbud Base.base": {},
+    "Obsidian/Bases/Class Bases/Effort Base.base": {},
+    "Obsidian/Bases/Class Bases/Headphone Base.base": {},
+    "Obsidian/Bases/Class Bases/Improvement Base.base": {},
+    "Obsidian/Bases/Class Bases/Keyboard Base.base": {},
+    "Obsidian/Bases/Class Bases/Listening device Base.base": {},
+    "Obsidian/Bases/Class Bases/Matière Base.base": {},
+    "Obsidian/Bases/Class Bases/Object Base.base": {},
+    "Obsidian/Bases/Class Bases/Obsidian Note Base.base": {},
+    "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base": {},
+    "Obsidian/Bases/Class Bases/Obsidian Theme Base.base": {},
+    "Obsidian/Bases/Class Bases/Person Base.base": {},
+    "Obsidian/Bases/Class Bases/Place Base.base": {},
+    "Obsidian/Bases/Class Bases/Practice Word Base.base": {},
+    "Obsidian/Bases/Class Bases/Project Base.base": {},
+    "Obsidian/Bases/Class Bases/School Base.base": {},
+    "Obsidian/Bases/Class Bases/Session Base.base": {},
+    "Obsidian/Bases/Class Bases/Style Base.base": {},
+    "Obsidian/Bases/Class Bases/Teacher Base.base": {},
+    "Obsidian/Bases/Class Bases/Todo Base.base": {},
+    "Obsidian/Bases/Class Bases/Visual Artist Base.base": {},
+    "Obsidian/Bases/Class Bases/Word Base.base": {},
+    "Obsidian/Bases/Everything base.base": {},
+    "Obsidian/Bases/Inline Todo Base.base": {},
+    "Obsidian/Bases/Local Graph Base.base": {},
+    "Obsidian/Bases/Structure Base.base": {},
+    "Obsidian/Bases/Templates Base.base": {}
   },
   "pendingDeletes": [],
   "pendingRenames": [],

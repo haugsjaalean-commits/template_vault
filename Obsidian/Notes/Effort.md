@@ -4,8 +4,9 @@ tags:
 symbol: lucide:flame
 is a:
 characteristics:
+  - "[[∘ checkpoint]]"
 type of:
-  - "[[Project]]"
+  - "[[Improvement]]"
 created: 2026-08-30 11:56
 ext links:
 related:

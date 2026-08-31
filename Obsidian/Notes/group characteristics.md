@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-21 08:28
@@ -11,16 +11,20 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint: reached
-journey: finished
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint: reached
 ---
 
 Currently, in files, characteristics are sorted by type and name, but I also want to have the option for them to be grouped. I want them to be group by the class they were inherited from. 

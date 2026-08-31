@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-21 17:56
@@ -11,17 +11,21 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint: reached
-journey: finished
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
   - bug
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint: reached
 ---
 
 When I renamed a characteristic, it failed to be renamed in the instances of the class. Also, the special character for characteristics was put in the name of a new class that I was in the process of making. 

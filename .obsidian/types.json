@@ -60,11 +60,11 @@
     "priority": "number",
     "active priority": "number",
     "evolution": "text",
-    "journey": "text",
     "checkpoint": "text",
     "value": "number",
     "difficulty": "number",
     "originator": "multitext",
-    "test bool": "checkbox"
+    "test bool": "checkbox",
+    "abandoned": "checkbox"
   }
 }

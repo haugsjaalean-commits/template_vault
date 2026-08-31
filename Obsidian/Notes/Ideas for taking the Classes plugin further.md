@@ -1,6 +1,5 @@
 ---
 is a:
-  - "[[Improvement]]"
   - "[[Effort]]"
 characteristics:
 type of:
@@ -12,16 +11,16 @@ rating:
 evolution:
 garden:
 life stage:
+abandoned: false
+category:
+project:
+  - "[[Class Manager]]"
+subject:
 active priority: 0
 difficulty:
 payoff:
 activity: sleeping
 checkpoint: mapped
-journey: progressing
-category:
-project:
-  - "[[Class Manager]]"
-subject:
 ---
 
 

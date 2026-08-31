@@ -1,6 +1,5 @@
 ---
 is a:
-  - "[[Improvement]]"
   - "[[Effort]]"
 characteristics:
 type of:
@@ -13,18 +12,18 @@ rating:
 evolution:
 garden:
 life stage:
-active priority: 0
-difficulty: 5
-payoff: 1
-activity: sleeping
-checkpoint: reached
-journey: progressing
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
   - wording and semantics
   - organization
+active priority: 10
+difficulty: 5
+payoff: 1
+activity: active
+checkpoint: reached
 ---
 
 
@@ -51,3 +50,6 @@ activity:
 3. sleeping
 
 
+## New
+
+![[Pasted image 20260831091023.png]]

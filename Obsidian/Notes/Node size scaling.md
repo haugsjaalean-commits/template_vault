@@ -11,16 +11,15 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: active
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[Graph Focus]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity: active
 ---
 
 I want a slider in graph focus that would allow me to change the rate at which the nodes scale in size with the amount of links they have. I also want to be able to choose different curves. 

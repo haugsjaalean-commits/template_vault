@@ -11,18 +11,22 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority: 0
-difficulty: 8
-payoff: 1
-activity: sleeping
-checkpoint: mapped
-journey: progressing
+abandoned: false
 category:
   - fix problem
 project:
   - "[[Class Manager]]"
 subject:
   - bug
+active priority: 0
+difficulty: 8
+payoff: 1
+activity: sleeping
+done: false
+duedate:
+urgency:
+what to do:
+checkpoint: mapped
 ---
 
 I believe that this happens when I add an issue as a project from another issue. The issue added as a project gets an empty entry in the `is a` section. 

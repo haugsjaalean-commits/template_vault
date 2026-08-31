@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-21 19:59
@@ -11,17 +11,21 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint: reached
-journey: finished
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
   - UI
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint: reached
 ---
 
 When the class note is active, I want the `ACTIVE` to be shown the same way the `IS A` would be shown for the instance of that note. 

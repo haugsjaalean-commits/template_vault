@@ -11,12 +11,19 @@ rating:
 evolution:
 garden:
 life stage:
+abandoned: false
+category:
+project:
+subject:
 active priority:
 difficulty:
 payoff:
 activity: active
+done: true
+duedate:
+urgency:
+what to do:
 checkpoint:
-journey:
 ---
 ## Issues
 ### Complexe issues

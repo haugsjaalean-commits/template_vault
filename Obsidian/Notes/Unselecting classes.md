@@ -11,16 +11,15 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[selecting classes in the view]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity: sleeping
 ---
 
 I think that it would be cool if there was an option (on by default) to unselect all classes. I also think that, if the user manually unselects all classes, there should be an option in the settings (on by default) for the active note to not be selected. It should only be selected if the user clicks on it again.

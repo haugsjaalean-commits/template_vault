@@ -17,13 +17,13 @@ views:
     filters:
       and:
         - project.contains(link("Class Manager"))
-        - journey != "rerouted"
-        - journey != "finished"
-        - journey != "abandoned"
+        - done != true
+        - abandoned != true
     groupBy:
       property: checkpoint
       direction: ASC
     order:
+      - done
       - active priority
       - file.name
       - activity
@@ -31,6 +31,7 @@ views:
       - formula.value
       - payoff
       - difficulty
+      - abandoned
     sort:
       - property: activity
         direction: ASC
@@ -80,14 +81,18 @@ views:
   - type: table
     name: All by journey
     groupBy:
-      property: journey
+      property: done
       direction: ASC
     order:
+      - done
       - active priority
       - file.name
       - journey
       - checkpoint
       - activity
+      - abandoned
+      - note.note
+      - is a
     sort:
       - property: checkpoint
         direction: ASC
@@ -98,8 +103,8 @@ views:
     columnSize:
       file.name: 349
       note.activity: 95
-      note.urgency: 139
+      note.note: 175
+      note.is a: 133
     declaredOrder:
       - checkpoint
       - activity
-    declaredGroupOrder: journey

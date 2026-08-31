@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-21 18:13
@@ -11,17 +11,21 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint: reached
-journey: finished
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
   - bug
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint: reached
 ---
 
 When the template name does not match the note name, no discrepancy is found. This is a problem. The name should always match. 

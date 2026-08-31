@@ -11,9 +11,16 @@ rating:
 evolution:
 garden:
 life stage: current
+abandoned: false
+category:
+project:
+subject:
+active priority:
+difficulty:
+payoff:
+activity:
 done: true
 duedate:
-active priority:
 urgency:
 what to do:
 ---

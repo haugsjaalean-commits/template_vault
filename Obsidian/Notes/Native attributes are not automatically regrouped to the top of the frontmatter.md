@@ -11,15 +11,19 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity:
-checkpoint:
-journey:
+abandoned: false
 category:
   - fix problem
 project:
 subject:
+active priority:
+difficulty:
+payoff:
+activity:
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint:
 ---
 

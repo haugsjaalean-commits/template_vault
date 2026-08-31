@@ -11,16 +11,15 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[Graphs for Bases]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity: sleeping
 ---
 
 

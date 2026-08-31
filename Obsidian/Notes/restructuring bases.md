@@ -11,16 +11,15 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity:
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[Dealing with bases]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity:
 ---
 
 

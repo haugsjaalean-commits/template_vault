@@ -11,16 +11,15 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority: 10
-difficulty:
-payoff:
-activity: sleeping
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[selecting classes in the view]]"
 subject:
+active priority: 10
+difficulty:
+payoff:
+activity: sleeping
 ---
 
 

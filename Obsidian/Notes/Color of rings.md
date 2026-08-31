@@ -11,17 +11,16 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[Graphs for Bases]]"
 subject:
   - UI
+active priority:
+difficulty:
+payoff:
+activity: sleeping
 ---
 
 Currently, the rings do not take the `none`color from the grouped colors. They simply take the default color. I'm not sure if I like this or not ngl. 

@@ -1,12 +1,11 @@
 ---
 tags:
   - class
-symbol: lucide:bug
+symbol: lucide:code-2
 is a:
 characteristics:
 type of:
-  - "[[Project]]"
-created: 2026-08-27 10:09
+created: 2026-08-31 09:34
 ext links:
 related:
 note rating:

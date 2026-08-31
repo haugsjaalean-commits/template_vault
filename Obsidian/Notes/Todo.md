@@ -4,12 +4,12 @@ tags:
 symbol: lucide:check-circle
 is a:
 characteristics:
-  - "[[∘ active priority]]"
   - "[[∘ urgency]]"
-  - "[[∘ done]]"
   - "[[∘ duedate]]"
   - "[[∘ what to do]]"
+  - "[[∘ done]]"
 type of:
+  - "[[Improvement]]"
 created: 2026-08-16 18:29
 ext links:
 related:

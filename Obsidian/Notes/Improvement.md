@@ -7,8 +7,13 @@ characteristics:
   - "[[∘ project]]"
   - "[[∘ subject]]"
   - "[[∘ category]]"
+  - "[[∘ activity]]"
+  - "[[∘ difficulty]]"
+  - "[[∘ payoff]]"
+  - "[[∘ active priority]]"
+  - "[[∘ abandoned]]"
 type of:
-  - "[[Project]]"
+  - "[[ABC]]"
 created: 2026-08-21 07:51
 ext links:
 related:

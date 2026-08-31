@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-21 16:03
@@ -12,16 +12,20 @@ rating:
 evolution:
 garden:
 life stage: dated
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint: reached
-journey: rerouted
+abandoned: true
 category:
 project:
   - "[[Class Manager]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint: reached
 ---
 
 

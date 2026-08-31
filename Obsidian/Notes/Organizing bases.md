@@ -11,16 +11,15 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: active
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[Global Graph Views]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity: active
 ---
 
 The view sharing for bases seems to be broken right now. 

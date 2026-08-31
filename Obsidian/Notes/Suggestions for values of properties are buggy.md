@@ -11,17 +11,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority: 7
-difficulty: 3
-payoff: 6
-activity: sleeping
-checkpoint: reached
-journey: finished
+abandoned: false
 category:
   - fix problem
 project:
   - "[[Class Manager]]"
 subject:
+active priority: 7
+difficulty: 3
+payoff: 6
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint: reached
 ---
 
 

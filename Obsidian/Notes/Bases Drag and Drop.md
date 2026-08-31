@@ -11,12 +11,19 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+abandoned: false
+category:
+project:
+subject:
 active priority: 10
 difficulty:
 payoff:
 activity: active
+done: true
+duedate:
+urgency:
+what to do:
 checkpoint:
-journey:
 ---
 
 # Bases drag and drop plugin

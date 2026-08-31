@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-21 15:35
@@ -11,17 +11,21 @@ rating:
 evolution:
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint: reached
-journey: finished
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
   - UI
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint: reached
 ---
 
 I want have the option to be able to be able to view the list of classes as a tree. The tree should function like a git tree, where no nodes are overlapping on the horizontal axis. When not expanded, the classes will appear as stubs, but, on expansion, they will have the same look as the current view. The tree will only be showing the `type of` connexions. 

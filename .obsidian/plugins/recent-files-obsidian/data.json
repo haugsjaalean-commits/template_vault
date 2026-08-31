@@ -1,200 +1,204 @@
 {
   "recentFiles": [
     {
-      "basename": "Todo Base",
-      "path": "Obsidian/Bases/Class Bases/Todo Base.base"
-    },
-    {
-      "basename": "Todo Template",
-      "path": "Obsidian/Templates/Todo Template.md"
-    },
-    {
-      "basename": "∘ done",
-      "path": "Obsidian/Characteristics/∘ done.md"
-    },
-    {
-      "basename": "The point of Obsidian",
-      "path": "Obsidian/Notes/The point of Obsidian.md"
-    },
-    {
       "basename": "Improvement Base",
       "path": "Obsidian/Bases/Class Bases/Improvement Base.base"
     },
     {
-      "basename": "Default values with tables",
-      "path": "Obsidian/Notes/Default values with tables.md"
+      "basename": "characteristic naming semantics",
+      "path": "Obsidian/Notes/characteristic naming semantics.md"
     },
     {
-      "basename": "∘ originator",
-      "path": "Obsidian/Characteristics/∘ originator.md"
+      "basename": "∘ abandoned",
+      "path": "Obsidian/Characteristics/∘ abandoned.md"
+    },
+    {
+      "basename": "Ideas for taking the Classes plugin further",
+      "path": "Obsidian/Notes/Ideas for taking the Classes plugin further.md"
+    },
+    {
+      "basename": "How to classify Projects",
+      "path": "Obsidian/Notes/How to classify Projects.md"
+    },
+    {
+      "basename": "∘ project",
+      "path": "Obsidian/Characteristics/∘ project.md"
     },
     {
       "basename": "add more symbols",
       "path": "Obsidian/Notes/add more symbols.md"
     },
     {
-      "basename": "Object Base",
-      "path": "Obsidian/Bases/Class Bases/Object Base.base"
+      "basename": "Project",
+      "path": "Obsidian/Notes/Project.md"
     },
     {
-      "basename": "Object",
-      "path": "Obsidian/Notes/Object.md"
+      "basename": "∘ done",
+      "path": "Obsidian/Characteristics/∘ done.md"
     },
     {
-      "basename": "Structure Base",
-      "path": "Obsidian/Bases/Structure Base.base"
+      "basename": "Unselecting classes",
+      "path": "Obsidian/Notes/Unselecting classes.md"
     },
     {
-      "basename": "Art",
-      "path": "Obsidian/Notes/Art.md"
+      "basename": "transparent center mode",
+      "path": "Obsidian/Notes/transparent center mode.md"
     },
     {
-      "basename": "O",
-      "path": "O.md"
+      "basename": "restructuring bases",
+      "path": "Obsidian/Notes/restructuring bases.md"
     },
     {
-      "basename": "Notes",
-      "path": "Obsidian/Notes/Notes.md"
+      "basename": "buttons (L-2in1's conflicted copy 2026-08-26)",
+      "path": "Obsidian/Notes/buttons (L-2in1's conflicted copy 2026-08-26).md"
     },
     {
-      "basename": "Base Base",
-      "path": "Obsidian/Bases/Base Base.base"
+      "basename": "2026-08-27 Thursday — 11.39.32",
+      "path": "Obsidian/Notes/2026-08-27 Thursday — 11.39.32.md"
     },
     {
-      "basename": "procurer le livre",
-      "path": "Obsidian/Notes/procurer le livre.md"
+      "basename": "buttons",
+      "path": "Obsidian/Notes/buttons.md"
     },
     {
-      "basename": "2026-08-25 Tuesday — 09.38.21",
-      "path": "Obsidian/Notes/2026-08-25 Tuesday — 09.38.21.md"
+      "basename": "Carried characteristics",
+      "path": "Obsidian/Notes/Carried characteristics.md"
     },
     {
-      "basename": "Todo",
-      "path": "Obsidian/Notes/Todo.md"
+      "basename": "Class bases",
+      "path": "Obsidian/Notes/Class bases.md"
     },
     {
-      "basename": "Inline Todo Base",
-      "path": "Obsidian/Bases/Inline Todo Base.base"
+      "basename": "class ratings",
+      "path": "Obsidian/Notes/class ratings.md"
     },
     {
-      "basename": "Templates Base",
-      "path": "Obsidian/Bases/Templates Base.base"
-    },
-    {
-      "basename": "Obsidian Note",
-      "path": "Obsidian/Notes/Obsidian Note.md"
-    },
-    {
-      "basename": "Tag Master",
-      "path": "Obsidian/Notes/Tag Master.md"
-    },
-    {
-      "basename": "Ear (a)",
-      "path": "Obsidian/Notes/Ear (a).md"
-    },
-    {
-      "basename": "CL-5",
-      "path": "Obsidian/Notes/CL-5.md"
-    },
-    {
-      "basename": "Aranet 4",
-      "path": "Obsidian/Notes/Aranet 4.md"
-    },
-    {
-      "basename": "Ear (3)",
-      "path": "Obsidian/Notes/Ear (3).md"
-    },
-    {
-      "basename": "Bug Fix Base",
-      "path": "Obsidian/Bases/Class Bases/Bug Fix Base.base"
-    },
-    {
-      "basename": "Bug Fix Template",
-      "path": "Obsidian/Templates/Bug Fix Template.md"
-    },
-    {
-      "basename": "Effort Base",
-      "path": "Obsidian/Bases/Class Bases/Effort Base.base"
-    },
-    {
-      "basename": "Obsidian Plugin Base",
-      "path": "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base"
-    },
-    {
-      "basename": "Creator Base",
-      "path": "Obsidian/Bases/Class Bases/Creator Base.base"
-    },
-    {
-      "basename": "Koss",
-      "path": "Obsidian/Notes/Koss.md"
-    },
-    {
-      "basename": "Ear (3a)",
-      "path": "Obsidian/Notes/Ear (3a).md"
-    },
-    {
-      "basename": "Ear",
-      "path": "Obsidian/Notes/Ear.md"
-    },
-    {
-      "basename": "Ear (from Nothing)",
-      "path": "Obsidian/Notes/Ear (from Nothing).md"
-    },
-    {
-      "basename": "Native attributes are not automatically regrouped to the top of the frontmatter",
-      "path": "Obsidian/Notes/Native attributes are not automatically regrouped to the top of the frontmatter.md"
-    },
-    {
-      "basename": "∘ creator",
-      "path": "Obsidian/Characteristics/∘ creator.md"
-    },
-    {
-      "basename": "Nothing",
-      "path": "Obsidian/Notes/Nothing.md"
-    },
-    {
-      "basename": "Aranet Home",
-      "path": "Obsidian/Notes/Aranet Home.md"
-    },
-    {
-      "basename": "Company Base",
-      "path": "Obsidian/Bases/Class Bases/Company Base.base"
+      "basename": "Classless attributes",
+      "path": "Obsidian/Notes/Classless attributes.md"
     },
     {
       "basename": "dealing with `+ new` button in bases",
       "path": "Obsidian/Notes/dealing with `+ new` button in bases.md"
     },
     {
-      "basename": "Art Base",
-      "path": "Obsidian/Bases/Class Bases/Art Base.base"
+      "basename": "default unique names",
+      "path": "Obsidian/Notes/default unique names.md"
     },
     {
-      "basename": "Root note problems",
-      "path": "Obsidian/Notes/Root note problems.md"
+      "basename": "Default values from template",
+      "path": "Obsidian/Notes/Default values from template.md"
     },
     {
-      "basename": "Suggestions for values of properties are buggy",
-      "path": "Obsidian/Notes/Suggestions for values of properties are buggy.md"
+      "basename": "displaying options for characteristic values",
+      "path": "Obsidian/Notes/displaying options for characteristic values.md"
+    },
+    {
+      "basename": "Emojis for Classes",
+      "path": "Obsidian/Notes/Emojis for Classes.md"
+    },
+    {
+      "basename": "Gradient highlights",
+      "path": "Obsidian/Notes/Gradient highlights.md"
+    },
+    {
+      "basename": "group characteristics",
+      "path": "Obsidian/Notes/group characteristics.md"
+    },
+    {
+      "basename": "Highlighted ACTIVE",
+      "path": "Obsidian/Notes/Highlighted ACTIVE.md"
+    },
+    {
+      "basename": "Bases as native attributes",
+      "path": "Obsidian/Notes/Bases as native attributes.md"
+    },
+    {
+      "basename": "Automatically dealing with unsolvable discrepancies",
+      "path": "Obsidian/Notes/Automatically dealing with unsolvable discrepancies.md"
+    },
+    {
+      "basename": "introduce variables",
+      "path": "Obsidian/Notes/introduce variables.md"
     },
     {
       "basename": "Make all groups visible in bases",
       "path": "Obsidian/Notes/Make all groups visible in bases.md"
     },
     {
-      "basename": "∘ payoff",
-      "path": "Obsidian/Characteristics/∘ payoff.md"
+      "basename": "Moving options for classes",
+      "path": "Obsidian/Notes/Moving options for classes.md"
     },
     {
-      "basename": "∘ difficulty",
-      "path": "Obsidian/Characteristics/∘ difficulty.md"
+      "basename": "Multi class notes",
+      "path": "Obsidian/Notes/Multi class notes.md"
     },
     {
-      "basename": "∘ category",
-      "path": "Obsidian/Characteristics/∘ category.md"
+      "basename": "Naming the status characteristic values",
+      "path": "Obsidian/Notes/Naming the status characteristic values.md"
     },
     {
-      "basename": "old improvement ideas",
-      "path": "Obsidian/Notes/old improvement ideas.md"
+      "basename": "Naming discrepancies",
+      "path": "Obsidian/Notes/Naming discrepancies.md"
+    },
+    {
+      "basename": "new default values should replace none values (maybe)",
+      "path": "Obsidian/Notes/new default values should replace none values (maybe).md"
+    },
+    {
+      "basename": "Part of",
+      "path": "Obsidian/Notes/Part of.md"
+    },
+    {
+      "basename": "Reload shows new discrepancies",
+      "path": "Obsidian/Notes/Reload shows new discrepancies.md"
+    },
+    {
+      "basename": "remove add property button",
+      "path": "Obsidian/Notes/remove add property button.md"
+    },
+    {
+      "basename": "remove `all notes` from the table for default values",
+      "path": "Obsidian/Notes/remove `all notes` from the table for default values.md"
+    },
+    {
+      "basename": "Renaming characteristic values",
+      "path": "Obsidian/Notes/Renaming characteristic values.md"
+    },
+    {
+      "basename": "Renaming characteristics seems to be inconsistant and buggy",
+      "path": "Obsidian/Notes/Renaming characteristics seems to be inconsistant and buggy.md"
+    },
+    {
+      "basename": "Rhizomatic Garden and Arborescent Garden",
+      "path": "Obsidian/Notes/Rhizomatic Garden and Arborescent Garden.md"
+    },
+    {
+      "basename": "Right click on class for options",
+      "path": "Obsidian/Notes/Right click on class for options.md"
+    },
+    {
+      "basename": "Root note problems",
+      "path": "Obsidian/Notes/Root note problems.md"
+    },
+    {
+      "basename": "selecting classes in the view",
+      "path": "Obsidian/Notes/selecting classes in the view.md"
+    },
+    {
+      "basename": "Selective updating",
+      "path": "Obsidian/Notes/Selective updating.md"
+    },
+    {
+      "basename": "Side panel scrolling",
+      "path": "Obsidian/Notes/Side panel scrolling.md"
+    },
+    {
+      "basename": "solving discrepancies - manual and automatic",
+      "path": "Obsidian/Notes/solving discrepancies - manual and automatic.md"
+    },
+    {
+      "basename": "small x in class search bar",
+      "path": "Obsidian/Notes/small x in class search bar.md"
     }
   ],
   "omittedPaths": [],

@@ -11,12 +11,19 @@ rating:
 evolution:
 garden:
 life stage: current
+abandoned: false
+category:
+project:
+subject:
 active priority:
 difficulty:
 payoff:
 activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
 checkpoint:
-journey:
 ---
 
 This is my idea for an Obsidian theme. I want it to be awesome. 

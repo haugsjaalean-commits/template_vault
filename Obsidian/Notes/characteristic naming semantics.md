@@ -1,6 +1,5 @@
 ---
 is a:
-  - "[[Improvement]]"
   - "[[Effort]]"
 characteristics:
 type of:
@@ -12,16 +11,16 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+abandoned: false
+category:
+project:
+  - "[[Class Manager]]"
+subject:
 active priority: 0
 difficulty: 4
 payoff: 1
 activity: sleeping
 checkpoint: reached
-journey: progressing
-category:
-project:
-  - "[[Class Manager]]"
-subject:
 ---
 
 

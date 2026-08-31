@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-30 09:42
@@ -11,16 +11,20 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority: 2
-difficulty: 4
-payoff: 4
-activity: simmering
-checkpoint: mapped
-journey: progressing
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
+active priority: 2
+difficulty: 4
+payoff: 4
+activity: simmering
+done: false
+duedate:
+urgency:
+what to do:
+checkpoint: mapped
 ---
 
 

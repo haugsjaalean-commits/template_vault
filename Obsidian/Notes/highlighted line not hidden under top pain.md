@@ -11,18 +11,17 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: active
-checkpoint:
-journey:
+abandoned: false
 category:
 project:
   - "[[Tree view for classes]]"
 subject:
   - UI
   - bug
+active priority:
+difficulty:
+payoff:
+activity: active
 ---
 ![[Pasted image 20260824104521.png|199]]
 

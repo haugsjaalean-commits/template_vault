@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 created: 2026-08-25 10:26
@@ -11,16 +11,20 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority: 0
-difficulty: 10
-payoff: 8
-activity: sleeping
-checkpoint: seen
-journey: progressing
+abandoned: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
+active priority: 0
+difficulty: 10
+payoff: 8
+activity: sleeping
+done: false
+duedate:
+urgency:
+what to do:
+checkpoint: seen
 ---
 
 Cédric showed me Notion, and it was lowkey hot. The properties can be of type `button`, and this is really cool. This brings me back to my idea [[introduce variables]] and automation. Having buttons is heavily related to the automation of the app. Notion does a lot of things that Obsidian doesn't by default. This is making me think about 

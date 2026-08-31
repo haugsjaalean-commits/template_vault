@@ -11,17 +11,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-active priority:
-difficulty:
-payoff:
-activity: sleeping
-checkpoint:
-journey:
+abandoned: false
 category:
   - fix problem
 project:
   - "[[Graph Focus]]"
 subject:
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+done: true
+duedate:
+urgency:
+what to do:
+checkpoint:
 ---
 
 

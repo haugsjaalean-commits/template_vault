@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Obsidian Plugin]]"
+  - "[[ABC]]"
 characteristics:
 type of:
 created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
@@ -11,19 +11,6 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
-category:
-project:
-subject:
-active priority:
-difficulty:
-payoff:
-activity:
-done: false
-duedate:
-urgency:
-what to do:
-checkpoint:
 ---
 
 <%*
