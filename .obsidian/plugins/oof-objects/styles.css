@@ -64,13 +64,40 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.oof-search {
-	width: 100%;
+/*
+ * The search bar is Obsidian's own `SearchComponent`, so the × and the rule that
+ * hides it while the box is empty both come from the app's stylesheet. Only the
+ * geometry is ours: this is a sidebar field, not a modal's, and *both* of the
+ * app's decorations — the magnifier at the start, the × at the end — centre
+ * themselves against `--input-height`, so that variable is the thing to tell
+ * rather than either of them.
+ */
+.oof-search-bar {
 	margin-top: 8px;
-	padding: 5px 10px;
-	border-radius: var(--radius-l);
-	background: var(--background-modifier-form-field);
+	--input-height: 28px;
+}
+
+.oof-search-bar input.oof-search {
+	height: 28px;
+	padding-block: 0;
 	font-size: var(--font-ui-smaller);
+}
+
+/*
+ * Keep the app's room for the ×. Our padding above matches its selector's
+ * specificity, so without this the last letters typed would run under it.
+ */
+.oof-search-bar input.oof-search:not(:placeholder-shown) {
+	padding-inline-end: 28px;
+}
+
+/*
+ * On, the way the layout toggle two pixels away is on — the accent rather than
+ * a grey. Obsidian's `is-active` background comes with the class and is welcome;
+ * the colour is ours so the pair says "on" the same way.
+ */
+.oof-header-icon.oof-search-toggle.is-active {
+	color: var(--interactive-accent);
 }
 
 .oof-header-buttons {
@@ -122,6 +149,125 @@
 	cursor: default;
 	background: transparent;
 	color: var(--text-faint);
+}
+
+/*
+ * One row of actions for the highlighted class, when that is where they live.
+ *
+ * It sits inside the header, so it stays put while the classes scroll under it
+ * — the class it acts on is very often the card that has just gone off the top.
+ * Tinted rather than bordered: the header already ends in a line, and a second
+ * one directly above it reads as two headers.
+ */
+.oof-class-toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 4px;
+	min-height: 26px;
+	margin-top: 8px;
+	padding: 2px 4px 2px 6px;
+	border-radius: var(--radius-m);
+	background: var(--background-modifier-hover);
+}
+
+/* Nothing highlighted: the row stays, so the panel below it does not jump. */
+.oof-toolbar-empty {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-style: italic;
+}
+
+.oof-toolbar-names {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 2px;
+	min-width: 0;
+}
+
+/*
+ * The class the buttons act on — and, with the note icon gone, the way into its
+ * note. A second one appears only when the open note is `is a` more than one
+ * class, and clicking it hands the buttons over.
+ */
+.oof-toolbar-name {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 2px 5px;
+	border-radius: var(--radius-s);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	line-height: 1.2;
+	white-space: nowrap;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.oof-toolbar-name:hover {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.oof-toolbar-name.is-chosen {
+	color: var(--text-normal);
+}
+
+.oof-toolbar-name.is-chosen:hover {
+	text-decoration: underline;
+}
+
+.oof-toolbar-actions {
+	display: flex;
+	align-items: center;
+	gap: 1px;
+	margin-left: auto;
+	flex: 0 0 auto;
+}
+
+/*
+ * Not faint here. On a card the icons are deliberately quiet — there are five of
+ * them on every row down the whole panel, and a column of loud glyphs would drown
+ * the names they sit beside. In the toolbar there is exactly one set of them, it
+ * is the row's whole purpose, and quiet reads as disabled.
+ */
+.oof-toolbar-actions .oof-icon {
+	color: var(--text-muted);
+}
+
+.oof-toolbar-actions .oof-icon:hover {
+	color: var(--text-normal);
+}
+
+/*
+ * Two of them are coloured, and the reasoning is the same for both: only here is
+ * each one the only one of its kind on the screen, so a colour means something
+ * instead of becoming wallpaper. That is why the reset button's red came *off*
+ * the cards — a warning on twenty-one rows is a warning worn down by being always
+ * there.
+ *
+ * There were three. The reset left this row entirely on 2026-08-28, for the
+ * Class base menu on the base's own toolbar — which is the same argument carried
+ * one step further: the button that destroys a file belongs on the file.
+ *
+ * Orange for the act that changes the note you have open, green for the one that
+ * makes a new note. Obsidian's own colour variables, so a theme decides the
+ * actual shades.
+ *
+ * `:hover` is restated for each because `.oof-toolbar-actions .oof-icon:hover`
+ * above matches them too and carries the same specificity — source order alone
+ * separates them, so these must stay below it.
+ */
+.oof-toolbar-actions .oof-apply-class,
+.oof-toolbar-actions .oof-apply-class:hover {
+	color: var(--color-orange);
+}
+
+.oof-toolbar-actions .oof-new-instance,
+.oof-toolbar-actions .oof-new-instance:hover {
+	color: var(--color-green);
 }
 
 /*
@@ -323,15 +469,6 @@ button.oof-new-class .svg-icon {
 	opacity: 0.4;
 }
 
-/* A queued base refresh will replace his own edits, so it says so. */
-.oof-icon-warning {
-	color: var(--text-warning);
-}
-
-.oof-icon-warning:hover {
-	color: var(--text-warning);
-}
-
 .oof-object-body {
 	padding: 0 12px 10px;
 }
@@ -347,6 +484,26 @@ button.oof-new-class .svg-icon {
 .oof-rename .svg-icon {
 	width: 12px;
 	height: 12px;
+}
+
+/*
+ * Alone at the far right, with the action icons moved to the toolbar. Nothing
+ * left to be nudged against, and nothing left to be smaller than — so it drops
+ * the nudge and takes the size the icons it replaced had.
+ */
+.oof-rename.oof-rename-end {
+	margin-left: 0;
+}
+
+.oof-rename.oof-rename-end .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+/* With the note icon gone, the name is the link that opens the class's note. */
+.oof-object-name.is-link:hover {
+	color: var(--text-accent);
+	text-decoration: underline;
 }
 
 /*
@@ -596,6 +753,21 @@ button.oof-new-class .svg-icon {
 
 .oof-picker-grid.is-wide {
 	grid-template-columns: repeat(auto-fill, minmax(2.4em, 1fr));
+}
+
+/*
+ * The symbols tab draws characters rather than SVG, and since 2026-08-30 some of
+ * them are kanji — dense enough that at UI size 語 and 話 are the same smudge.
+ * So the glyph grid alone is drawn larger, in cells to match. The icons grid is
+ * `is-wide` too and must not be caught by this: its cells hold an SVG sized by
+ * its own rule, and a font-size there would only push the box around.
+ */
+.oof-picker-grid.is-glyphs {
+	grid-template-columns: repeat(auto-fill, minmax(2.6em, 1fr));
+}
+
+.oof-picker-grid.is-glyphs .oof-picker-cell {
+	font-size: 1.35em;
 }
 
 .oof-picker-cell {
@@ -2179,3 +2351,244 @@ body.oof-hide-add-property .metadata-add-button {
  *
  * Nothing belongs here. That is the point.
  */
+/* ----- selecting classes ------------------------------------------------- */
+
+/*
+ * Which of the two selection modes the panel is in, at the head of the toolbar.
+ * It is a label and not only an icon because his note asks for the change to be
+ * *shown*: a glyph quietly swapping for another is not a thing anyone notices,
+ * and the whole point is that the mode changes on its own as you work.
+ */
+.oof-selection-mode {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex: 0 0 auto;
+	padding: 2px 6px;
+	border-radius: var(--radius-s);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	text-decoration: none;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.oof-selection-mode:hover {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+/* Nowhere to go: there is no selection kept to switch back to. */
+.oof-selection-mode.is-stuck {
+	cursor: default;
+}
+
+.oof-selection-mode.is-stuck:hover {
+	background: transparent;
+	color: var(--text-faint);
+}
+
+.oof-selection-mode.is-custom {
+	color: var(--interactive-accent);
+}
+
+.oof-selection-mode.is-custom:hover {
+	color: var(--interactive-accent);
+}
+
+.oof-selection-mode .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
+/*
+ * The whole row is tinted in the accent while it holds a selection of his own.
+ * The mode button alone would be a change you have to be looking at to see; a
+ * bar that changes colour is one you see from the other end of the panel.
+ */
+.oof-class-toolbar.is-custom {
+	background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-modifier-hover));
+	box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+
+/*
+ * The dot in the flat list. The two tree layouts hang a node beside every card
+ * already and that node is the button there; a plain stack of cards has no rail
+ * to put one in, so it gets one of its own — his N.B., and the reason it is
+ * worth having rather than skipping: without a dot there is no way to select.
+ *
+ * Drawn to match `.oof-tree-dot` exactly — same 8px, same ring — because it is
+ * the same control, and switching layouts should not change what it looks like.
+ */
+.oof-dot-hit {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	margin-left: -2px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	cursor: pointer;
+}
+
+.oof-dot-hit:hover {
+	background: var(--background-modifier-border);
+}
+
+.oof-flat-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--background-primary);
+	box-shadow: 0 0 0 2px var(--background-modifier-border);
+}
+
+/*
+ * Selected: filled in the accent, both here and on a rail's node. A ring says
+ * *this class is on the line you are looking at*, which the tree already uses
+ * for ancestors — a filled accent dot is the one that says *I picked this*.
+ *
+ * The rail's selector names `.is-selectable` as well as `.is-selected` purely to
+ * reach four classes, because `.oof-tree.is-quiet-dots .oof-tree-dot:not(.is-lit)`
+ * has four and would otherwise quietly un-paint this. That trap has been paid for
+ * once already, in the elbows.
+ */
+.oof-flat-dot.is-selected,
+.oof-tree .oof-tree-dot.is-selectable.is-selected {
+	background: var(--interactive-accent);
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+/* A dot you can press says so under the pointer, in both kinds of layout. */
+.oof-flat-dot.is-selectable,
+.oof-tree-dot.is-selectable {
+	cursor: pointer;
+}
+
+/*
+ * A rail's node is 8px of circle placed by hand, which is not a thing to ask
+ * anyone to hit. The hit area is grown with a transparent pseudo-element rather
+ * than by making the dot bigger, because the dot's size is the drawing.
+ */
+.oof-tree-dot.is-selectable::after {
+	content: '';
+	position: absolute;
+	inset: -5px;
+	border-radius: 50%;
+}
+
+.oof-tree .oof-tree-dot.is-selectable:hover:not(.is-selected) {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+/*
+ * A button that cannot act on this selection. Faded like a pending file, but it
+ * is a different claim — that one is "the file is not there yet", this one is
+ * "there are three classes selected and this belongs to one" — so pressing it
+ * says which.
+ */
+.oof-icon-disabled {
+	opacity: 0.35;
+}
+
+.oof-icon-disabled:hover {
+	background: transparent;
+	color: var(--text-faint);
+}
+
+/*
+ * Grey wins over the colours: a coloured button that does nothing is a lie.
+ *
+ * Pending is here too since 2026-08-30, when the new-instance button stopped
+ * disappearing while a class had no template and started waiting there faintly
+ * like the others. Faint *and green* would have been the same lie in softer
+ * paint — the two states differ in why the button cannot act, not in whether it
+ * can.
+ */
+.oof-toolbar-actions .oof-icon-disabled,
+.oof-toolbar-actions .oof-icon-disabled:hover,
+.oof-toolbar-actions .oof-icon-pending,
+.oof-toolbar-actions .oof-icon-pending:hover {
+	color: var(--text-faint);
+}
+
+/*
+ * Unselect the lot. At the end of the names, not with the file buttons — it acts
+ * on the selection, and those act on a class.
+ *
+ * Faint until hovered, and then it takes the warning colour rather than the
+ * accent: everything else in this row is accent-coloured because it *is* the
+ * selection, and the one control that ends the selection should not look like
+ * more of it.
+ */
+.oof-toolbar-clear {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	margin-left: 2px;
+	flex: 0 0 auto;
+	border-radius: var(--radius-s);
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+.oof-toolbar-clear:hover {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.oof-toolbar-clear .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
+/* ---------------------------------------------- the Class base toolbar item */
+
+/*
+ * Our button in Obsidian's own base toolbar. It is built to Obsidian's markup
+ * exactly — `.bases-toolbar-item` > `.text-icon-button` > icon span + label span
+ * — so nearly everything about how it looks is already handled by the app's own
+ * toolbar rules, the one that hides labels in a narrow pane included. What is
+ * left is the two things a hand-built button does not inherit: the pointer,
+ * and the icon span being a flex box so its glyph sits on the label's line.
+ */
+.bases-toolbar .oof-class-base-item .text-icon-button {
+	cursor: var(--cursor);
+}
+
+.bases-toolbar .oof-class-base-item .text-button-icon {
+	display: flex;
+	align-items: center;
+}
+
+/*
+ * The explanation, which rides in as a menu item's title. A menu title is laid
+ * out for one short line, so the three rules that matter are: let it wrap, cap
+ * the width so it does not stretch the menu across the pane, and give the lines
+ * a readable leading of their own — menus are set tight.
+ */
+.menu-item-title .oof-class-base-explainer {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	max-width: 300px;
+	white-space: normal;
+	line-height: var(--line-height-normal);
+	padding: var(--size-2-1) 0;
+}
+
+.oof-class-base-explainer-title {
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+}
+
+.oof-class-base-explainer-line {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}

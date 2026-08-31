@@ -1,0 +1,25 @@
+filters:
+  and:
+    - file.isA("Artist")
+    - '!file.inFolder("Obsidian/Templates")'
+formulas:
+  word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
+properties:
+  formula.word count:
+    displayName: word count
+  formula.link distance:
+    displayName: link distance
+views:
+  - type: table
+    name: Table
+    order:
+      - file.name
+      - domain
+      - children
+      - location
+      - relation to me
+      - related
+      - note rating
+      - rating

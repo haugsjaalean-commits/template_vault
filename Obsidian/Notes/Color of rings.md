@@ -8,15 +8,18 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
-importance:
+active priority:
+difficulty:
+payoff:
 activity: sleeping
-status: effort
+checkpoint:
+journey:
 category:
 project:
-  - "[[Graphs for Bases Plugin]]"
+  - "[[Graphs for Bases]]"
 subject:
   - UI
 ---

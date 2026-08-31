@@ -9,12 +9,15 @@ related:
   - "[[Allow the option for one instance to have multiple classes]]"
 note rating:
 rating:
+evolution:
 garden:
 life stage: dated
-maturity:
-importance:
+active priority:
+difficulty:
+payoff:
 activity: sleeping
-status: idea
+checkpoint: reached
+journey: rerouted
 category:
 project:
   - "[[Class Manager]]"

@@ -8,13 +8,12 @@ ext links:
 related:
 note rating:
 rating: 10
+evolution:
 garden:
 life stage: current
-maturity:
 birth day:
 death day:
 children:
-relation to me:
 historical importance:
 location:
 creation domain:

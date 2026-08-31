@@ -1,0 +1,32 @@
+filters:
+  and:
+    - file.isA("Concept")
+    - '!file.inFolder("Obsidian/Templates")'
+formulas:
+  word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
+properties:
+  formula.word count:
+    displayName: word count
+  formula.link distance:
+    displayName: link distance
+views:
+  - type: table
+    name: Table
+    order:
+      - file.name
+      - meaning
+      - language
+      - gender
+      - entomology
+      - false friend
+      - friend
+      - related
+      - note rating
+      - rating
+      - created
+      - garden
+      - life stage
+      - ext links
+      - maturity

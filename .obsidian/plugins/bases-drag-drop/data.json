@@ -1,0 +1,12 @@
+{
+  "groupDrops": true,
+  "rowDrops": true,
+  "folderMoves": true,
+  "showChanges": true,
+  "reviewEveryMove": false,
+  "reviewModifier": "alt",
+  "showGrip": true,
+  "showIndicator": true,
+  "flashOnDrop": true,
+  "showOptions": true
+}

@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
-importance:
-activity: simmering
-status: idea
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+checkpoint: reached
+journey: finished
 category:
 project:
   - "[[Class Manager]]"
@@ -23,7 +26,8 @@ subject:
 
 
 
-I think that we should all kill ourselves right the fuck now
+
+Some of the functionalities I want here are described in [[Moving options for classes]].
 
 
 

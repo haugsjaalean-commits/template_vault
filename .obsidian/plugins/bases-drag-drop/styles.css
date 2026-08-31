@@ -1,0 +1,322 @@
+/*
+ * Bases Drag and Drop — written entirely by Claude for Leander.
+ *
+ * Deliberately small. The insertion bar reuses Obsidian's own
+ * `.table-drag-target.mod-row`, which the markdown table editor already styles,
+ * so it matches the app in both themes for free; only the positioning and the
+ * inexact variant are ours.
+ */
+
+/*
+ * EVERY mark below is absolutely positioned inside the base view, and
+ * `.bases-view` ships `position: static` — so without this they resolve against
+ * `.workspace-leaf-content` instead, which sits 79px higher and outside the
+ * scroller. Measured: a bar whose inline `top` was a correct 12px rendered at
+ * y=52 while its card started at y=131, and it painted over the toolbar rather
+ * than clipping to the view.
+ *
+ * `position: relative` with no insets moves nothing on its own; it only makes
+ * this element the containing block its own children were always assumed to
+ * have. It is also what makes them clip to the scroller and scroll with the
+ * content, which the manual `scrollTop` arithmetic had been compensating for
+ * against the wrong element.
+ */
+.bases-view {
+	position: relative;
+}
+
+.bases-dnd-indicator {
+	position: absolute;
+	z-index: 3;
+	height: 0;
+	pointer-events: none;
+	--table-drop-indicator-half-width: 1px;
+}
+
+/*
+ * When the drop is inexact — the sort could not express the exact gap, so the
+ * note lands where its values put it — the bar is dashed rather than solid. It
+ * has still jumped to the true landing place; the dashes say "this spot was
+ * chosen for you", which is the difference worth showing.
+ */
+.bases-dnd-indicator.is-inexact::after {
+	background-color: transparent;
+	border-top: 2px dashed var(--interactive-accent);
+	border-radius: 0;
+}
+
+/*
+ * In a grid the bar is Obsidian's `.mod-col` rather than `.mod-row`, so the
+ * dashes are on the other axis. A cards view lays its items out in rows that
+ * wrap, and a horizontal line there names every gap in the row at once — which
+ * is exactly what made the cards view unreadable while dragging.
+ */
+.bases-dnd-indicator.mod-col.is-inexact::after {
+	border-top: none;
+	border-left: 2px dashed var(--interactive-accent);
+}
+
+/* The whole group lights up when the drop would only regroup the note. */
+.bases-dnd-over {
+	background-color: var(--background-modifier-hover);
+	border-radius: var(--radius-s);
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+/*
+ * One floating grip, positioned over the leading edge of whichever row the
+ * pointer is on. `draggable` is load-bearing beyond making it draggable: the
+ * table's own cell selection begins with
+ *     if (evt.shiftKey || !evt.targetNode.draggable)
+ * so marking this element draggable is also what stops a drag from starting a
+ * cell selection underneath it.
+ */
+.bases-dnd-grip {
+	position: absolute;
+	width: 14px;
+	z-index: 2;
+	cursor: grab;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transition: opacity 80ms ease-in;
+	background: linear-gradient(to var(--bases-dnd-fade, right),
+			var(--background-modifier-hover), transparent);
+}
+
+.bases-dnd-grip::before {
+	content: "";
+	width: 3px;
+	height: 60%;
+	max-height: 16px;
+	border-radius: 2px;
+	background-color: var(--text-faint);
+}
+
+.bases-view:hover .bases-dnd-grip {
+	opacity: 1;
+}
+
+.bases-dnd-grip:hover::before {
+	background-color: var(--text-muted);
+}
+
+.bases-dnd-grip:active {
+	cursor: grabbing;
+}
+
+.bases-dnd-review-note:not(:empty) {
+	margin: var(--size-4-2) 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+/*
+ * The rows a drop could land among when the sort cannot tell them apart. There
+ * is no gap to point at inside such a block, so the block itself is the answer.
+ */
+.bases-dnd-landing {
+	background-color: var(--background-modifier-hover);
+}
+
+/*
+ * The two rules that bracket a block the sort cannot order. Dashed, because the
+ * position inside is not on offer; horizontal, because everything else this
+ * plugin draws is — the earlier left-edge stripe stacked into a continuous
+ * VERTICAL line across contiguous rows and read as a different kind of thing.
+ */
+.bases-dnd-bracket {
+	position: absolute;
+	z-index: 3;
+	height: 0;
+	pointer-events: none;
+	border-top: 2px dashed var(--interactive-accent);
+}
+
+/*
+ * Every other place the note could go, drawn all at once while a drag is in
+ * flight. Faint on purpose: these are the alternatives, and the solid bar is the
+ * one you are actually pointing at. Without them a single bar only ever tells
+ * you about the gap you already found.
+ */
+.bases-dnd-option {
+	position: absolute;
+	z-index: 2;
+	height: 0;
+	pointer-events: none;
+	border-top: 2px solid var(--interactive-accent);
+	opacity: 0.28;
+}
+
+.bases-dnd-option.is-inexact {
+	border-top-style: dotted;
+	opacity: 0.4;
+}
+
+/* The same mark stood on its end, for a grid. */
+.bases-dnd-option.is-vertical {
+	border-top: none;
+	border-left: 2px solid var(--interactive-accent);
+}
+
+.bases-dnd-option.is-vertical.is-inexact {
+	border-left-style: dotted;
+}
+
+/*
+ * Both ends of the last move. They do NOT fade: his ask, after the fading
+ * version showed the line it left for only a split second. They stay until the
+ * next click, keypress or drag.
+ *
+ * An outline rather than a wash, so the row's own text stays as legible as every
+ * other row's — the mark says "this one", it does not need to shout.
+ */
+.bases-dnd-landed {
+	background-color: var(--background-modifier-hover);
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+	border-radius: var(--radius-s);
+}
+
+/* Where it left from: the boundary the neighbouring rows have closed over. */
+.bases-dnd-from {
+	position: absolute;
+	z-index: 3;
+	height: 0;
+	pointer-events: none;
+	border-top: 2px dashed var(--text-muted);
+}
+
+/* Where it left from, on a grid's axis. */
+.bases-dnd-from.is-vertical {
+	border-top: none;
+	border-left: 2px dashed var(--text-muted);
+}
+
+/*
+ * A group for a value the characteristic names but no note carries yet.
+ *
+ * Collapsed and faint, because for most of its life it is furniture rather than
+ * content: it exists so that a drag has somewhere to land, and a full-strength
+ * heading with nothing under it would be the visual clutter the whole plugin is
+ * meant to remove. The dashed box says empty slot rather than empty group, and
+ * the heading hugs its text so the row does not read as a band of content.
+ *
+ * The property name is dropped from it. Every other heading in the view repeats
+ * it, so on the empty ones it is the half that carries no information.
+ */
+.bases-dnd-empty-heading {
+	color: var(--text-faint);
+	border: 1px dashed var(--background-modifier-border-hover);
+	border-radius: var(--radius-s);
+	max-width: 100%;
+	padding-inline: var(--size-4-2);
+	/*
+	 * No transition at rest — and it has to be SAID, not merely left out.
+	 * `.bases-group-heading` already carries `transition: all`, the table builds a
+	 * fresh heading element on every render, and an unclassed one has
+	 * `border-width: 0` with `border-color` defaulting to `currentColor`. So the
+	 * dashed line was born bright and full-strength and animated down to faint
+	 * each time the base re-queried — twice per field edit, which is exactly the
+	 * flicker he saw. Inheriting a transition is not a free effect: it fires on
+	 * the frame a decoration is first applied, which is never a change the reader
+	 * made.
+	 */
+	transition: none;
+}
+
+.bases-dnd-empty-heading .bases-group-property {
+	display: none;
+}
+
+/*
+ * The collapse itself, and the width. Obsidian's own `.bases-table
+ * .bases-group-heading` is two classes deep and sets `width: 100%`, so a
+ * one-class rule of ours loses to it — the box has to hug its text from a
+ * selector of the same weight or it draws as a band across the table. The cards
+ * view is left out on purpose: it measures one generic heading and gives every
+ * group that height, so shrinking ours there would buy whitespace, not remove it.
+ */
+.bases-table > .bases-dnd-empty-heading,
+.bases-list-group > .bases-dnd-empty-heading {
+	width: fit-content;
+	height: auto;
+	min-height: 0;
+	line-height: 1.3;
+	padding-block: 1px;
+}
+
+/* Nothing to summarise. */
+.bases-dnd-empty .bases-table-group-summary-row {
+	display: none;
+}
+
+/*
+ * While a drag is in flight every empty group is a live target, so they all come
+ * up together — before the pointer has found any of them. Same argument as
+ * drawing every landing place at once rather than only the one being hovered.
+ */
+.bases-dnd-dragging .bases-dnd-empty-heading {
+	color: var(--text-muted);
+	border-color: var(--interactive-accent);
+	/*
+	 * The one change worth animating, declared on the state being entered — which
+	 * is where a transition is read from. Coming back out of a drag snaps, because
+	 * the resting state above says `none`, and that is the right way round: a drag
+	 * ending should leave nothing fading behind it.
+	 */
+	transition: color 100ms ease-out, border-color 100ms ease-out;
+}
+
+/*
+ * The note being placed. A drag has the browser's ghost under the pointer; a
+ * placement has nothing, so the card says so itself — an outline around its own
+ * silhouette rather than a border on one edge, and dimmed, because it is the
+ * thing in hand rather than a thing on the page.
+ *
+ * No transition of ours: the class is re-asserted on every pointer move, so
+ * anything that animated on arrival would restart continuously.
+ */
+.bases-dnd-placing {
+	outline: 2px dashed var(--interactive-accent);
+	outline-offset: -2px;
+	border-radius: var(--radius-s);
+	opacity: 0.55;
+}
+
+/* ---------------------------------------------------------- the + new button */
+
+/* "There should be an option to hide the `+ New` button." */
+body.bases-dnd-no-new .bases-toolbar-new-item-menu {
+	display: none;
+}
+
+/*
+ * The label that follows the pointer while a new note is waiting to be clicked
+ * into place. A drag gets this for free — `dragManager.setAction` draws it
+ * beside the ghost — and there is no ghost here, so it is drawn by hand in the
+ * same words.
+ *
+ * On the body rather than in the view: it has to be able to sit over the pane's
+ * edge, and the view scrolls under it.
+ */
+.bases-dnd-place-label {
+	position: fixed;
+	z-index: var(--layer-notice);
+	pointer-events: none;
+	max-width: 22rem;
+	padding: var(--size-2-1) var(--size-4-1);
+	border-radius: var(--radius-s);
+	background-color: var(--background-secondary-alt);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.35;
+}
+
+/* A place this base cannot put the note. The reason is in the text. */
+.bases-dnd-place-label.mod-refused {
+	color: var(--text-muted);
+	border-color: var(--text-error);
+}

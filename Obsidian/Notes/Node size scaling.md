@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
-importance:
+active priority:
+difficulty:
+payoff:
 activity: active
-status: idea
+checkpoint:
+journey:
 category:
 project:
   - "[[Graph Focus]]"

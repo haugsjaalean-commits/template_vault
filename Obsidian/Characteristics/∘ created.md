@@ -3,9 +3,8 @@ characteristic meaning:
 property type: datetime
 is base characteristic: false
 possible values:
-default value: <% tp.date.now("YYYY-MM-DD HH:mm") %>
 ---
 
-| Default location | Default value | Strict default value |
-| ---------------- | ------------- | -------------------- |
-| All notes        |               |                      |
+| Location  | Starting value | None replacement | Value must contain | Value must be |
+| --------- | -------------- | ---------------- | ------------------ | ------------- |
+| All notes | <% tp.date.now("YYYY-MM-DD HH:mm") %> |                  |                    |               |

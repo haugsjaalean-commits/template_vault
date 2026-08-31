@@ -7,9 +7,9 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 ---
 
 

@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * OOF Classes
+ * OOF Class Manager
  * -----------
  * The plugin described in OOF 0.3: a panel over the *classes* of the vault -
  * the notes that act as classes - where each class's name, characteristics and
@@ -44,7 +44,8 @@
 
 const obsidian = require('obsidian');
 
-const { Plugin, PluginSettingTab, Setting, ItemView, Modal, TFile, Notice, setIcon } = obsidian;
+const { Plugin, PluginSettingTab, Setting, ItemView, Modal, TFile, Notice, setIcon,
+	SearchComponent } = obsidian;
 /*
  * Two the harness does not stub, and neither is load-bearing: without `Menu` the
  * pencil opens the rename dialog directly, as it did before there was anything
@@ -192,6 +193,81 @@ const DEFAULT_SETTINGS = {
 	cardOverflow: 'scroll',
 
 	/*
+	 * Where a class's actions live — his ask, `Moving options for classes.md`.
+	 *
+	 *   'card'     an icon per action on every card's top line, which is what the
+	 *              panel has always done
+	 *   'toolbar'  one row of them above all the classes, acting on the class the
+	 *              active note is about
+	 *
+	 * The toolbar is one row instead of one per class, so the top line is left to
+	 * say what the class *is* — its symbol, its name, its rating, its badges —
+	 * rather than what can be done to it. The cost is that it only ever acts on
+	 * the highlighted class: with nothing highlighted there is nothing to act on,
+	 * and the row says so instead of offering buttons that would have no subject.
+	 *
+	 * Two things move with it, because they are the same question. The note icon
+	 * goes, and the class **name** opens the note instead — the toolbar is where
+	 * the file buttons live now, and one of them opening the note you are already
+	 * looking at the row of would be the odd one out. And the three-dot menu goes
+	 * to the far right of the card, into the space the icons left.
+	 */
+	classActions: 'card',
+
+	/*
+	 * What the base button does when several classes are selected at once — his
+	 * `Moving options for classes.md`, under *The future of this idea*.
+	 *
+	 *   'static'   the button greys out. Two bases cannot be opened at once, and
+	 *              this is the answer that writes nothing.
+	 *   'dynamic'  one base, `<Bases>/Dynamic Base.base`, is rewritten to show the
+	 *              instances of whichever classes are selected, and opened.
+	 *
+	 * Static by default because the other one writes a file. The dynamic base is
+	 * the single exception to *nothing is written until an Update plan is
+	 * confirmed*: it exists only to be regenerated, holds nothing that is not
+	 * derived from the selection, and is refused outright if a file of that name
+	 * turns up that this plugin did not create.
+	 */
+	multiClassBase: 'static',
+
+	/*
+	 * Whether opening a note resets the selection to that note's own classes, his
+	 * ask 2026-08-27 — on by default.
+	 *
+	 * Off is what `Moving options for classes.md` first described: the set is kept
+	 * when the panel hands itself back to active-note tracking, so the mode button
+	 * returns you to exactly what you had picked. On, the selection instead
+	 * follows you — whichever note you open becomes the selection, so switching to
+	 * it always starts from where you are standing and ctrl-click extends outward
+	 * from there.
+	 *
+	 * The trigger is the same one either way: the **active file changing**. It is
+	 * not a click on the note you already have open, because clicking a dot in the
+	 * sidebar makes that leaf active and a click-anywhere trigger would undo the
+	 * very click that selected.
+	 */
+	resetSelectionOnNote: true,
+
+	/*
+	 * Whether unselecting every class is a state the panel will sit in, his ask
+	 * 2026-08-27 — on by default.
+	 *
+	 * On: emptying the selection, with the × or by ctrl-clicking the last one off,
+	 * leaves **nothing** highlighted, and it stays that way until he clicks back
+	 * into a note. *"It should only be selected if the user clicks on it again."*
+	 * The last selected class is not special — it can be unselected like any
+	 * other, which is his N.B.
+	 *
+	 * Off: the panel hands itself straight back to the active note the moment the
+	 * set is empty, so something is always highlighted while the note he is
+	 * reading is about a class. That was the only behaviour until now, on the
+	 * grounds that nothing selected is not a state worth being in — which is true
+	 * of a state you land in by accident and false of one you asked for.
+	 */
+	emptySelectionStands: true,
+
+	/*
 	 * Whether the wire to a second parent is dashed. Dashed says which of a
 	 * class's two parents the rows are ordered by; solid says the two parentages
 	 * are the same kind of thing, which they are — `type of` is `type of`, and
@@ -218,6 +294,52 @@ const DEFAULT_SETTINGS = {
 	 * and the new one arriving empty beside it.
 	 */
 	pendingPropertyRenames: [],
+	/*
+	 * Values he has renamed, waiting to be carried through to every note that
+	 * holds one: `[{ characteristic, from, to }]`.
+	 *
+	 * The same shape as the renames above and kept for the same reason — the work
+	 * outlives the session. One level down, though: the **key stays** and what is
+	 * written under it moves, scoped to the one characteristic. That scope is the
+	 * whole difference between this and a search and replace — renaming
+	 * `status: implemented` must not touch `category: implemented`, and must not
+	 * touch the word `implemented` in a sentence.
+	 */
+	pendingValueRenames: [],
+	/*
+	 * Right-click a property's value in a note to rename it there.
+	 *
+	 * On, because the note is where you notice a value needs renaming and the
+	 * panel is a detour from it. A switch rather than always-on because it does
+	 * take over a right-click Electron would otherwise answer, and taking over
+	 * one of the app's own gestures is a real choice, not an implementation
+	 * detail. The key half of the row is never touched either way.
+	 */
+	renameValueFromProperties: true,
+
+	/*
+	 * Whether a property's value field offers what its characteristic permits,
+	 * rather than what the vault happens to hold already. On, because a
+	 * characteristic that has said what its values are has answered the question
+	 * the field is asking. See registerValueSuggestions.
+	 */
+	suggestPossibleValues: true,
+
+	/*
+	 * And whether a characteristic naming a *class* offers that class's
+	 * instances as well. **Off**, and his call (2026-08-30) — it was on for a few
+	 * hours, and on his own vault `∘ project.md` naming `[[Project]]` filled the
+	 * field with 84 notes where the vault holds 8 values under `project`. The
+	 * eight were all there and all buried, which for a list you pick from is the
+	 * same thing.
+	 *
+	 * It is a separate switch rather than part of the one above because it is a
+	 * separate question. The one above asks whether a *listed* value beats what
+	 * the vault happens to hold; this asks whether a *type* should be enumerated
+	 * at all, and the answer differs by how many instances a class has — which is
+	 * something only he can weigh, class by class and vault by vault.
+	 */
+	suggestClassInstances: false,
 	/* Whether the panel follows whatever note is open. */
 	followActiveNote: true,
 	/*
@@ -288,6 +410,29 @@ const DEFAULT_SETTINGS = {
 	 * actually carries, inherited included; 'own' is only what the class adds.
 	 */
 	baseColumns: 'all',
+
+	/*
+	 * The **Class base** button in Obsidian's own base toolbar, on a base this
+	 * plugin generated: what a class base is, the *exact matches only* switch,
+	 * and the reset.
+	 *
+	 * On, because it is the feature. A switch rather than always-on for the same
+	 * reason the value rename has one: this puts a control of ours inside one of
+	 * the app's own toolbars, and adding to someone else's UI is a real choice
+	 * rather than an implementation detail.
+	 */
+	classBaseToolbar: true,
+
+	/*
+	 * A third sort direction in any base: the order a characteristic note lists
+	 * its values in, beside A → Z and Z → A.
+	 *
+	 * On, because it is the feature. A switch for the same reason the Class base
+	 * button has one — it adds an entry to two of Obsidian's own menus, and it
+	 * changes how a base sorts — and because turning it off has to leave every
+	 * base still working, which it does: the file says `direction: ASC`, so a base
+	 * in declared order falls back to A → Z rather than losing its sort.
+	 */
 
 	/*
 	 * How the properties of a note are laid out.
@@ -377,17 +522,15 @@ const DEFAULT_SETTINGS = {
 
 
 	/*
-	 * What a strict default does to a value that is not empty but is not the
-	 * strict one either.
+	 * *Strict defaults also override differing values* was here until 2026-08-30.
+	 * It answered, once for the whole vault, what a strict default should do to a
+	 * value that is neither empty nor the strict one — fill only, or replace.
 	 *
-	 * Off: the blank ones are filled and a disagreeing value is *reported*, which
-	 * is the rule everywhere else in this plugin — a value you typed is yours, and
-	 * the plugin's job is to say it does not fit rather than to choose another.
-	 * On: it is overwritten, which is what "strict" can also reasonably mean.
-	 *
-	 * His call that this is a setting rather than a decision (`Default values.md`).
+	 * His five columns answer it per row instead: **None replacement** fills an
+	 * empty value and nothing else, **Value must be** replaces anything that is
+	 * not it. A switch that says what a column says is the duplication this plugin
+	 * spent the day removing, so it went with the column it qualified.
 	 */
-	strictOverridesValues: false,
 
 	/*
 	 * Every characteristic note carries the defaults table.
@@ -580,6 +723,91 @@ function isWikiLink(entry) {
 }
 
 /*
+ * One entry of a property with `from` replaced by `to`, or null when this entry
+ * is not the one being renamed — so a list keeps every neighbour exactly as
+ * written, and a property holding something else is left alone entirely.
+ *
+ * The comparison is case-insensitive, which is what `possible values` already
+ * admits: a note saying `Implemented` holds the same value as one saying
+ * `implemented`, and leaving it behind would be the surprise. A rename that only
+ * changes case is therefore a real rename, and works.
+ *
+ * **A wikilink never matches a bare word.** `[[implemented]]` names a note, and
+ * renaming a note is Obsidian's job — it rewrites every link that points at it,
+ * which is exactly the thing this pass cannot do.
+ */
+function renamesTo(entry, from, to) {
+	if (typeof entry !== 'string') return null;
+	const text = entry.trim();
+	if (!text || isWikiLink(text)) return null;
+	if (text.toLowerCase() !== String(from).trim().toLowerCase()) return null;
+	return to;
+}
+
+/* The whole value, scalar or list, or null when nothing in it was that value. */
+function renameWithin(value, from, to) {
+	if (Array.isArray(value)) {
+		let changed = false;
+		const next = value.map((entry) => {
+			const renamed = renamesTo(entry, from, to);
+			if (renamed === null) return entry;
+			changed = true;
+			return renamed;
+		});
+		return changed ? next : null;
+	}
+	return renamesTo(value, from, to);
+}
+
+/* One rename, named — the characteristic is half of its identity. */
+function valueRenameKey(characteristic, value) {
+	return String(characteristic) + '::' + String(value).trim().toLowerCase();
+}
+
+/*
+ * The word as a whole word, anywhere in a body or a base file.
+ *
+ * Deliberately only a *report*: this is the fuzzy half of a search and replace,
+ * and the reason the rename itself never uses it. A base filter is an expression
+ * and a sentence is prose; both are named so nothing breaks quietly, and neither
+ * is rewritten.
+ */
+function mentionsWord(text, word) {
+	const clean = String(word).trim();
+	if (!clean) return false;
+	const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return new RegExp('(^|[^\\w-])' + escaped + '($|[^\\w-])', 'i').test(String(text));
+}
+
+/* A note's body, without the frontmatter block the plugin reads separately. */
+function withoutFrontmatter(text) {
+	const match = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(String(text));
+	return match ? String(text).slice(match[0].length) : String(text);
+}
+
+/*
+ * One cell of one table row rewritten, and only when it holds exactly the word
+ * being renamed. Padding on either side is kept, so a table he has aligned by
+ * hand stays aligned, and a `|` inside a cell is left escaped — the split only
+ * cuts at the pipes that are really separators.
+ */
+function rewriteTableCell(line, index, from, to) {
+	const parts = String(line).split(/(?<!\\)\|/);
+	/* A leading `|` gives an empty first part, so the cells start one along. */
+	const at = index + (/^\s*\|/.test(line) ? 1 : 0);
+	if (at >= parts.length) return null;
+
+	const cell = parts[at];
+	if (cell.replace(/\\\|/g, '|').trim().toLowerCase()
+		!== String(from).trim().toLowerCase()) return null;
+
+	parts[at] = cell.match(/^\s*/)[0]
+		+ String(to).replace(/\|/g, '\\|')
+		+ cell.match(/\s*$/)[0];
+	return parts.join('|');
+}
+
+/*
  * An interval bound: a number, or an unbounded side written as nothing at all,
  * `inf`, or `∞`. Returns null for anything that is not one, so the caller knows
  * the entry is not an interval after all.
@@ -660,27 +888,179 @@ function sameNameList(a, b) {
 /* ----- class symbols ----------------------------------------------------- */
 
 /*
- * The symbols offered in the panel's picker. Typographic marks rather than
- * emoji, because that is the ask — and because they sit on the text baseline at
- * the weight of the surrounding UI instead of dropping a coloured sticker into
- * it. His own vault already works this way: `•` before a name, `‣` before a
- * word, `∘` before a characteristic.
+ * The symbols offered in the panel's picker. Characters rather than emoji,
+ * because that is the ask — and because they sit on the text baseline at the
+ * weight of the surrounding UI instead of dropping a coloured sticker into it.
+ * His own vault already works this way: `•` before a name, `‣` before a word,
+ * `∘` before a characteristic.
  *
- * Grouped by shape so a set of classes can be told apart at a glance without
- * reading them: filled, outlined, pointed, round, marks.
+ * **Grouped and searchable, with a word list per glyph** (2026-08-30, his ask
+ * for kanji and for a caret). It was a flat, unsearchable array of sixty while
+ * sixty was a screenful; it is not any more, and an unsearchable grid of a
+ * hundred and sixty is the alphabetical-icons problem in miniature — the one you
+ * would have picked is three screens from the one you thought of. The words are
+ * also what the hover says, which matters most for the kanji: a grid of
+ * ideographs with no gloss is a grid you cannot read.
+ *
+ * **Every glyph the flat array held is still here**, redistributed. Dropping one
+ * would strand a class already marked with it — the picker decides which tab to
+ * open on by asking whether the current symbol is in this list, so a missing
+ * glyph would send a typographic mark to the emoji tab.
  */
-const SYMBOL_PALETTE = [
-	'●', '■', '◆', '▲', '▼', '★',
-	'○', '□', '◇', '△', '▽', '☆',
-	'◈', '◉', '◎', '⬡', '⬢', '⟡',
-	'✦', '✧', '✱', '✳', '❖', '✚',
-	'•', '‣', '∘', '◦', '»', '§',
-	'✎', '✂', '⚑', '⚙', '☗', '♦',
-	'◐', '◑', '◒', '◓', '⊕', '⊗',
-	'↑', '↓', '→', '←', '↻', '∞',
-	'⌘', '⌂', '⏻', '⏱', '⌗', '⌾',
-	'♠', '♣', '♥', '♪', '♯', '†',
+const SYMBOL_GROUPS = [
+	['Shapes', [
+		['●', 'circle filled dot round'], ['■', 'square filled box'],
+		['◆', 'diamond filled'], ['▲', 'triangle up filled point'],
+		['▼', 'triangle down filled point'], ['★', 'star filled'],
+		['○', 'circle outline ring round'], ['□', 'square outline box'],
+		['◇', 'diamond outline'], ['△', 'triangle up outline'],
+		['▽', 'triangle down outline'], ['☆', 'star outline'],
+		['◈', 'diamond nested inside'], ['◉', 'circle fisheye target dot'],
+		['◎', 'circle bullseye ring double'], ['⬡', 'hexagon outline'],
+		['⬢', 'hexagon filled'], ['⟡', 'diamond white lozenge'],
+		['◐', 'half circle left'], ['◑', 'half circle right'],
+		['◒', 'half circle bottom'], ['◓', 'half circle top'],
+		['⊕', 'circle plus add oplus'], ['⊗', 'circle cross times otimes'],
+	]],
+	['Marks', [
+		['•', 'bullet dot point'], ['‣', 'triangular bullet word'],
+		['∘', 'ring operator characteristic small circle'],
+		['◦', 'white bullet hollow dot'], ['»', 'guillemet quote next arrow'],
+		['§', 'section paragraph clause'], ['¶', 'pilcrow paragraph'],
+		['✦', 'star four pointed filled sparkle'],
+		['✧', 'star four pointed outline sparkle'],
+		['✱', 'asterisk heavy note'], ['✳', 'asterisk eight spoked note'],
+		['❖', 'diamond ornament floral'], ['✚', 'plus heavy cross add'],
+		['†', 'dagger obelisk footnote'], ['‡', 'double dagger footnote'],
+		['※', 'reference mark kome note'], ['‽', 'interrobang surprise question'],
+		['⁂', 'asterism three stars break'],
+	]],
+	['Cursors', [
+		/*
+		 * The caret, both of the things that word means: the proofreader's mark
+		 * that says *insert here*, and the bar the app blinks at you while you
+		 * type. He asked for the second by describing it — "the thing that
+		 * appears on screen to indicate the editing place" — so both readings
+		 * carry the same words, and either spelling of it finds the row.
+		 */
+		['‸', 'caret carrot insert insertion mark editing point'],
+		['⁁', 'caret carrot insertion point insert editing'],
+		['^', 'caret carrot circumflex hat up editing point'],
+		['⌃', 'caret carrot arrowhead up control editing'],
+		['▏', 'cursor caret carrot bar text editing point line'],
+		['▎', 'cursor caret carrot bar thick text editing'],
+		['▌', 'cursor caret carrot block half text editing'],
+		['▮', 'cursor caret carrot block filled text editing'],
+		['❘', 'cursor caret carrot bar vertical light editing'],
+		['⌶', 'cursor i-beam pointer mouse text editing'],
+		['⎀', 'cursor insertion insert caret carrot editing point'],
+	]],
+	['Arrows', [
+		['↑', 'up arrow north rise'], ['↓', 'down arrow south fall'],
+		['→', 'right arrow next forward east'],
+		['←', 'left arrow back previous west'],
+		['↗', 'up right arrow growth increase'],
+		['↘', 'down right arrow decrease'],
+		['↻', 'refresh cycle clockwise repeat loop'],
+		['↺', 'undo cycle anticlockwise repeat loop'],
+		['⇄', 'swap exchange both ways sync'],
+		['⇅', 'sort up down both ways'],
+		['↳', 'child branch nested under sub'],
+		['∞', 'infinity endless forever loop'],
+	]],
+	['Things', [
+		['✎', 'pencil write edit draft'], ['✂', 'scissors cut trim'],
+		['⚑', 'flag mark pin milestone'], ['⚙', 'gear cog settings machine'],
+		['☗', 'shogi piece game house'], ['♦', 'diamond suit card'],
+		['⌘', 'command key place of interest loop'],
+		['⌂', 'house home root'], ['⏻', 'power on off toggle'],
+		['⏱', 'stopwatch timer duration'], ['⌗', 'hash number sharp tag'],
+		['⌾', 'circle position target place'],
+		['♠', 'spade suit card'], ['♣', 'club suit card'],
+		['♥', 'heart suit card love'], ['♪', 'music note sound song'],
+		['♯', 'sharp music raise'], ['⚗', 'alembic chemistry experiment'],
+		['⚖', 'scales balance justice weigh'],
+		['⌬', 'benzene ring hexagon chemistry'],
+	]],
+	/*
+	 * Kanji (2026-08-30, his ask). They belong in this tab rather than the emoji
+	 * one for the reason that tab exists at all: an ideograph is one character
+	 * drawn in the text colour at the text weight, which is what a class mark is
+	 * here — it is a *word*, not a sticker. They are also the densest marks
+	 * available: 森 says forest in one square.
+	 *
+	 * Four groups by meaning rather than by stroke count or reading, because the
+	 * question in front of the picker is "what is this class about", never "how
+	 * many strokes". Each carries its English gloss and its romaji, so the row is
+	 * reachable whether he thinks `mori` or `forest`.
+	 */
+	['Kanji · nature', [
+		['日', 'sun day light nichi hi'], ['月', 'moon month tsuki getsu'],
+		['星', 'star hoshi sei'], ['空', 'sky empty air sora kuu'],
+		['天', 'heaven sky ten'], ['山', 'mountain yama san'],
+		['川', 'river stream kawa sen'], ['海', 'sea ocean umi kai'],
+		['木', 'tree wood ki moku'], ['林', 'woods grove hayashi'],
+		['森', 'forest mori'], ['花', 'flower blossom hana ka'],
+		['草', 'grass plant herb kusa'], ['石', 'stone rock ishi seki'],
+		['土', 'earth soil ground tsuchi do'], ['田', 'field rice paddy ta den'],
+		['雨', 'rain ame u'], ['雪', 'snow yuki setsu'],
+		['風', 'wind air style kaze fuu'], ['雲', 'cloud kumo un'],
+		['火', 'fire flame hi ka'], ['水', 'water mizu sui'],
+		['金', 'gold metal money kane kin'], ['夜', 'night evening yoru ya'],
+	]],
+	['Kanji · people', [
+		['人', 'person people human hito jin'], ['私', 'i me self private watashi'],
+		['友', 'friend companion tomo yuu'], ['家', 'house home family ie ka'],
+		['子', 'child kid ko shi'], ['女', 'woman female onna jo'],
+		['男', 'man male otoko dan'], ['王', 'king royal ruler ou'],
+		['名', 'name title na mei'], ['心', 'heart mind spirit kokoro shin'],
+		['体', 'body form karada tai'], ['目', 'eye see look me moku'],
+		['口', 'mouth opening kuchi kou'], ['手', 'hand te shu'],
+		['足', 'foot leg enough ashi soku'], ['声', 'voice sound koe sei'],
+		['命', 'life command fate inochi mei'], ['神', 'god spirit divine kami shin'],
+	]],
+	['Kanji · mind', [
+		['気', 'spirit energy air mood ki'], ['道', 'way path road michi dou'],
+		['光', 'light shine ray hikari kou'], ['影', 'shadow shade silhouette kage'],
+		['夢', 'dream vision yume mu'], ['愛', 'love affection ai'],
+		['和', 'harmony peace japanese wa'], ['真', 'truth true real shin ma'],
+		['美', 'beauty beautiful art bi utsukushii'],
+		['力', 'power strength force chikara ryoku'],
+		['死', 'death die end shi'], ['生', 'life birth raw live sei nama'],
+		['時', 'time hour when toki ji'], ['間', 'interval space between gap ma kan'],
+		['音', 'sound noise tone oto on'], ['色', 'colour color tint iro shiki'],
+		['数', 'number count figure kazu suu'],
+		['理', 'reason logic principle ri kotowari'],
+	]],
+	['Kanji · doing', [
+		['書', 'write book document kaku sho'], ['読', 'read reading yomu doku'],
+		['見', 'see look view miru ken'], ['聞', 'hear listen ask kiku bun'],
+		['言', 'say word speak iu gen'],
+		['語', 'language word talk story go kataru'],
+		['文', 'text writing sentence letter bun'],
+		['字', 'character letter glyph ji'], ['本', 'book origin main root hon'],
+		['絵', 'picture painting drawing e kai'],
+		['画', 'image stroke draw plan ga kaku'],
+		['学', 'study learn school gaku manabu'],
+		['知', 'know knowledge wisdom chi shiru'],
+		['思', 'think thought feel omou shi'],
+		['作', 'make create build saku tsukuru'],
+		['新', 'new fresh atarashii shin'], ['古', 'old ancient furui ko'],
+		['大', 'big large great dai ou'], ['小', 'small little shou chiisai'],
+		['中', 'middle inside centre naka chuu'],
+		['上', 'up above top over ue jou'], ['下', 'down below under shita ka'],
+		['始', 'begin start open hajime shi'],
+		['終', 'end finish close owari shuu'],
+	]],
 ];
+
+/*
+ * The flat list, derived. It answers one question — is this stored symbol one of
+ * ours, or an emoji — and deriving it is what keeps that answer true as groups
+ * are added.
+ */
+const SYMBOL_PALETTE = SYMBOL_GROUPS.reduce(
+	(all, [, entries]) => all.concat(entries.map(([glyph]) => glyph)), []);
 
 /*
  * The emoji tab. A broad set rather than every emoji there is: the full list is
@@ -1155,25 +1535,80 @@ function normaliseSymbol(value) {
 
 /*
  * A characteristic note carries a table saying what its value should be, and
- * where:
+ * where. His columns, 2026-08-30:
  *
- *   | Default location | Default value | Strict default value |
- *   | ---------------- | ------------- | -------------------- |
- *   | All notes        |               |                      |
- *   | [[Visual Artist]] |              | visual               |
+ *   | Location  | Starting value | None replacement | Value must contain | Value must be |
+ *   | --------- | -------------- | ---------------- | ------------------ | ------------- |
+ *   | All notes |                |                  |                    |               |
  *
  * The table lives in the **body**, which is the one part of a note this plugin
- * has always refused to write. It still refuses to *rewrite* one: the table is
- * an input, hand-edited the way `property type` and `possible values` are, and
- * the only thing ever written is a whole new table appended to a note that has
- * none — which cannot destroy anything.
+ * has always refused to write. It still refuses to *rewrite* one, with the
+ * narrow exceptions each named where they are written: the table is an input,
+ * hand-edited the way `property type` and `possible values` above it are.
  *
- * Two columns rather than one because they mean different things. The default is
- * what a note is *created* with and is then yours; the strict default is
- * enforced for ever, and an empty value is never accepted while one stands.
+ * **Four value columns, because they are four different claims** — and only the
+ * first is about creation:
+ *
+ *   Starting value       what a note is *created* with. From then on the value
+ *                        is the note's own and nothing here touches it again.
+ *   None replacement     an empty value is replaced with this, retroactively and
+ *                        for ever. A value that is *there* is never touched.
+ *   Value must contain   the value must include this. On a list the entry is
+ *                        added if it is missing and everything else is kept; on
+ *                        a single value there is no way to add without
+ *                        replacing, so a note that does not contain it is
+ *                        reported instead.
+ *   Value must be        the value must be this. Anything else, empty included,
+ *                        is replaced.
+ *
+ * The last two replaced one *Strict default value* column, which meant "fill an
+ * empty one" and — behind a setting — "and overwrite one that differs". **That
+ * setting is gone with it**: which of the two a row means is now written in the
+ * row, which is strictly more expressive than one switch over the whole vault,
+ * and a switch that says what a column says is the duplication this plugin has
+ * spent the day removing.
+ *
+ * **The table is the only place a default is written.** `default value:` in the
+ * frontmatter said the same thing the *All notes* row says, and having both was
+ * two spellings of one claim — so it is the frontmatter key that goes, on his
+ * call, 2026-08-30. See `retire-default-value`, which moves a value it still
+ * holds into this row and then takes the key out.
+ *
+ * (I had it the other way round earlier the same day, and removing the row was
+ * wrong: it is the row that can also say *for this class*, so the table is the
+ * structure that subsumes the other and not the reverse.)
  */
 const ALL_NOTES_ROW = 'All notes';
-const DEFAULTS_COLUMNS = ['Default location', 'Default value', 'Strict default value'];
+
+/*
+ * The columns, in order. `key` is what the code calls the field; `names` are
+ * every heading that has ever meant it, lowercased — the first is what is
+ * written, the rest are recognised for ever, for the reason `RENAME_MARKS`
+ * exists: a table already on disk must be readable, or its values quietly stop
+ * meaning anything. `upgrade-defaults-table` is what brings an old one forward.
+ */
+const DEFAULTS_FIELDS = [
+	{ key: 'location', names: ['location', 'default location'] },
+	{ key: 'starting', names: ['starting value', 'default value'] },
+	{ key: 'none', names: ['none replacement', 'strict default value'] },
+	{ key: 'contains', names: ['value must contain'] },
+	{ key: 'must', names: ['value must be'] },
+];
+
+/* The headings as written. */
+const DEFAULTS_COLUMNS = DEFAULTS_FIELDS.map((field) => field.names[0]
+	.replace(/^./, (c) => c.toUpperCase()));
+
+/*
+ * What each column is padded to. The heading, except that the first is widened
+ * to fit *All notes* — it is in every table, and a location cell wider than its
+ * own heading is the one thing that makes the pipes visibly fail to line up.
+ */
+const DEFAULTS_WIDTHS = DEFAULTS_COLUMNS.map((column, index) =>
+	Math.max(column.length, index === 0 ? ALL_NOTES_ROW.length : 0));
+
+/* The four that hold a value — everything except the location. */
+const DEFAULTS_VALUE_KEYS = DEFAULTS_FIELDS.slice(1).map((field) => field.key);
 
 /*
  * Cells, from one `| a | b | c |` line. Splitting on a bare pipe would cut a
@@ -1192,55 +1627,130 @@ function isTableRule(line) {
 	return cells.length > 0 && cells.every((cell) => /^:?-{1,}:?$/.test(cell));
 }
 
+/* A heading, stripped of the emphasis he may have put round it. */
+function headingWord(cell) {
+	return String(cell === undefined || cell === null ? '' : cell)
+		.replace(/[*_`]/g, '').trim().toLowerCase();
+}
+
 /*
- * A header is recognised by its first cell, not by all three: the other two are
- * captions he may reword, and a table that says *Default location* is not about
- * anything else. Bold, italics and code around the words are ignored.
+ * Which column is which, for one header line — `{ location: 0, starting: 1, … }`,
+ * or **null** when the line is not a defaults header at all. Missing columns are
+ * simply absent from the map, so a three-column table written before today reads
+ * correctly and its two missing claims are empty rather than wrong.
+ *
+ * **`Location` alone is not enough evidence, and that is why this is a map rather
+ * than a test on the first cell.** The old heading, *Default location*, could
+ * only ever have meant this table. `Location` is an ordinary word — he has a
+ * `location` characteristic — so a table headed with it is ours only if a second
+ * column is one of ours too.
  */
+function defaultsColumnMap(cells) {
+	if (!Array.isArray(cells) || cells.length < 2) return null;
+
+	const map = {};
+	for (let i = 0; i < cells.length; i++) {
+		const word = headingWord(cells[i]);
+		for (const field of DEFAULTS_FIELDS) {
+			if (map[field.key] !== undefined) continue;
+			if (field.names.indexOf(word) === -1) continue;
+			map[field.key] = i;
+			break;
+		}
+	}
+
+	if (map.location === undefined) return null;
+	if (headingWord(cells[map.location]) === 'default location') return map;
+	return DEFAULTS_VALUE_KEYS.some((key) => map[key] !== undefined) ? map : null;
+}
+
+/* Whether a header line is a defaults header. */
 function looksLikeDefaultsHeader(cells) {
-	if (cells.length < 2) return false;
-	const first = String(cells[0]).replace(/[*_`]/g, '').trim().toLowerCase();
-	return first === 'default location';
+	return defaultsColumnMap(cells) !== null;
+}
+
+/* The words *All notes*, whatever emphasis has been put around them. */
+function isAllNotesLocation(text) {
+	return headingWord(text) === ALL_NOTES_ROW.toLowerCase();
+}
+
+/* One row's cells, read through its own table's column map. */
+function defaultsRowFrom(cells, map, line, raw) {
+	const at = (key) => (map[key] === undefined ? '' : String(cells[map[key]] || '').trim());
+	const location = at('location');
+	if (!location) return null;
+
+	const row = {
+		/* Kept as written: `[[Visual Artist]]`, or the words *All notes*. */
+		location: location,
+		isAll: isAllNotesLocation(location),
+		line: line,
+		/* The line as written, so a cell can be rewritten without re-reading. */
+		raw: raw,
+		/* Its table's map, so a cell can be found by name rather than by number. */
+		columns: map,
+	};
+	for (const key of DEFAULTS_VALUE_KEYS) row[key] = at(key);
+	return row;
+}
+
+/* Whether a row makes any claim at all. */
+function defaultsRowSpeaks(row) {
+	return DEFAULTS_VALUE_KEYS.some((key) => !isEmptyValue(row[key]));
 }
 
 /*
  * Every defaults row in a note body, in the order written. Rows with nothing in
- * either value column are kept out: the empty *All notes* row the table is
- * seeded with says nothing, and reading it as "the default is blank" would make
+ * any value column are kept out: the empty *All notes* row the table is seeded
+ * with says nothing, and reading it as "the value should be blank" would make
  * seeding a note change what it means.
  */
 function parseDefaultsTable(text) {
 	const lines = String(text || '').split('\n');
 	const rows = [];
-	let inTable = false;
+	let map = null;
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
-		if (line.indexOf('|') === -1) { inTable = false; continue; }
+		if (line.indexOf('|') === -1) { map = null; continue; }
 
 		const cells = tableCells(line);
-		if (looksLikeDefaultsHeader(cells)) { inTable = true; continue; }
-		if (!inTable) continue;
-		if (isTableRule(line)) continue;
+		const header = defaultsColumnMap(cells);
+		if (header) { map = header; continue; }
+		if (!map || isTableRule(line)) continue;
 
-		const location = String(cells[0] || '').trim();
-		const value = String(cells[1] || '').trim();
-		const strict = String(cells[2] || '').trim();
-		if (!location) continue;
-		if (!value && !strict) continue;
-
-		rows.push({
-			/* Kept as written: `[[Visual Artist]]`, or the words *All notes*. */
-			location: location,
-			isAll: location.replace(/[*_`]/g, '').trim().toLowerCase()
-				=== ALL_NOTES_ROW.toLowerCase(),
-			value: value,
-			strict: strict,
-			line: i + 1,
-		});
+		const row = defaultsRowFrom(cells, map, i + 1, line);
+		if (row && defaultsRowSpeaks(row)) rows.push(row);
 	}
 
 	return rows;
+}
+
+/*
+ * Every *All notes* row in a body, **empty ones included** — which is why this is
+ * a second walk rather than a filter over `parseDefaultsTable`, whose whole job
+ * is to drop rows that say nothing. The empty seeded row is exactly the one that
+ * has to be found: it is where a retired `default value:` lands.
+ */
+function findAllNotesRows(text) {
+	const lines = String(text || '').split('\n');
+	const found = [];
+	let map = null;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (line.indexOf('|') === -1) { map = null; continue; }
+
+		const cells = tableCells(line);
+		const header = defaultsColumnMap(cells);
+		if (header) { map = header; continue; }
+		if (!map || isTableRule(line)) continue;
+
+		const row = defaultsRowFrom(cells, map, i + 1, line);
+		if (row && row.isAll) found.push(row);
+	}
+
+	return found;
 }
 
 /* Whether a body already carries a defaults table, empty rows and all. */
@@ -1249,15 +1759,134 @@ function hasDefaultsTable(text) {
 		.some((line) => line.indexOf('|') !== -1 && looksLikeDefaultsHeader(tableCells(line)));
 }
 
+/*
+ * Every defaults table in a body whose columns are not the ones written today —
+ * a heading missing, or worded the way it used to be. `{ start, end, map }` per
+ * table, `start` being its header line.
+ */
+function findLegacyDefaultsTables(text) {
+	const lines = String(text || '').split('\n');
+	const found = [];
+
+	for (let i = 0; i < lines.length; i++) {
+		if (lines[i].indexOf('|') === -1) continue;
+		const map = defaultsColumnMap(tableCells(lines[i]));
+		if (!map) continue;
+
+		let end = i;
+		for (let j = i + 1; j < lines.length; j++) {
+			if (lines[j].indexOf('|') === -1) break;
+			if (defaultsColumnMap(tableCells(lines[j]))) break;
+			end = j;
+		}
+
+		const current = DEFAULTS_FIELDS.every((field, index) =>
+			map[field.key] === index)
+			&& tableCells(lines[i]).length === DEFAULTS_FIELDS.length;
+		if (!current) {
+			found.push({
+				start: i, end: end, map: map,
+				header: lines[i],
+				lines: lines.slice(i, end + 1),
+			});
+		}
+		i = end;
+	}
+
+	return found;
+}
+
+/* A table line built from cells, each padded to its column's own width. */
+function defaultsLine(values) {
+	const cells = DEFAULTS_WIDTHS.map((width, index) => {
+		const text = String(values[index] === undefined || values[index] === null
+			? '' : values[index])
+			.replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ').trim();
+		return text + ' '.repeat(Math.max(0, width - text.length));
+	});
+	return '| ' + cells.join(' | ') + ' |';
+}
+
+/* The `| --- | --- |` under the header, at the same widths. */
+function defaultsRuleLine() {
+	return '| ' + DEFAULTS_WIDTHS.map((width) => '-'.repeat(width)).join(' | ') + ' |';
+}
+
+/* The seeded *All notes* row, with a starting value in it or without. */
+function defaultsAllRowLine(value) {
+	return defaultsLine([ALL_NOTES_ROW, value]);
+}
+
 /* The empty table a new characteristic note is created with. */
 function defaultsTableBlock() {
 	return [
-		'| ' + DEFAULTS_COLUMNS.join(' | ') + ' |',
-		'| ' + DEFAULTS_COLUMNS.map((column) => '-'.repeat(column.length)).join(' | ') + ' |',
-		'| ' + ALL_NOTES_ROW + ' '.repeat(DEFAULTS_COLUMNS[0].length - ALL_NOTES_ROW.length)
-			+ ' | ' + ' '.repeat(DEFAULTS_COLUMNS[1].length)
-			+ ' | ' + ' '.repeat(DEFAULTS_COLUMNS[2].length) + ' |',
+		defaultsLine(DEFAULTS_COLUMNS),
+		defaultsRuleLine(),
+		defaultsAllRowLine(''),
 	];
+}
+
+/*
+ * One table, rewritten with today's columns. Every value is carried across by
+ * *name*, so a column that has moved, been renamed or was never there lands in
+ * the right place or stays empty — the one thing that must not happen is a value
+ * arriving under a heading that means something else.
+ */
+function upgradeDefaultsTable(lines, map) {
+	const out = [
+		defaultsLine(DEFAULTS_COLUMNS),
+		defaultsRuleLine(),
+	];
+
+	for (let i = 1; i < lines.length; i++) {
+		if (isTableRule(lines[i])) continue;
+		const cells = tableCells(lines[i]);
+		const row = defaultsRowFrom(cells, map, 0, lines[i]);
+		if (!row) continue;
+		out.push(defaultsLine([row.location].concat(
+			DEFAULTS_VALUE_KEYS.map((key) => row[key]))));
+	}
+
+	return out;
+}
+
+/*
+ * One cell of a table line, replaced. Unlike `rewriteTableCell` this does not
+ * care what the cell held — it is used to fill the empty one a seeded row
+ * carries — so the padding is rebuilt rather than preserved: a cell of nothing
+ * but spaces has no "before" and "after" to keep, and both halves of the regexes
+ * would match all of it. The column keeps its width where the value fits, so a
+ * hand-aligned table stays aligned.
+ */
+function setTableCell(line, index, value) {
+	const parts = String(line).split(/(?<!\\)\|/);
+	const at = index + (/^\s*\|/.test(line) ? 1 : 0);
+	if (at >= parts.length) return null;
+
+	const text = String(value === undefined || value === null ? '' : value)
+		.replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ').trim();
+	const body = ' ' + text + ' ';
+	parts[at] = body.length >= parts[at].length
+		? body
+		: body + ' '.repeat(parts[at].length - body.length);
+	return parts.join('|');
+}
+
+/*
+ * The *All notes* row as it should read once a retired `default value:` has moved
+ * into it — the existing line with its **Starting value** cell filled, or a whole
+ * new row when there is none. One function, so the confirmation diff and the
+ * write cannot describe different lines.
+ *
+ * The cell is found through the table's own column map rather than at a fixed
+ * number, because a table written before today has its starting value in a
+ * different place and this must not put it in the wrong one.
+ */
+function allNotesRowWrite(raw, value, map) {
+	if (!raw) return defaultsAllRowLine(value);
+	const at = map && map.starting !== undefined ? map.starting : 1;
+	const next = setTableCell(raw, at, value);
+	return next === null ? defaultsAllRowLine(value) : next;
 }
 
 /*
@@ -1265,33 +1894,70 @@ function defaultsTableBlock() {
  * it was made. The block is found by this line and not by matching the whole of
  * it: the format inside changes with the setting, and he may reasonably edit the
  * body around it, so the only stable thing is the mark.
+ *
+ * `RENAME_MARKS` is what is recognised; `RENAME_MARK` is what is written. They
+ * differ because the plugin was renamed: blocks written while it was called "OOF
+ * Classes" carry that wording, and a finder that knew only the current mark could
+ * not see them — so Update appended a second block instead of replacing the
+ * first, and every template written before the rename ended up carrying two.
+ * Recognising the old wording is what lets the stale copy come back out.
  */
-const RENAME_MARK = 'OOF Classes: unique file name';
+const RENAME_MARK = 'OOF Class Manager: unique file name';
+const RENAME_MARKS = [RENAME_MARK, 'OOF Classes: unique file name'];
 
-/* Where that block starts and ends in a body, or null when there is none. */
-function findRenameBlock(text) {
+/*
+ * Every block of ours in a body, in the order they appear:
+ *
+ *   { lines, blocks: [{ start, end }] }
+ *
+ * More than one is a defect rather than a shape to support — see RENAME_MARKS —
+ * and finding them all is what lets `write-rename-block` collapse them to one.
+ */
+function findRenameBlocks(text) {
 	const lines = String(text || '').split('\n');
-	const mark = lines.findIndex((line) => line.indexOf(RENAME_MARK) !== -1);
-	if (mark === -1) return null;
+	const blocks = [];
 
-	let start = mark;
-	while (start > 0 && lines[start].indexOf('<%*') === -1) start--;
-	if (lines[start].indexOf('<%*') === -1) return null;
+	for (let i = 0; i < lines.length; i++) {
+		if (!RENAME_MARKS.some((mark) => lines[i].indexOf(mark) !== -1)) continue;
 
-	let end = mark;
-	while (end < lines.length - 1 && lines[end].indexOf('%>') === -1) end++;
-	if (lines[end].indexOf('%>') === -1) return null;
+		let start = i;
+		while (start > 0 && lines[start].indexOf('<%*') === -1) start--;
+		if (lines[start].indexOf('<%*') === -1) continue;
+		/* Never back into a block already taken: that would be one block twice. */
+		if (blocks.length && start <= blocks[blocks.length - 1].end) continue;
 
-	return { start: start, end: end, lines: lines };
+		let end = i;
+		while (end < lines.length - 1 && lines[end].indexOf('%>') === -1) end++;
+		if (lines[end].indexOf('%>') === -1) continue;
+
+		blocks.push({ start: start, end: end });
+		i = end;
+	}
+
+	return { lines: lines, blocks: blocks };
 }
 
-/* The format a body's block is currently written with; '' when it carries none. */
-function renameBlockFormat(text) {
-	const found = findRenameBlock(text);
-	if (!found) return '';
-	const block = found.lines.slice(found.start, found.end + 1).join('\n');
-	const match = block.match(/tp\.date\.now\("([^"]*)"\)/);
-	return match ? match[1] : '';
+/*
+ * What a body carries: whether there is a block, how many, the format the first
+ * one names, and the real lines of each — so the confirmation diff can show what
+ * is actually in the file rather than a reconstruction of it, which is the only
+ * way two identical-looking blocks read as two.
+ */
+function renameEntry(text) {
+	const found = findRenameBlocks(text);
+	const blocks = found.blocks.map(
+		(range) => found.lines.slice(range.start, range.end + 1));
+	const match = blocks.length
+		? blocks[0].join('\n').match(/tp\.date\.now\("([^"]*)"\)/) : null;
+	return {
+		has: blocks.length > 0,
+		count: blocks.length,
+		format: match ? match[1] : '',
+		blocks: blocks,
+		/* One string that changes whenever any of them does, count included. */
+		signature: blocks.length + '\n'
+			+ blocks.map((one) => one.join('\n')).join('\n'),
+	};
 }
 
 /*
@@ -1391,6 +2057,20 @@ function sameDefaultValue(current, wanted) {
 		=== String(wanted === undefined || wanted === null ? '' : wanted).trim();
 }
 
+/* ----- the third sort direction: moved out ------------------------------
+ *
+ * Sorting by the order a characteristic note lists its values in — "As listed"
+ * beside A → Z and Z → A — was here until 2026-08-30. It is its own plugin now,
+ * `bases-declared-order`, on his reasoning: it interprets the OOF *rules* rather
+ * than anything of this plugin's, so it belongs beside it rather than inside it.
+ * It reads `possible values` off the characteristic note directly, and works with
+ * this plugin uninstalled.
+ *
+ * The `declaredOrder:` and `declaredGroupOrder:` keys on a base view are
+ * unchanged, so bases written while this feature lived here still sort correctly.
+ * Nothing in OOF Class Manager reads or writes them any more.
+ */
+
 /* ----- the Bases formula functions -------------------------------------- */
 
 /*
@@ -1446,11 +2126,6 @@ class OofClassesPlugin extends Plugin {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS);
 		/* name -> draft { characteristics: [], parents: [] }. Filled by loadSettings. */
 		this.drafts = new Map();
-		/*
-		 * Classes whose base he has asked to be regenerated. A base is created
-		 * once and then his, so overwriting one is only ever done on request.
-		 */
-		this.baseRefreshes = new Set();
 		/*
 		 * Which class cards are open. Closed is the default, so the panel is a
 		 * scannable list of classes; opening one is remembered across restarts,
@@ -1570,7 +2245,7 @@ class OofClassesPlugin extends Plugin {
 
 		this.registerView(VIEW_TYPE, (leaf) => new ClassesView(leaf, this));
 
-		this.addRibbonIcon('boxes', 'OOF Classes', () => { this.activateView(); });
+		this.addRibbonIcon('boxes', 'OOF Class Manager', () => { this.activateView(); });
 
 		this.addCommand({
 			id: 'open-classes-panel',
@@ -1583,6 +2258,16 @@ class OofClassesPlugin extends Plugin {
 		 * bound to a key. They act on the panel's state, not on the panel itself,
 		 * so they work whether or not it is open.
 		 */
+		/*
+		 * The rename, reachable without the panel. The chip's menu is the
+		 * discoverable way in; this is the one that works while reading a note.
+		 */
+		this.addCommand({
+			id: 'rename-characteristic-value',
+			name: 'Rename a value of a characteristic',
+			callback: () => { new RenameValueModal(this.app, this, {}).open(); },
+		});
+
 		this.addCommand({
 			id: 'unfold-all-classes',
 			name: 'Unfold all classes',
@@ -1632,6 +2317,39 @@ class OofClassesPlugin extends Plugin {
 		this.register(() => this.clearPropertyHeadings());
 		this.app.workspace.onLayoutReady(() => this.queuePropertyHeadings());
 
+		/* And the rename, offered where the value is written. */
+		this.registerPropertyValueMenu();
+
+		/* And what that field offers before anything is written at all. */
+		this.registerValueSuggestions();
+
+		/*
+		 * The Class base button on a generated base's own toolbar. Nothing is
+		 * written by drawing it.
+		 *
+		 * These four force a repaint because each can change which class a base
+		 * belongs to - a class renamed, created or deleted, or simply a different
+		 * file arriving in the leaf. Everything else reaches it through the
+		 * observer, which only repaints a toolbar that has actually been rebuilt.
+		 * `changed` is narrowed to the notes folder: a base can sit open for hours
+		 * while he types in a journal entry, and each of those keystrokes would
+		 * otherwise cost a walk over every class in the vault.
+		 */
+		this.baseToolbarObservers = new WeakMap();
+		this.registerEvent(this.app.workspace.on('file-open',
+			() => this.queueBaseToolbars(true)));
+		this.registerEvent(this.app.workspace.on('active-leaf-change',
+			() => this.queueBaseToolbars(true)));
+		this.registerEvent(this.app.workspace.on('layout-change',
+			() => this.queueBaseToolbars(true)));
+		this.registerEvent(this.app.metadataCache.on('changed', (file) => {
+			if (file && this.inFolder(file, this.settings.notesFolder)) {
+				this.queueBaseToolbars(true);
+			}
+		}));
+		this.register(() => this.clearBaseToolbars());
+		this.app.workspace.onLayoutReady(() => this.queueBaseToolbars(true));
+
 		/*
 		 * The defaults tables. Not awaited: the panel is useful before they arrive,
 		 * and the read invalidates the picture itself when it finds anything.
@@ -1639,6 +2357,8 @@ class OofClassesPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => {
 			this.readDefaultsTables().catch(() => {});
 			this.readTemplateRenames().catch(() => {});
+			/* Returns at once unless a value rename is waiting; see the method. */
+			this.scanValueMentions().catch(() => {});
 		});
 
 		/* And the Add property button, hidden or not, per the setting. */
@@ -1957,6 +2677,428 @@ class OofClassesPlugin extends Plugin {
 		return actions;
 	}
 
+	/* ----- renaming a value ------------------------------------------------
+	 *
+	 * The pass above moves a key. This moves what is written *under* one, on
+	 * every note that holds it and nowhere else — which is the whole difference
+	 * between it and a search and replace. `status: implemented` becoming
+	 * `status: completed` must leave `category: implemented` alone, and must
+	 * leave the word `implemented` in a sentence alone.
+	 *
+	 * Three things carry the rename, and they are one rename:
+	 *
+	 *   the notes            `status: implemented`  ->  `status: completed`
+	 *   the characteristic   the entry in `possible values`, and `default value`
+	 *   its defaults table   any cell holding the old word
+	 *
+	 * The characteristic note is not an afterthought. Leaving `possible values`
+	 * saying `implemented` would turn every note the rename just moved into a
+	 * conflict, which is the opposite of what was asked for.
+	 */
+
+	pendingValueRenames() {
+		return toArray(this.settings.pendingValueRenames).filter((entry) =>
+			entry && entry.characteristic && entry.from && entry.to
+			&& entry.from !== entry.to);
+	}
+
+	/*
+	 * Record a rename he has told us about. Nothing is written here — the same
+	 * covenant every other edit follows: it becomes a plan, he sees the count and
+	 * the diff, and Update does the writing.
+	 */
+	async recordValueRename(characteristic, from, to) {
+		const name = String(characteristic || '').trim();
+		const before = String(from || '').trim();
+		const after = String(to || '').trim();
+		if (!name || !before || !after || before === after) return;
+
+		const pending = this.pendingValueRenames();
+
+		/*
+		 * Renaming twice before an Update follows the chain rather than trying
+		 * each hop, exactly as the property renames do — by Update time only the
+		 * far end of `idea -> thought -> seed` is on the notes, so the middle hop
+		 * would find nothing and the first would find the wrong thing.
+		 */
+		const sameLine = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+		const earlier = pending.find((entry) =>
+			entry.characteristic === name && sameLine(entry.to, before));
+		if (earlier) earlier.to = after;
+		else if (!pending.some((entry) =>
+			entry.characteristic === name && sameLine(entry.from, before))) {
+			pending.push({ characteristic: name, from: before, to: after });
+		}
+
+		this.settings.pendingValueRenames = pending.filter((entry) => entry.from !== entry.to);
+		this.invalidatePicture();
+		await this.persist();
+		/* What the rename cannot reach, so it can be named rather than broken. */
+		this.scanValueMentions().catch(() => {});
+		this.refreshViews();
+	}
+
+	/* Carrying those renames into the vault. */
+	valueRenameActions(characteristics) {
+		const actions = [];
+		const pending = this.pendingValueRenames();
+		if (pending.length === 0) return actions;
+
+		/*
+		 * The notes, the classes and the templates. A template holding a default
+		 * value is renamed with everything else — it is a real value, and every
+		 * note made from it will carry it.
+		 */
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (this.inFolder(file, this.settings.characteristicsFolder)) continue;
+			if (this.inFolder(file, this.settings.basesFolder)) continue;
+			const frontmatter = this.frontmatterOf(file);
+			if (!frontmatter) continue;
+
+			const properties = [];
+			const said = [];
+			for (const entry of pending) {
+				const value = frontmatter[entry.characteristic];
+				if (value === undefined || isTemplaterExpression(value)) continue;
+				if (renameWithin(value, entry.from, entry.to) === null) continue;
+				properties.push({
+					property: entry.characteristic, from: entry.from, to: entry.to,
+				});
+				said.push('"' + entry.from + '" to "' + entry.to + '"');
+			}
+			if (properties.length === 0) continue;
+
+			actions.push({
+				kind: 'rename-value',
+				label: 'Rename ' + andList(said) + ' on "' + file.basename + '"',
+				file: file,
+				path: file.path,
+				property: properties[0].property,
+				properties: properties,
+				detail: [
+					'Under ' + andList(properties.map((p) => '"' + p.property + '"'))
+						+ ' only. The key stays, its other values stay, and nothing '
+						+ 'outside the frontmatter is read.',
+				],
+			});
+		}
+
+		/*
+		 * What the characteristic itself says is allowed. `default value` was read
+		 * here too until it was retired; a default now lives in the defaults table,
+		 * which `rename-defaults-value` below follows the value into.
+		 */
+		for (const entry of pending) {
+			const characteristic = characteristics.get(entry.characteristic);
+			if (!characteristic || !characteristic.file) continue;
+
+			const frontmatter = this.frontmatterOf(characteristic.file) || {};
+			const properties = [];
+			for (const key of ['possible values']) {
+				if (renameWithin(frontmatter[key], entry.from, entry.to) === null) continue;
+				properties.push({ property: key, from: entry.from, to: entry.to });
+			}
+
+			if (properties.length > 0) {
+				actions.push({
+					kind: 'rename-value',
+					label: 'Rename "' + entry.from + '" to "' + entry.to + '" in '
+						+ andList(properties.map((p) => p.property)) + ' on "'
+						+ characteristic.file.basename + '"',
+					file: characteristic.file,
+					path: characteristic.file.path,
+					property: entry.characteristic,
+					properties: properties,
+					detail: [
+						'What ' + entry.characteristic + ' says is allowed, moved with the '
+							+ 'notes. Left behind it would make every note this rename '
+							+ 'just touched a conflict.',
+					],
+				});
+			}
+
+			const cells = this.defaultsCellsHolding(characteristic, entry.from);
+			if (cells.length === 0) continue;
+
+			actions.push({
+				kind: 'rename-defaults-value',
+				label: 'Rename "' + entry.from + '" to "' + entry.to
+					+ '" in the defaults table of "' + characteristic.file.basename + '"',
+				file: characteristic.file,
+				path: characteristic.file.path,
+				property: entry.characteristic,
+				from: entry.from,
+				to: entry.to,
+				cells: cells,
+				detail: [
+					andList(cells.map((cell) => cell.location + ' · '
+						+ DEFAULTS_COLUMNS[cell.column])) + '.',
+					'The one time the table is written rather than read. Only cells '
+						+ 'holding exactly that word change; every other line of the note '
+						+ 'comes out byte-identical.',
+				],
+			});
+		}
+
+		return actions;
+	}
+
+	/*
+	 * Which cells of a characteristic's defaults table hold this word. All four
+	 * value columns, and the column *number* comes from that table's own map — a
+	 * table written before today has its columns somewhere else, and a rename
+	 * that rewrote cell 2 by number would put the new word in the wrong claim.
+	 */
+	defaultsCellsHolding(characteristic, word) {
+		const wanted = String(word).trim().toLowerCase();
+		const cells = [];
+		if (!characteristic) return cells;
+		for (const row of toArray(characteristic.defaults)) {
+			for (const key of DEFAULTS_VALUE_KEYS) {
+				if (row.columns[key] === undefined) continue;
+				if (String(row[key] || '').trim().toLowerCase() !== wanted) continue;
+				cells.push({ column: row.columns[key], location: row.location });
+			}
+		}
+		return cells;
+	}
+
+	/* Is there anything left for this rename to do? */
+	valueRenameOutstanding(entry, characteristics) {
+		const characteristic = characteristics.get(entry.characteristic);
+		if (characteristic && characteristic.file) {
+			const frontmatter = this.frontmatterOf(characteristic.file) || {};
+			if (renameWithin(frontmatter['possible values'], entry.from, entry.to) !== null) {
+				return true;
+			}
+			if (this.defaultsCellsHolding(characteristic, entry.from).length > 0) return true;
+		}
+
+		return this.app.vault.getMarkdownFiles().some((file) => {
+			if (this.inFolder(file, this.settings.characteristicsFolder)) return false;
+			if (this.inFolder(file, this.settings.basesFolder)) return false;
+			const frontmatter = this.frontmatterOf(file);
+			return !!frontmatter
+				&& !isTemplaterExpression(frontmatter[entry.characteristic])
+				&& renameWithin(frontmatter[entry.characteristic],
+					entry.from, entry.to) !== null;
+		});
+	}
+
+	/*
+	 * The words a characteristic actually enumerates.
+	 *
+	 * A class constraint and an interval are not enumerations — nothing in them
+	 * can be "the word it should have become" — so only the literals count when
+	 * a rename is being guessed at.
+	 */
+	literalValuesOf(characteristic, picture) {
+		return this.constraintsFor(characteristic, picture)
+			.filter((constraint) => constraint.kind === 'literal')
+			.map((constraint) => constraint.name);
+	}
+
+	/*
+	 * Values the notes hold that their characteristic no longer allows, gathered
+	 * **by value** rather than by note.
+	 *
+	 * This is the stranded-property question one level down, and it has the same
+	 * answer. Renaming a word in `possible values` strands every note still
+	 * holding the old one, and the plugin cannot know what it became — but
+	 * twenty-one notes all holding the same disallowed word is a shape, not
+	 * twenty-one separate mistakes, and it can carry the answer once he gives it.
+	 */
+	strandedValues(picture) {
+		const found = new Map();
+		/*
+		 * One characteristic's constraints are the same for every note carrying
+		 * it, and this walk asks for them once per note per key - three thousand
+		 * times over on his vault. Built once each instead.
+		 */
+		const constraintsOf = new Map();
+
+		this.walkValues(picture, (file, key, value) => {
+			const characteristic = picture.characteristics.get(key);
+			if (!characteristic) return;
+			if (isTemplaterExpression(value)) return;
+
+			if (!constraintsOf.has(key)) {
+				constraintsOf.set(key, this.constraintsFor(characteristic, picture));
+			}
+			const constraints = constraintsOf.get(key);
+			/* Only where words are enumerated: see literalValuesOf. */
+			if (!constraints.some((constraint) => constraint.kind === 'literal')) return;
+
+			for (const entry of toArray(value)) {
+				if (isEmptyValue(entry)) continue;
+				/* A link is a note, and a note is renamed by renaming it. */
+				if (isWikiLink(entry)) continue;
+				if (constraints.some((c) => this.admits(c, entry, file ? file.path : ''))) {
+					continue;
+				}
+
+				const text = String(entry).trim();
+				if (!text) continue;
+				if (!found.has(key)) found.set(key, new Map());
+				const byValue = found.get(key);
+				const id = text.toLowerCase();
+				if (!byValue.has(id)) {
+					byValue.set(id, { characteristic: key, value: text, files: [] });
+				}
+				byValue.get(id).files.push(file);
+			}
+		});
+
+		return found;
+	}
+
+	/*
+	 * Which word this stranded one most likely became: one the characteristic now
+	 * allows that no note anywhere uses.
+	 *
+	 * One such word is evidence — it was added and nothing has it yet, which is
+	 * exactly what a rename looks like from outside. Two is a guess, and the
+	 * whole point of asking is that he is the one who knows.
+	 */
+	suggestValueRenameFor(key, picture) {
+		const characteristic = picture.characteristics.get(key);
+		if (!characteristic) return null;
+
+		const allowed = this.literalValuesOf(characteristic, picture);
+		if (allowed.length === 0) return null;
+
+		const used = this.valuesInUse(key);
+		const spare = allowed.filter(
+			(word) => !used.has(String(word).trim().toLowerCase()));
+		return spare.length === 1 ? spare[0] : null;
+	}
+
+	/*
+	 * Every value written under one characteristic anywhere in the vault, with
+	 * the notes holding each. What the rename modal offers, and what tells a word
+	 * that has fallen out of use from one that never entered it.
+	 *
+	 * Walked over the files themselves rather than over the picture, and that is
+	 * load-bearing: this is the same set `valueRenameActions` writes to, so the
+	 * count the modal shows before the rename is the count of notes the rename
+	 * will change. A number gathered from anywhere else could differ from what
+	 * happens, and that number is the whole of the reassurance the modal owes.
+	 */
+	valuesInUse(key) {
+		const found = new Map();
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (this.inFolder(file, this.settings.characteristicsFolder)) continue;
+			if (this.inFolder(file, this.settings.basesFolder)) continue;
+
+			const frontmatter = this.frontmatterOf(file);
+			if (!frontmatter) continue;
+			const value = frontmatter[key];
+			if (value === undefined || isTemplaterExpression(value)) continue;
+
+			for (const entry of toArray(value)) {
+				if (isEmptyValue(entry)) continue;
+				const text = String(entry).trim();
+				if (!text) continue;
+				const id = text.toLowerCase();
+				if (!found.has(id)) {
+					found.set(id, { value: text, files: [], link: isWikiLink(entry) });
+				}
+				found.get(id).files.push(file);
+			}
+		}
+		return found;
+	}
+
+	/*
+	 * Where the old word is still written outside frontmatter: inside a base, or
+	 * in the prose of a note.
+	 *
+	 * Neither is touched. A base filter is an expression and a sentence is prose,
+	 * and replacing text inside either is the fuzzy search-and-replace this
+	 * feature exists to avoid — so they are **named** instead, and he decides.
+	 *
+	 * Read in the background and kept, because the planner is synchronous: the
+	 * same arrangement `defaultsRows` and `templateRenames` use. It runs only
+	 * while a rename is pending, so the ordinary cost of having this feature is
+	 * nothing at all.
+	 */
+	async scanValueMentions() {
+		const pending = this.pendingValueRenames();
+		if (pending.length === 0) {
+			this.valueMentions = new Map();
+			return;
+		}
+		if (this.scanningMentions) return;
+		this.scanningMentions = true;
+
+		const found = new Map();
+		for (const entry of pending) {
+			found.set(valueRenameKey(entry.characteristic, entry.from),
+				{ bases: [], notes: [] });
+		}
+
+		try {
+			for (const file of this.app.vault.getFiles()) {
+				const isBase = file.extension === 'base';
+				if (!isBase && file.extension !== 'md') continue;
+
+				let text = '';
+				try { text = await this.app.vault.cachedRead(file); } catch (error) { continue; }
+				const body = isBase ? text : withoutFrontmatter(text);
+
+				for (const entry of pending) {
+					if (!mentionsWord(body, entry.from)) continue;
+					const bucket = found.get(valueRenameKey(entry.characteristic, entry.from));
+					(isBase ? bucket.bases : bucket.notes).push({
+						file: file,
+						/*
+						 * The lines themselves, so the report can show *where* rather
+						 * than only *that*. Kept here because the panel is synchronous
+						 * and this is the one pass that has the text open. Capped:
+						 * this is a pointer to the file, not a copy of it.
+						 */
+						lines: this.mentionLines(text, body, entry.from),
+					});
+				}
+			}
+		} finally {
+			this.scanningMentions = false;
+		}
+
+		this.valueMentions = found;
+		this.refreshViews();
+	}
+
+	/*
+	 * Where in a file the word still appears: the line number as the file counts
+	 * them, and the line. Only the body is searched — a value in frontmatter is
+	 * renamed like any other and is not a mention at all — so the offset of the
+	 * body within the file is added back, or every number would be wrong by the
+	 * length of the properties.
+	 */
+	mentionLines(text, body, word) {
+		const offset = String(text).slice(0, String(text).length - String(body).length)
+			.split('\n').length - 1;
+
+		const found = [];
+		const lines = String(body).split('\n');
+		for (let i = 0; i < lines.length && found.length < 6; i += 1) {
+			if (!mentionsWord(lines[i], word)) continue;
+			const shown = lines[i].trim();
+			found.push({
+				number: offset + i + 1,
+				text: shown.length > 160 ? shown.slice(0, 157) + '…' : shown,
+			});
+		}
+		return found;
+	}
+
+	valueMentionsFor(entry) {
+		const found = this.valueMentions
+			&& this.valueMentions.get(valueRenameKey(entry.characteristic, entry.from));
+		return found || { bases: [], notes: [] };
+	}
+
 	/*
 	 * A name that is a characteristic's file name rather than a class's.
 	 *
@@ -2027,11 +3169,16 @@ class OofClassesPlugin extends Plugin {
 		const entry = {
 			rows: parseDefaultsTable(text),
 			hasTable: hasDefaultsTable(text),
+			allRows: findAllNotesRows(text),
+			/* Tables whose columns are not the ones written today. */
+			legacy: findLegacyDefaultsTables(text),
 		};
 		const before = this.defaultsRows.get(file.path);
 		const same = before
 			&& before.hasTable === entry.hasTable
-			&& JSON.stringify(before.rows) === JSON.stringify(entry.rows);
+			&& JSON.stringify(before.rows) === JSON.stringify(entry.rows)
+			&& JSON.stringify(before.allRows) === JSON.stringify(entry.allRows)
+			&& JSON.stringify(before.legacy) === JSON.stringify(entry.legacy);
 		if (same) return false;
 
 		this.defaultsRows.set(file.path, entry);
@@ -2077,12 +3224,14 @@ class OofClassesPlugin extends Plugin {
 	rememberRenameBlock(file, text, quiet) {
 		if (!this.isTemplateFile(file)) return false;
 
-		const entry = {
-			has: !!findRenameBlock(text),
-			format: renameBlockFormat(text),
-		};
+		const entry = renameEntry(text);
 		const before = this.templateRenames.get(file.path);
-		if (before && before.has === entry.has && before.format === entry.format) return false;
+		/*
+		 * The whole of what was read, and not just `has` and the format: two blocks
+		 * carry one format between them, so a comparison looking only at the format
+		 * cannot tell one from two and the repair would never be planned.
+		 */
+		if (before && before.signature === entry.signature) return false;
 
 		this.templateRenames.set(file.path, entry);
 		if (!quiet) { this.invalidatePicture(); this.refreshViews(); }
@@ -2094,7 +3243,8 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	defaultsEntryFor(file) {
-		return (file && this.defaultsRows.get(file.path)) || { rows: [], hasTable: false };
+		return (file && this.defaultsRows.get(file.path))
+			|| { rows: [], hasTable: false, allRows: [], legacy: [] };
 	}
 
 	/*
@@ -2109,9 +3259,9 @@ class OofClassesPlugin extends Plugin {
 	 * over its parent's. Two parents at the same distance are met in the order the
 	 * class names them, which is the same tie-break every other walk here uses.
 	 *
-	 * The *All notes* row is last, and the `default value:` in frontmatter is
-	 * behind even that: it is what the table's *All notes* row replaces, kept
-	 * working so nothing has to be migrated.
+	 * The *All notes* row is last, and there is nothing behind it: `default value:`
+	 * in frontmatter used to be, and it said exactly what that row says, so it is
+	 * retired rather than kept as a second spelling — see `retire-default-value`.
 	 */
 	/*
 	 * The class, then its ancestors nearest first — memoised for as long as one
@@ -2138,11 +3288,11 @@ class OofClassesPlugin extends Plugin {
 		if (!characteristic) return null;
 
 		const rows = characteristic.defaults || [];
-		const answer = (row, source) => ({
-			value: row.value,
-			strict: row.strict,
-			source: source,
-		});
+		const answer = (row, source) => {
+			const found = { source: source };
+			for (const key of DEFAULTS_VALUE_KEYS) found[key] = row[key];
+			return found;
+		};
 
 		if (className) {
 			for (const name of this.ancestorChain(className, objects, drafts)) {
@@ -2155,12 +3305,13 @@ class OofClassesPlugin extends Plugin {
 			}
 		}
 
+		/*
+		 * The weakest row, and the last word. `characteristic.defaultValue` is still
+		 * read off the note — it has to be, or a key he writes could never be
+		 * noticed and retired — but it is no longer an answer to this question.
+		 */
 		for (const row of rows) {
 			if (row.isAll) return answer(row, ALL_NOTES_ROW);
-		}
-
-		if (!isEmptyValue(characteristic.defaultValue)) {
-			return { value: characteristic.defaultValue, strict: '', source: 'default value' };
 		}
 
 		return null;
@@ -2180,20 +3331,22 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/*
-	 * What actually gets written, coerced to the property's type. The strict
-	 * column wins: a note created with the ordinary default and then immediately
-	 * overwritten by the strict one would be born out of step.
+	 * What a template is created with, coerced to the property's type.
+	 * **Value must be** wins over the starting value: a note created with one and
+	 * then immediately replaced by the other would be born out of step. A row
+	 * saying both, differing, is reported rather than resolved — see 4b.
 	 */
 	defaultWriteValue(characteristic, resolved) {
 		if (!resolved) return '';
-		const text = !isEmptyValue(resolved.strict) ? resolved.strict : resolved.value;
+		const text = !isEmptyValue(resolved.must) ? resolved.must : resolved.starting;
 		if (isEmptyValue(text)) return '';
 		return coerceDefault(text, characteristic && characteristic.propertyType);
 	}
 
-	strictWriteValue(characteristic, resolved) {
-		if (!resolved || isEmptyValue(resolved.strict)) return '';
-		return coerceDefault(resolved.strict, characteristic && characteristic.propertyType);
+	/* One column's value, coerced. */
+	columnWriteValue(characteristic, resolved, key) {
+		if (!resolved || isEmptyValue(resolved[key])) return '';
+		return coerceDefault(resolved[key], characteristic && characteristic.propertyType);
 	}
 
 	/*
@@ -2223,10 +3376,11 @@ class OofClassesPlugin extends Plugin {
 				 * brackets. See `constraintsFor`.
 				 */
 				/*
-				 * What a generated template writes for this property, verbatim - so a
-				 * Templater expression survives into the template and renders when a
-				 * note is made from it. Empty means the template gets an empty key,
-				 * which is what every characteristic did before this existed.
+				 * The **retired** `default value:` key, read only so that a note still
+				 * carrying it can be noticed and settled — see `retire-default-value`.
+				 * It is not an answer to `defaultFor` any more: what a generated
+				 * template writes comes from the table's *All notes* row instead, which
+				 * says the same thing and can also say it per class.
 				 */
 				defaultValue: fm['default value'] === undefined ? '' : fm['default value'],
 				/*
@@ -2236,6 +3390,10 @@ class OofClassesPlugin extends Plugin {
 				 */
 				defaults: this.defaultsEntryFor(file).rows,
 				hasDefaultsTable: this.defaultsEntryFor(file).hasTable,
+				/* Retired rows still on disk, which Update offers to take out. */
+				allNotesRows: this.defaultsEntryFor(file).allRows,
+				/* Tables still written with the old column names. */
+				legacyTables: this.defaultsEntryFor(file).legacy,
 				possibleValuesRaw: toArray(fm['possible values']),
 				possibleValues: toArray(fm['possible values'])
 					.map(linkName).filter(Boolean)
@@ -2478,20 +3636,94 @@ class OofClassesPlugin extends Plugin {
 	 * classes its `is a` names. Used to follow the active note in the panel —
 	 * open an artist and the Artist card lights up.
 	 */
-	classesForFile(file, classes) {
-		if (!file) return [];
+	/*
+	 * What the panel should highlight while this file is open, and **why** — the
+	 * relation matters, because the chip on the card says it out loud.
+	 *
+	 * Five ways a file can be about a class, in the order they are decided:
+	 *
+	 *   self            it *is* the class note
+	 *   template        it is that class's generated `<Class> Template.md`
+	 *   base            it is that class's generated `<Class> Base.base`
+	 *   characteristic  it is a characteristic note, and these classes declare it
+	 *   instance        its `is a` names them
+	 *
+	 * The three middle ones were his ask, 2026-08-27. The template one very nearly
+	 * worked already — a generated template carries `is a: [[Class]]`, so it fell
+	 * through to the last branch — but only *nearly*: it is matched by **path**
+	 * here instead, so a template whose `is a` he has emptied still belongs to its
+	 * class, and it is reported as a template rather than as an instance, which is
+	 * the thing it is not.
+	 *
+	 * A base carries no frontmatter at all, so nothing but the path could have
+	 * found it.
+	 *
+	 * A characteristic highlights the classes that **declare** it, not every class
+	 * that ends up carrying it. That is the same distinction the rest of the panel
+	 * draws everywhere — the `inherited` row sits apart from `characteristics`, and
+	 * `+N` counts only what a class adds — and it is the readable answer: five lit
+	 * nodes that introduce `location`, rather than the nineteen that inherit it.
+	 */
+	activeClassesFor(file, classes, drafts) {
+		if (!file) return { kind: null, names: [] };
 
 		/* By path, not identity: the same note can arrive as a different object. */
 		const own = classes.get(file.basename);
-		if (own && own.file && own.file.path === file.path) return [file.basename];
+		if (own && own.file && own.file.path === file.path) {
+			return { kind: 'self', names: [file.basename] };
+		}
+
+		const all = drafts || this.allDrafts(classes);
+
+		/*
+		 * Compared against the path the plugin *would* generate rather than by
+		 * stripping the suffix off the name: one comparison, no edge cases, and it
+		 * can never claim a note of his that happens to end in " Template".
+		 */
+		for (const name of all.keys()) {
+			if (file.path === this.templatePathFor(name)) {
+				return { kind: 'template', names: [name] };
+			}
+			if (file.path === this.basePathFor(name)) {
+				return { kind: 'base', names: [name] };
+			}
+		}
+
+		const characteristic = this.characteristicNameOf(file);
+		if (characteristic) {
+			const names = [];
+			for (const [name, draft] of all) {
+				if ((draft.characteristics || []).indexOf(characteristic) !== -1) names.push(name);
+			}
+			/*
+			 * Nothing declares it — a base characteristic, or one nothing uses yet.
+			 * Falling through rather than returning empty, because a characteristic
+			 * note is still a note and may carry an `is a` of its own.
+			 */
+			if (names.length > 0) return { kind: 'characteristic', names: names };
+		}
 
 		const frontmatter = this.frontmatterOf(file);
-		if (!frontmatter) return [];
+		if (!frontmatter) return { kind: null, names: [] };
 
-		return toArray(frontmatter[this.settings.isAProperty])
+		const named = toArray(frontmatter[this.settings.isAProperty])
 			.map(linkName).filter(Boolean)
 			.map((name) => this.canonicalName(name))
 			.filter((name) => classes.has(name));
+
+		return { kind: named.length > 0 ? 'instance' : null, names: named };
+	}
+
+	/* The characteristic a file defines, if it is a characteristic note. */
+	characteristicNameOf(file) {
+		for (const [name, characteristic] of this.scanCharacteristics()) {
+			if (characteristic.file && characteristic.file.path === file.path) return name;
+		}
+		return null;
+	}
+
+	classesForFile(file, classes, drafts) {
+		return this.activeClassesFor(file, classes, drafts).names;
 	}
 
 	/*
@@ -3157,8 +4389,6 @@ class OofClassesPlugin extends Plugin {
 	 * "unsaved" forever, since a draft that matches the vault is not a draft.
 	 */
 	isDirty(objects) {
-		if (this.baseRefreshes.size > 0) return true;
-
 		for (const name of this.drafts.keys()) {
 			const object = objects.get(name);
 			if (!object || !object.file) return true;
@@ -3438,7 +4668,7 @@ class OofClassesPlugin extends Plugin {
 			|| !obsidian.FileValue || !obsidian.BooleanValue || !obsidian.ListValue;
 
 		if (missing) {
-			new Notice('OOF Classes: this Obsidian version does not expose the Bases function '
+			new Notice('OOF Class Manager: this Obsidian version does not expose the Bases function '
 				+ 'registry, so file.isA() is unavailable.', 8000);
 			console.error('oof-classes: registerInstanceFunc or a Value class is missing.');
 			return false;
@@ -3694,6 +4924,8 @@ class OofClassesPlugin extends Plugin {
 	invalidateClosures() {
 		this.isACache = new Map();
 		this.inheritsCache = new Map();
+		/* Built out of those walks, so it cannot outlive them. */
+		this.instanceCache = new Map();
 	}
 
 	/* ----- Obsidian's own property-type registry ---------------------------- */
@@ -3905,55 +5137,75 @@ class OofClassesPlugin extends Plugin {
 	 * Never auto-fixed. A value he typed is his; the plugin's job is to say
 	 * it does not fit, not to choose a different one.
 	 */
-	valueDiscrepancies(picture) {
+	valueDiscrepancies(picture, skip) {
 		const found = [];
 
-		const check = (file, keys, values) => {
+		this.walkValues(picture, (file, key, value) => {
+			const characteristic = picture.characteristics.get(key);
+			if (!characteristic) return;
+
+			if (isEmptyValue(value)) return;
+			/* Machinery, not data: it is not a date yet, it is the code for one. */
+			if (isTemplaterExpression(value)) return;
+
+			const shape = this.shapeComplaint(characteristic, value);
+			if (shape) {
+				found.push({ file: file, property: key, value: value, reason: shape });
+				return;
+			}
+
+			const complaint = this.valueComplaint(
+				characteristic, value, picture, file ? file.path : '', skip);
+			if (complaint) {
+				found.push({ file: file, property: key, value: value, reason: complaint });
+			}
+		});
+
+		return found;
+	}
+
+	/*
+	 * Every property of every note the model knows about, once each: the
+	 * instances, the class notes themselves, and the generated templates.
+	 *
+	 * One walk rather than a copy of it per pass, because two passes now ask the
+	 * same question of the same notes - which values do not fit - and they have
+	 * to see exactly the same set. If the aggregate saw a note the conflict pass
+	 * did not, it would suppress a report nobody ever made.
+	 *
+	 * Templates count. A default written into one - `domain: visual` on every
+	 * Visual Artist - is a real value that reaches every instance made from it,
+	 * so it has to satisfy the same characteristic as any other.
+	 *
+	 * Once each is the point of `seen`: a class note that is also an instance of
+	 * something appears in two of the three sets, and counting its values twice
+	 * would say `implemented` is on twenty-two notes when it is on twenty-one.
+	 */
+	walkValues(picture, visit) {
+		const seen = new Set();
+		const each = (file, keys, values) => {
 			for (const key of keys) {
-				const characteristic = picture.characteristics.get(key);
-				if (!characteristic) continue;
-
-				const value = values[key];
-				if (isEmptyValue(value)) continue;
-				/* Machinery, not data: it is not a date yet, it is the code for one. */
-				if (isTemplaterExpression(value)) continue;
-
-				const shape = this.shapeComplaint(characteristic, value);
-				if (shape) {
-					found.push({ file: file, property: key, value: value, reason: shape });
-					continue;
-				}
-
-				const complaint = this.valueComplaint(
-					characteristic, value, picture, file ? file.path : '');
-				if (complaint) {
-					found.push({ file: file, property: key, value: value, reason: complaint });
-				}
+				const id = (file ? file.path : '') + '::' + key;
+				if (seen.has(id)) continue;
+				seen.add(id);
+				visit(file, key, values[key]);
 			}
 		};
 
 		for (const instance of picture.instances.values()) {
-			check(instance.file, Array.from(instance.keys), instance.values);
+			each(instance.file, Array.from(instance.keys), instance.values);
 		}
 		for (const klass of picture.classes.values()) {
 			if (!klass.file || !klass.frontmatter) continue;
-			check(klass.file, Array.from(klass.keys), klass.frontmatter);
+			each(klass.file, Array.from(klass.keys), klass.frontmatter);
 		}
-
-		/*
-		 * Templates too. A default written into one - `domain: visual` on every
-		 * Visual Artist - is a real value that reaches every instance made from
-		 * it, so it has to satisfy the same characteristic as any other.
-		 */
 		for (const name of picture.classes.keys()) {
 			const template = this.app.vault.getFileByPath(this.templatePathFor(name));
 			if (!(template instanceof TFile)) continue;
 			const frontmatter = this.frontmatterOf(template);
 			if (!frontmatter) continue;
-			check(template, Object.keys(frontmatter), frontmatter);
+			each(template, Object.keys(frontmatter), frontmatter);
 		}
-
-		return found;
 	}
 
 	/* Does the value's shape contradict `property type`? */
@@ -4002,7 +5254,10 @@ class OofClassesPlugin extends Plugin {
 		for (const entry of raw) {
 			const interval = parseInterval(entry);
 			if (interval) {
-				constraints.push({ kind: 'interval', interval: interval, text: interval.text });
+				constraints.push({
+					kind: 'interval', interval: interval,
+					text: interval.text, entry: entry,
+				});
 				continue;
 			}
 
@@ -4012,12 +5267,20 @@ class OofClassesPlugin extends Plugin {
 
 			if (picture && picture.classes && isWikiLink(entry) && picture.classes.has(canonical)) {
 				constraints.push({
-					kind: 'class', name: canonical, text: 'instances of ' + canonical,
+					kind: 'class', name: canonical,
+					text: 'instances of ' + canonical, entry: entry,
 				});
 				continue;
 			}
 
-			constraints.push({ kind: 'literal', name: canonical, text: canonical });
+			/*
+			 * The entry as written travels with the constraint. Only the value
+			 * suggestions read it, and they need the word he typed rather than the
+			 * name it was reduced to - see suggestedValuesFor.
+			 */
+			constraints.push({
+				kind: 'literal', name: canonical, text: canonical, entry: entry,
+			});
 		}
 		return constraints;
 	}
@@ -4048,7 +5311,7 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/* Everything in this value that no constraint admits, said in one sentence. */
-	valueComplaint(characteristic, value, picture, sourcePath) {
+	valueComplaint(characteristic, value, picture, sourcePath, skip) {
 		const constraints = this.constraintsFor(characteristic, picture);
 		if (constraints.length === 0) return null;
 
@@ -4058,6 +5321,14 @@ class OofClassesPlugin extends Plugin {
 		for (const entry of toArray(value)) {
 			if (isEmptyValue(entry)) continue;
 			if (constraints.some((c) => this.admits(c, entry, sourcePath))) continue;
+
+			/*
+			 * A value with an answer already on its way, or one gathered into a
+			 * question of its own, is not reported a second time here. Twenty-one
+			 * notes holding a word that was renamed is one question, and saying it
+			 * twenty-one times as well would bury it.
+			 */
+			if (skip && skip.has(valueRenameKey(characteristic.name, entry))) continue;
 
 			const name = linkName(typeof entry === 'string' ? entry : String(entry));
 			const shown = name || String(entry);
@@ -4250,6 +5521,400 @@ class OofClassesPlugin extends Plugin {
 	redrawPropertyHeadings() {
 		this.clearPropertyHeadings();
 		this.queuePropertyHeadings();
+	}
+
+	/* ----- what a property field offers ------------------------------------
+	 *
+	 * Obsidian answers "what can go here" by scanning the vault for values that
+	 * key already holds, and sorting them alphabetically. Where a characteristic
+	 * has said what its values are, that is two wrong answers at once: a word
+	 * nothing carries yet is not offered at all, and the order is the alphabet's
+	 * rather than his. `possible values` is the better answer, so it is the one
+	 * given — in the order the characteristic note writes it, the same order
+	 * OOF Declared Order sorts a base by.
+	 *
+	 * It **replaces** Obsidian's list rather than joining it, and that is the
+	 * point rather than an oversight. `possible values` is an allowlist: this
+	 * plugin already reports every note holding a value it does not admit, so
+	 * offering those values here would be offering to make one more.
+	 *
+	 * Where the characteristic does not **list** its values — no `possible values`
+	 * at all, an interval, which is a shape, or a class, which is a type — Obsidian's
+	 * own answer stands untouched. The plugin speaks only where it has something to
+	 * say, which is what keeps a number field's used values in place and what keeps
+	 * a class-valued field's shortlist of the notes he actually files under it from
+	 * being buried under every instance in the vault. *Offer a class's instances
+	 * too* opts back into the enumeration, class-valued characteristics and all;
+	 * it is off, and why is at `suggestClassInstances`.
+	 *
+	 * The hook is `getFrontmatterPropertyValuesForKey`, which the value suggester
+	 * is the only caller of. Everything downstream — the fuzzy filter, the link
+	 * flair on a `[[…]]` suggestion, which widgets suggest at all — is Obsidian's
+	 * and is left alone. One consequence worth knowing: with the field empty every
+	 * suggestion scores 0 and the sort is stable, so the declared order is what
+	 * shows; once he types, Obsidian ranks by how well each matches, which is what
+	 * typing is for.
+	 */
+	registerValueSuggestions() {
+		const cache = this.app.metadataCache;
+		const original = cache.getFrontmatterPropertyValuesForKey;
+		if (typeof original !== 'function') return;
+
+		const patched = (key) => {
+			let mine = null;
+			try { mine = this.suggestedValuesFor(key); } catch (error) {
+				/* Never take the field's own suggestions away over a bug in ours. */
+				console.error('oof-classes: value suggestions', error);
+			}
+			return (mine && mine.length) ? mine : original.call(cache, key);
+		};
+
+		cache.getFrontmatterPropertyValuesForKey = patched;
+		this.register(() => {
+			/* Put back only what we replaced, and only while ours is still on. */
+			if (cache.getFrontmatterPropertyValuesForKey === patched) {
+				cache.getFrontmatterPropertyValuesForKey = original;
+			}
+		});
+	}
+
+	/*
+	 * What `possible values` names for this property, in the order it names them,
+	 * or null when it names nothing enumerable.
+	 *
+	 * Read through `constraintsFor`, so the three kinds are decided in exactly one
+	 * place: the same classifier that says whether a note's value is permitted
+	 * says what to offer, and the two can never come to disagree.
+	 */
+	suggestedValuesFor(key) {
+		if (!this.settings.suggestPossibleValues || !key) return null;
+
+		const picture = this.picture();
+		const characteristic = picture.characteristics.get(key);
+		if (!characteristic) return null;
+
+		const suggestions = [];
+		const seen = new Set();
+		const offer = (text) => {
+			const clean = String(text).trim();
+			if (!clean || seen.has(clean.toLowerCase())) return;
+			seen.add(clean.toLowerCase());
+			suggestions.push(clean);
+		};
+
+		for (const constraint of this.constraintsFor(characteristic, picture)) {
+			/* An interval is a shape and cannot be enumerated. */
+			if (constraint.kind === 'interval') continue;
+
+			/*
+			 * A class is a *type*, and enumerating one is off unless he asks for
+			 * it (2026-08-30, `Suggestions for values of properties are buggy` and
+			 * the setting he asked for straight after).
+			 *
+			 * The two reasons a listed value beats Obsidian's answer both fail for
+			 * a class, which is why the default is off. There is no declared order
+			 * to restore: instances come out of a vault walk, alphabetically,
+			 * exactly as Obsidian sorts. And nothing is missing that a note has not
+			 * used yet: typing `[[` in the field hands over to Obsidian's own link
+			 * search, which reaches every note in the vault, not merely the
+			 * instances.
+			 *
+			 * What it costs was measured on his own vault: `project` names
+			 * `[[Project]]`, and because `Improvement` is a type of `Project` that
+			 * enumerated **84** notes in place of the **8** he actually files under
+			 * it. None of the 8 were lost — they were buried, which for a list you
+			 * pick from is the same thing. On a class with few instances it is a
+			 * genuinely better list than Obsidian's, which is why the switch
+			 * exists rather than the behaviour simply being gone.
+			 */
+			if (constraint.kind === 'class') {
+				if (!this.settings.suggestClassInstances) continue;
+				for (const name of this.instancesOf(constraint.name)) {
+					offer('[[' + name + ']]');
+				}
+				continue;
+			}
+
+			/*
+			 * A word is offered exactly as the characteristic note writes it.
+			 * `constraint.name` has been through `canonicalName`, which would lend
+			 * the word the capitalisation of a note that merely happens to share its
+			 * spelling. A link stays a link, and there the canonical name is the
+			 * right one, because it is the name that resolves.
+			 */
+			offer(isWikiLink(constraint.entry)
+				? '[[' + constraint.name + ']]'
+				: (typeof constraint.entry === 'string' ? constraint.entry : constraint.name));
+		}
+
+		return suggestions.length ? suggestions : null;
+	}
+
+	/*
+	 * Every note that is an instance of this class, by name, alphabetically —
+	 * the same walk `file.isA()` does, so a base and a property field cannot come
+	 * to disagree about what a Place is. Only *Offer a class's instances too*
+	 * reaches this.
+	 *
+	 * A generated template is not one, and this is the one walk that has to say
+	 * so. `Teacher Template.md` carries `is a: [[Teacher]]` — that is what makes
+	 * a note built from it a Teacher — so the walk finds it and it is perfectly
+	 * right to; but it is the file that *makes* teachers, and offering it as one
+	 * is the same mistake `activeClassesFor` already refuses to make. Judged by
+	 * folder, the way that pass judges it by path.
+	 *
+	 * Cached, because the suggester asks again on every keystroke. It is emptied
+	 * with the closures it is built out of, so any edit to the hierarchy drops it.
+	 */
+	instancesOf(className) {
+		const hit = this.instanceCache.get(className);
+		if (hit) return hit;
+
+		const key = this.keyForName(className, '');
+		const names = this.app.vault.getMarkdownFiles()
+			.filter((file) => !this.isTemplateFile(file))
+			.filter((file) => this.matchesSelf(file, key)
+				|| this.isAClosure(file).distance.has(key))
+			.map((file) => file.basename)
+			.sort((a, b) => a.localeCompare(b));
+
+		this.instanceCache.set(className, names);
+		return names;
+	}
+
+	/* ----- the menu on a property's value ----------------------------------
+	 *
+	 * The note is where you notice a value needs renaming, so it is where the
+	 * rename should start.
+	 *
+	 * Obsidian already has a menu there — *Edit*, *Copy*, *Remove from list* — and
+	 * it is a good one, so ours is **added to it** rather than put in its place.
+	 * `Menu.forEvent` hands out one menu per event, so asking it for the menu is
+	 * all it takes: Obsidian's listener asks for the same one. Where nothing else
+	 * asks, the menu shows carrying only ours.
+	 *
+	 * One listener on the document rather than one per view. Property rows are
+	 * rendered in a markdown view, in the sidebar and inside a base's properties
+	 * panel, and all three are `.metadata-property[data-property-key]` — so
+	 * delegation covers every one of them and there is nothing to attach, detach
+	 * or keep in step when a leaf opens.
+	 */
+	registerPropertyValueMenu() {
+		this.propertyMenuHandler = (event) => {
+			if (!this.settings.renameValueFromProperties) return;
+
+			let context = null;
+			try { context = this.propertyContextFor(event); } catch (error) {
+				/* Never take out the app's own menu because of a bug in ours. */
+				console.error('oof-classes: property menu', error);
+				return;
+			}
+			if (!context) return;
+
+			/*
+			 * `Menu.forEvent` is Obsidian's own extension point, and the whole
+			 * answer. Read out of `obsidian-1.13.7.asar`:
+			 *
+			 *     Menu.forEvent = function (e) {
+			 *       e.preventDefault();
+			 *       var m = cache.get(e);
+			 *       return m || (m = new Menu(), cache.set(e, m),
+			 *         e.win.setTimeout(function () { m.showAtMouseEvent(e); }), m);
+			 *     };
+			 *
+			 * One menu per event, kept in a WeakMap. So the menu returned here in
+			 * the capture phase is **the very menu** Obsidian's own listener on the
+			 * pill adds Edit, Copy and Remove from list to a moment later in the
+			 * bubble phase. One menu, everyone's items, nothing to synchronise, and
+			 * no assumption about who runs first.
+			 *
+			 * It also calls preventDefault itself and shows the menu on a timeout
+			 * of its own — which is what the earlier attempts were fighting. Racing
+			 * that timeout with one of ours is what produced the two stacked menus:
+			 * ours was queued first, looked for a menu in the document, found none
+			 * because Obsidian's had not rendered yet, and opened underneath it.
+			 */
+			const shared = typeof Menu.forEvent === 'function';
+			const menu = shared ? Menu.forEvent(event) : new Menu();
+
+			this.addValueRenameItems(menu, context);
+
+			/* Older Obsidian, with no shared menu: ours alone, as it always was. */
+			if (!shared) {
+				event.preventDefault();
+				menu.showAtMouseEvent(event);
+			}
+		};
+
+		document.addEventListener('contextmenu', this.propertyMenuHandler, true);
+		this.register(() => document.removeEventListener(
+			'contextmenu', this.propertyMenuHandler, true));
+	}
+
+	/*
+	 * What this right-click is about, or null when it is about nothing of ours.
+	 */
+	propertyContextFor(event) {
+		const target = event.target;
+		if (!target || typeof target.closest !== 'function') return null;
+
+		/*
+		 * A selection means he is doing something with the text — copying it, or
+		 * about to paste over it — and Electron's own menu is the one he wants.
+		 *
+		 * This is the whole of the deference to that menu, and it is enough. A
+		 * property value is an `input`, not a text editor: an empty one offers
+		 * nothing to rename and falls through here on its own, and the case left
+		 * over — right-clicking a value that is sitting there, without selecting
+		 * it — is the case he asked for. Ctrl+V still pastes, and the setting
+		 * turns the whole thing off.
+		 */
+		const selection = window.getSelection();
+		if (selection && !selection.isCollapsed) return null;
+
+		const row = target.closest('.metadata-property[data-property-key]')
+			|| target.closest('[data-property-key]');
+		if (!row || !row.dataset || !row.dataset.propertyKey) return null;
+
+		/* The key half is Obsidian's: it owns that menu, and it is a good one. */
+		if (target.closest('.metadata-property-key')) return null;
+
+		const key = row.dataset.propertyKey;
+		const file = this.fileShowing(row);
+		if (!file) return null;
+
+		/*
+		 * Whose values these are. **Two places**, and the second is the one he
+		 * reached for first: a note carrying `status:` holds values of `status`,
+		 * and a characteristic note's own `possible values` holds values of the
+		 * characteristic it *is*. That list is where you change your mind about a
+		 * value, so it is exactly where the rename has to be offered.
+		 */
+		let name = key;
+		if (this.isCharacteristicFile(file) && key === 'possible values') {
+			name = stripPrefix(file.basename, this.settings.characteristicPrefix);
+		}
+
+		const characteristic = this.picture().characteristics.get(name);
+		if (!characteristic) return null;
+
+		const frontmatter = this.frontmatterOf(file);
+		if (!frontmatter || !(key in frontmatter)) return null;
+
+		/*
+		 * Which values this note holds under that key, from the **frontmatter**
+		 * rather than from the markup.
+		 *
+		 * That is the whole reason this is robust. Obsidian's value markup differs
+		 * per property type and changes between versions — a truncated div here, a
+		 * pill there — so reading a value out of it would be a guess with a version
+		 * number attached. The DOM is asked one question it answers reliably, and
+		 * has answered since 1.13.7: which property row is this. The values come
+		 * from the note.
+		 */
+		const values = toArray(frontmatter[key])
+			.filter((entry) => !isEmptyValue(entry) && !isTemplaterExpression(entry))
+			/* A link is a note, and Obsidian renames a note properly. */
+			.filter((entry) => !isWikiLink(entry))
+			/* And `[0, 10]` is a range, not a word. */
+			.filter((entry) => !parseInterval(entry))
+			.map((entry) => String(entry).trim())
+			.filter(Boolean);
+		if (values.length === 0) return null;
+
+		/*
+		 * The text under the pointer, when it can be read, so a list offers the one
+		 * entry he clicked rather than all of them. Unreadable is not a failure:
+		 * every value is offered instead, which is still one click away and cannot
+		 * be wrong.
+		 */
+		const clicked = this.valueTextAt(target, row);
+		const one = values.find(
+			(value) => value.toLowerCase() === String(clicked).trim().toLowerCase());
+
+		return {
+			key: key,
+			name: name,
+			characteristic: characteristic,
+			file: file,
+			values: one ? [one] : values,
+		};
+	}
+
+	/*
+	 * Our items, on whichever menu ends up being shown.
+	 *
+	 * Sectioned rather than separated by hand. Obsidian's pill menu declares its
+	 * sections — `title, open, action-primary, action, info, view, system, "",
+	 * danger` — and puts its own three in `action-primary`, so `action` lands
+	 * ours directly beneath them with the separator Obsidian draws itself. A
+	 * hand-written separator would have been a second one, or a stray line above
+	 * nothing on a menu carrying only these.
+	 */
+	addValueRenameItems(menu, context) {
+		const section = (item) => (typeof item.setSection === 'function'
+			? item.setSection('action') : item);
+
+		for (const value of context.values.slice(0, 8)) {
+			menu.addItem((item) => section(item)
+				.setTitle('Rename "' + value + '" everywhere…')
+				.setIcon('replace')
+				.onClick(() => {
+					new RenameValueModal(this.app, this,
+						{ characteristic: context.name, from: value }).open();
+				}));
+		}
+
+		/* Pointless when he is already reading it. */
+		const note = context.characteristic.file;
+		if (!note || note.path === context.file.path) return;
+		menu.addItem((item) => section(item)
+			.setTitle('Open ' + note.basename)
+			.setIcon('file-text')
+			.onClick(() => { this.app.workspace.getLeaf(false).openFile(note); }));
+	}
+
+	/*
+	 * The text of the value under the pointer, or ''. Every selector here is a
+	 * best effort and none is load-bearing — see `propertyContextFor`.
+	 */
+	valueTextAt(target, row) {
+		const pill = target.closest
+			&& (target.closest('.multi-select-pill') || target.closest('[class*="pill"]'));
+		if (pill) {
+			/*
+			 * The pill carries a remove button whose label is part of its text, so
+			 * the content element is preferred where there is one.
+			 */
+			const content = pill.querySelector
+				&& (pill.querySelector('.multi-select-pill-content')
+					|| pill.querySelector('[class*="pill-content"]'));
+			return (content || pill).textContent || '';
+		}
+
+		const value = target.closest && target.closest('.metadata-property-value');
+		if (value && value.children.length <= 1) return value.textContent || '';
+
+		/* A single-valued row: the row itself, minus its key, is the value. */
+		const keyEl = row.querySelector('.metadata-property-key');
+		if (keyEl && row.textContent) {
+			return row.textContent.slice((keyEl.textContent || '').length);
+		}
+		return '';
+	}
+
+	/* The file whose properties this row belongs to. */
+	fileShowing(row) {
+		let found = null;
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (found) return;
+			const view = leaf && leaf.view;
+			const container = view && view.containerEl;
+			if (container && container.contains(row) && view.file instanceof TFile) {
+				found = view.file;
+			}
+		});
+		return found || this.app.workspace.getActiveFile();
 	}
 
 	queuePropertyHeadings() {
@@ -4774,14 +6439,20 @@ class OofClassesPlugin extends Plugin {
 			: this.effectiveCharacteristics(name, objects, drafts);
 	}
 
-	baseContentFor(name, objects, drafts) {
+	/*
+	 * `exact` is the *exact matches only* switch on the Class base menu, and it
+	 * arrives here only from a reset - a base is generated inclusive, and the
+	 * switch is a thing done to one afterwards. It is passed through so that a
+	 * reset rebuilds the base in the reading it was already in.
+	 */
+	baseContentFor(name, objects, drafts, exact) {
 		const columns = this.baseColumnsFor(name, objects, drafts);
 
 		const lines = [];
 		lines.push('filters:');
 		lines.push('  and:');
-		/* Instances of this class, inheritance included. */
-		lines.push('    - file.isA("' + name + '")');
+		/* Instances of this class, inheritance included unless asked otherwise. */
+		lines.push('    - ' + this.baseFilterExpression(name, !!exact));
 		/* A template names its class too, so it would otherwise show up here. */
 		lines.push('    - \'!file.inFolder("' + this.settings.templatesFolder + '")\'');
 		lines.push('views:');
@@ -4799,6 +6470,586 @@ class OofClassesPlugin extends Plugin {
 	 * whole test, and .base contents are never compared, because an existing
 	 * base is never rewritten.
 	 */
+
+	/* ----- the dynamic base ------------------------------------------------ */
+
+	/*
+	 * The one base that is rewritten rather than created once: it shows the
+	 * instances of whichever classes are selected right now, and there is exactly
+	 * one of it — his design, and the only one that works, because two bases
+	 * cannot be opened at once.
+	 *
+	 * Named through `baseSuffix` like every other generated base, so it reads as
+	 * one of the family rather than as a stray file.
+	 */
+	dynamicBasePath() {
+		return this.settings.basesFolder + '/Dynamic' + this.settings.baseSuffix + '.base';
+	}
+
+	/*
+	 * Every instance of any of them, and the columns are the union of what each
+	 * class would show. Union rather than intersection: the point of looking at
+	 * two classes together is to see what each brings, and an empty cell says
+	 * "this one does not have that" perfectly well.
+	 *
+	 * `or:` nested inside `and:` rather than one expression with `||` — that is
+	 * the grouping Bases' own filter format uses, and it is what Obsidian's filter
+	 * editor will render back if he opens it.
+	 */
+	dynamicBaseContent(names, objects, drafts) {
+		const columns = [];
+		for (const name of names) {
+			for (const column of this.baseColumnsFor(name, objects, drafts)) {
+				if (columns.indexOf(column) === -1) columns.push(column);
+			}
+		}
+
+		const lines = [];
+		lines.push('filters:');
+		lines.push('  and:');
+		lines.push('    - or:');
+		for (const name of names) lines.push('        - file.isA("' + name + '")');
+		lines.push('    - \'!file.inFolder("' + this.settings.templatesFolder + '")\'');
+		lines.push('views:');
+		lines.push('  - type: table');
+		lines.push('    name: ' + yamlScalar(andList(names.slice())));
+		lines.push('    order:');
+		lines.push('      - file.name');
+		for (const column of columns) lines.push('      - ' + yamlScalar(column));
+
+		return lines.join('\n') + '\n';
+	}
+
+	/*
+	 * Write it and open it.
+	 *
+	 * **A file at that path this plugin did not create is never overwritten.** It
+	 * is the only file the plugin rewrites without an Update plan in front of it,
+	 * so the one protection it has to carry is that it is certainly ours: the flag
+	 * is set when we create it and persisted, and without it the answer is no.
+	 */
+	async openDynamicBase(names, objects, drafts) {
+		const path = this.dynamicBasePath();
+		const existing = this.app.vault.getAbstractFileByPath(path);
+
+		if (existing && !this.dynamicBaseOurs) {
+			new Notice('OOF Class Manager: "' + path + '" already exists and was not created by '
+				+ 'this plugin, so it will not be overwritten. Rename or delete it, or '
+				+ 'switch the base setting back to static.', 10000);
+			return null;
+		}
+
+		await this.ensureFolder(this.settings.basesFolder);
+		const content = this.dynamicBaseContent(names, objects, drafts);
+
+		let file = existing;
+		if (file instanceof TFile) await this.app.vault.modify(file, content);
+		else file = await this.app.vault.create(path, content);
+
+		if (!this.dynamicBaseOurs) {
+			this.dynamicBaseOurs = true;
+			await this.persist();
+		}
+
+		await this.app.workspace.getLeaf(false).openFile(file);
+		return file;
+	}
+
+	/* ----- the Class base item in Obsidian's own toolbar -------------------- */
+
+	/*
+	 * A generated base carries a **Class base** button in the base's own toolbar,
+	 * beside Filter, Properties and Sort - his ask, 2026-08-28. It says what a
+	 * class base is, it holds the *exact matches only* switch, and it is where a
+	 * base is reset from its class.
+	 *
+	 * **The reset moved here and the panel's copy went with it** (his N.B.), and
+	 * that is not a tidying-up. On a class card the reset was the one control that
+	 * destroyed work nothing else keeps a copy of, aimed at a file you were *not*
+	 * looking at - so it needed a typed code, and a queue, and an Update plan to
+	 * show it one more time before anything happened. Standing on the base, the
+	 * question is answerable by looking: this file, this diff, yes or no. One
+	 * confirmation with the real diff under it replaces three layers of deferral,
+	 * and `baseRefreshes` - the queue that existed only to carry the answer from
+	 * the panel to the next Update - is gone with them.
+	 *
+	 * The consequence is worth stating: `write-base` no longer overwrites anything
+	 * at all. Update creates a base that does not exist and never touches one that
+	 * does, which is what its comment always claimed and is now true with no
+	 * exception behind it.
+	 *
+	 * The button is drawn on the **base file's own** toolbar. A base embedded in a
+	 * note has a toolbar too, and does not get one: that toolbar's leaf is about
+	 * the note, and resetting a file from a view of it that lives somewhere else
+	 * is exactly the aim-at-what-you-cannot-see problem this move was undoing.
+	 */
+
+	/*
+	 * The class a `.base` was generated for, or null.
+	 *
+	 * Matched against the path the plugin *would* produce, the same test
+	 * `activeClassesFor` uses - one comparison, and it can never claim a base of
+	 * his that happens to end in " Base". The dynamic base is excluded outright:
+	 * it belongs to a selection rather than to a class, and it is rewritten every
+	 * time it is opened, so there is nothing there to reset.
+	 */
+	classForBase(file, drafts) {
+		if (!(file instanceof TFile) || file.extension !== 'base') return null;
+		if (!this.settings.createBases) return null;
+		if (file.path === this.dynamicBasePath()) return null;
+
+		const suffix = this.settings.baseSuffix || '';
+		if (suffix && !file.basename.endsWith(suffix)) return null;
+		const name = (suffix
+			? file.basename.slice(0, file.basename.length - suffix.length)
+			: file.basename).trim();
+		if (!name || file.path !== this.basePathFor(name)) return null;
+
+		const all = drafts || this.allDrafts(this.scanClasses());
+		return all.has(name) ? name : null;
+	}
+
+	/*
+	 * The one line of a generated base that says which notes it holds, in its two
+	 * readings.
+	 *
+	 *   all     file.isA("Person")                every note that is a Person,
+	 *                                             instances of its subclasses too
+	 *   exact   file.isADistance("Person") == 1   only notes whose own `is a`
+	 *                                             names Person
+	 *
+	 * `isADistance() == 1` rather than a fifth base function, because distance 1
+	 * already *is* "named directly in `is a`" - `climb()` seeds at 1 and every hop
+	 * above adds one - and a new function would be a second spelling of a question
+	 * that already has an answer.
+	 *
+	 * Neither needs quoting. `!file.inFolder(...)` is quoted in the generated base
+	 * because a leading `!` is a YAML tag indicator; `==` is nothing to YAML.
+	 */
+	baseFilterExpression(name, exact) {
+		return exact
+			? 'file.isADistance("' + name + '") == 1'
+			: 'file.isA("' + name + '")';
+	}
+
+	/*
+	 * Which reading a base on disk is written in, and where that line sits.
+	 *
+	 * Found by its **exact text**, never by a pattern over anything that mentions
+	 * the class. A base is his from the moment it is created and his filter can be
+	 * anything; a fuzzy match here would rewrite a clause he wrote. Nothing
+	 * recognised means the switch says so and changes nothing - the same posture
+	 * Bases Sharing takes towards a filter it cannot reach.
+	 *
+	 * The prefix and any quotes are carried out with the answer so the replacement
+	 * can be laid back into the line it came from, indentation and all.
+	 */
+	findBaseFilterLine(text, name) {
+		const readings = [
+			{ exact: false, expression: this.baseFilterExpression(name, false) },
+			{ exact: true, expression: this.baseFilterExpression(name, true) },
+		];
+		const lines = String(text === null || text === undefined ? '' : text).split('\n');
+
+		for (let i = 0; i < lines.length; i += 1) {
+			const parts = /^(\s*-\s*)(.*?)\s*$/.exec(lines[i]);
+			if (!parts) continue;
+
+			let body = parts[2];
+			let quote = '';
+			const quoted = /^(['"])([\s\S]*)\1$/.exec(body);
+			if (quoted) { quote = quoted[1]; body = quoted[2]; }
+
+			for (const reading of readings) {
+				if (body !== reading.expression) continue;
+				return { index: i, exact: reading.exact, prefix: parts[1], quote: quote };
+			}
+		}
+		return null;
+	}
+
+	/*
+	 * Flip one base between the two readings. One line changes; every other line -
+	 * his views, his sorts, the columns he added, his own filter clauses - comes
+	 * out byte-identical. That is the same line surgery Bases Sharing does to a
+	 * `.base` and for the same reason: parsing a file and re-emitting it loses
+	 * whatever the emitter does not happen to know about.
+	 */
+	async setBaseExactness(file, name, exact) {
+		const rewrite = (text) => {
+			const found = this.findBaseFilterLine(text, name);
+			if (!found || found.exact === exact) return text;
+			const lines = text.split('\n');
+			lines[found.index] = found.prefix + found.quote
+				+ this.baseFilterExpression(name, exact) + found.quote;
+			return lines.join('\n');
+		};
+
+		if (typeof this.app.vault.process === 'function') {
+			await this.app.vault.process(file, rewrite);
+			return;
+		}
+		const text = await this.app.vault.read(file);
+		const next = rewrite(text);
+		if (next !== text) await this.app.vault.modify(file, next);
+	}
+
+	/*
+	 * Rebuild one base from its class, now, with the diff in front of it and a
+	 * typed code behind that.
+	 *
+	 * Two things about it are deliberate. **The reading survives**: if the base is
+	 * on *exact matches only*, so is the rebuilt one, and the modal says so.
+	 * Everything else about the file is generated afresh, but which notes it is
+	 * about is the one thing a reset is not being asked to change. And **an
+	 * unapplied draft is announced rather than ignored**: `baseContentFor` reads
+	 * drafts like everything else here, so a class with pending panel edits builds
+	 * a base for what it is about to become, and that is worth knowing before
+	 * pressing the button rather than after.
+	 */
+	async resetClassBase(name, file) {
+		const objects = this.scanClasses();
+		const drafts = this.allDrafts(objects);
+
+		if (!drafts.has(name)) {
+			new Notice('OOF Class Manager: there is no class called "' + name + '" any more.', 6000);
+			return;
+		}
+
+		const before = await this.app.vault.read(file);
+		const found = this.findBaseFilterLine(before, name);
+		const exact = !!(found && found.exact);
+		const after = this.baseContentFor(name, objects, drafts, exact);
+
+		if (after === before) {
+			new Notice('OOF Class Manager: ' + file.path + ' is already exactly what "' + name
+				+ '" would generate. Nothing to reset.', 6000);
+			return;
+		}
+
+		const lines = [
+			file.path + ' is rebuilt from scratch, exactly as the plugin would generate '
+				+ 'it from "' + name + '" today.',
+			'Any views, sorts, group-bys and filters you added are lost. Nothing else '
+				+ 'keeps a copy of them.',
+		];
+		if (exact) {
+			lines.push('Exact matches only stays on - which notes the base is about is the '
+				+ 'one thing a reset keeps.');
+		}
+		if (this.drafts.has(name)) {
+			lines.push('"' + name + '" has edits in the panel that Update has not applied '
+				+ 'yet. The base is built from those, so it will show what the class is '
+				+ 'about to become rather than what its note currently says.');
+		}
+
+		new ConfirmCodeModal(this.app, {
+			title: 'Reset the base for "' + name + '"?',
+			lines: lines,
+			diff: { before: before.split('\n'), after: after.split('\n') },
+			confirmText: 'Reset the base',
+			onConfirm: async () => {
+				await this.app.vault.modify(file, after);
+				new Notice('OOF Class Manager: rebuilt ' + file.path + ' from "' + name + '".', 5000);
+			},
+		}).open();
+	}
+
+	/* ----- painting it ------------------------------------------------------ */
+
+	queueBaseToolbars(force) {
+		if (force) this.baseToolbarForce = true;
+		if (this.baseToolbarTimer) window.clearTimeout(this.baseToolbarTimer);
+		this.baseToolbarTimer = window.setTimeout(() => {
+			this.baseToolbarTimer = null;
+			const forced = !!this.baseToolbarForce;
+			this.baseToolbarForce = false;
+			this.renderBaseToolbars(forced);
+		}, 0);
+	}
+
+	clearBaseToolbars(root) {
+		const scope = root || document;
+		for (const el of Array.from(scope.querySelectorAll('.oof-class-base-item'))) {
+			el.remove();
+		}
+		for (const el of Array.from(scope.querySelectorAll('.bases-toolbar[data-oof-base]'))) {
+			delete el.dataset.oofBase;
+		}
+	}
+
+	/*
+	 * The file a leaf is showing, by path. `view.file` is the direct answer and is
+	 * missing on a leaf Obsidian has not loaded yet, so the view state - which
+	 * every leaf carries, deferred or not - is what fills in.
+	 */
+	leafFilePath(leaf) {
+		const view = leaf && leaf.view;
+		if (view && view.file instanceof TFile) return view.file.path;
+		if (!leaf || typeof leaf.getViewState !== 'function') return '';
+		const state = leaf.getViewState();
+		const path = state && state.state && state.state.file;
+		return typeof path === 'string' ? path : '';
+	}
+
+	renderBaseToolbars(force) {
+		const found = [];
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			const view = leaf && leaf.view;
+			const container = view && view.containerEl;
+			if (!container) return;
+			const toolbar = container.querySelector('.bases-toolbar');
+			if (!toolbar) return;
+			found.push({ toolbar: toolbar, path: this.leafFilePath(leaf) });
+		});
+
+		/* No base open anywhere: not a walk over the vault's classes worth taking. */
+		if (found.length === 0) return;
+
+		/*
+		 * A base view mutates constantly as its rows render, and the observer that
+		 * catches its toolbar being rebuilt sees every one of those. Without this
+		 * every scrolled row would cost a scan of the vault. The signature lives on
+		 * the toolbar element, so a rebuilt toolbar arrives without it and is
+		 * repainted; a *renamed class* would not be noticed, which is why the events
+		 * that can change what a class is called pass `force`.
+		 */
+		if (!force && found.every((entry) => entry.toolbar.dataset.oofBase === entry.path)) {
+			return;
+		}
+
+		const on = this.settings.createBases && this.settings.classBaseToolbar;
+		const drafts = on ? this.allDrafts(this.scanClasses()) : new Map();
+
+		for (const entry of found) {
+			const file = entry.path ? this.app.vault.getFileByPath(entry.path) : null;
+			const name = on ? this.classForBase(file, drafts) : null;
+			this.paintBaseToolbar(entry.toolbar, name, file);
+			entry.toolbar.dataset.oofBase = entry.path;
+			/* Only a toolbar that carries a button of ours is worth watching. */
+			if (name) this.watchBaseToolbar(entry.toolbar);
+		}
+	}
+
+	/*
+	 * Obsidian's own markup for a toolbar button, as of 1.13.7: a
+	 * `.bases-toolbar-item` holding a `.text-icon-button` of an icon span and a
+	 * label span. Built by hand rather than borrowed, because the class that
+	 * builds them is internal - but built to that shape exactly, so the toolbar's
+	 * own rule hiding labels in a narrow pane reaches ours as well.
+	 */
+	paintBaseToolbar(toolbar, name, file) {
+		const existing = toolbar.querySelector(':scope > .oof-class-base-item');
+
+		if (!name || !(file instanceof TFile)) {
+			if (existing) existing.remove();
+			return;
+		}
+
+		if (existing && existing.dataset.oofClass === name) return;
+		if (existing) existing.remove();
+
+		const item = createDiv({ cls: 'bases-toolbar-item oof-class-base-item' });
+		item.dataset.oofClass = name;
+		const button = item.createDiv({ cls: 'text-icon-button', attr: { tabindex: '0' } });
+		const icon = button.createSpan({ cls: 'text-button-icon' });
+		if (typeof setIcon === 'function') setIcon(icon, 'boxes');
+		button.createSpan({ cls: 'text-button-label', text: 'Class base' });
+
+		/*
+		 * Both of these are async and nothing awaits them, so each needs its own
+		 * catch or a throw inside one becomes an unhandled rejection with no notice
+		 * and no menu.
+		 */
+		const open = (event) => {
+			event.preventDefault();
+			this.openClassBaseMenu(button, name, file).catch((error) => {
+				console.error('oof-classes: the Class base menu failed', error);
+				new Notice('OOF Class Manager: the Class base menu failed — see the console.', 8000);
+			});
+		};
+		button.addEventListener('click', open);
+		button.addEventListener('keydown', (event) => {
+			if (event.isComposing || event.defaultPrevented) return;
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			open(event);
+		});
+
+		/*
+		 * Beside Filter and Properties, which is where he asked for it. After
+		 * Properties rather than at the end, because the end of that row belongs to
+		 * the new-item button and putting ours past it would read as part of it.
+		 * Each fallback is one step further out, so a class renamed in a later
+		 * Obsidian costs the position rather than the button.
+		 */
+		const after = toolbar.querySelector(':scope > .bases-toolbar-properties-menu')
+			|| toolbar.querySelector(':scope > .bases-toolbar-filter-menu')
+			|| toolbar.querySelector(':scope > .bases-toolbar-sort-menu');
+		const before = toolbar.querySelector(':scope > .bases-toolbar-new-item-menu');
+
+		if (after) after.insertAdjacentElement('afterend', item);
+		else if (before) toolbar.insertBefore(item, before);
+		else toolbar.appendChild(item);
+	}
+
+	/*
+	 * One observer per toolbar, so a toolbar Obsidian rebuilds gets the button
+	 * back. Same idea as `watchProperties`, aimed one level tighter: the
+	 * **header** rather than the whole view, because a base view mutates on every
+	 * row it renders and the header does not. It is the toolbar's parent that is
+	 * watched, not the toolbar, since the thing to catch is the toolbar itself
+	 * being replaced.
+	 *
+	 * There is deliberately **no is-this-us guard**. A mutation record arrives as
+	 * a microtask, by which time any synchronous "I am painting" flag has already
+	 * been cleared - so such a flag never suppresses anything, and writing one
+	 * would only look like protection. What actually stops the loop is the
+	 * signature in `renderBaseToolbars`: the pass our own painting provokes finds
+	 * nothing stale and returns.
+	 */
+	watchBaseToolbar(toolbar) {
+		if (!this.baseToolbarObservers) this.baseToolbarObservers = new WeakMap();
+		const watched = toolbar.parentElement || toolbar;
+		if (this.baseToolbarObservers.has(watched)) return;
+
+		const observer = new MutationObserver(() => this.queueBaseToolbars());
+		observer.observe(watched, { childList: true, subtree: true });
+		this.baseToolbarObservers.set(watched, observer);
+		this.register(() => observer.disconnect());
+	}
+
+	/*
+	 * What the button opens: what a class base is, in the base's own words, then
+	 * the two things you can do to it.
+	 *
+	 * Obsidian's own `Menu` rather than a popover of ours. A menu is the wrong
+	 * shape for a paragraph and the right shape for everything else here - it
+	 * positions itself, closes on Escape and on a click elsewhere, and looks like
+	 * the app - so the paragraph goes in as a label item and is styled to wrap,
+	 * rather than a second popup being written to hold it.
+	 *
+	 * The file is read first, because which way the switch is set is written in
+	 * the file and nowhere else. There is no stored state for it at all: the
+	 * filter line *is* the setting, so it cannot drift from what the base does.
+	 */
+	async openClassBaseMenu(buttonEl, name, file) {
+		if (typeof Menu !== 'function') {
+			new Notice('OOF Class Manager: this Obsidian version does not expose Menu.', 6000);
+			return;
+		}
+
+		/* Taken before the read, so the menu lands under the button either way. */
+		const rect = buttonEl.getBoundingClientRect();
+
+		let text = '';
+		try {
+			text = await this.app.vault.cachedRead(file);
+		} catch (error) {
+			console.error('oof-classes: could not read ' + file.path, error);
+		}
+
+		const objects = this.scanClasses();
+		const drafts = this.allDrafts(objects);
+		if (!drafts.has(name)) {
+			new Notice('OOF Class Manager: there is no class called "' + name + '" any more.', 6000);
+			return;
+		}
+
+		const columns = this.baseColumnsFor(name, objects, drafts);
+		const filter = this.findBaseFilterLine(text, name);
+		const exact = !!(filter && filter.exact);
+
+		const said = [
+			'Generated by OOF Class Manager for the class ' + name + ': one row per note that '
+				+ 'is ' + article(name) + ' ' + name + ', one column per characteristic '
+				+ name + ' carries.',
+			'It was created once and has been yours ever since - Update never rewrites '
+				+ 'it. Resetting it from the class is the only thing that does, and that '
+				+ 'is here.',
+		];
+		if (filter) {
+			said.push(exact
+				? 'Showing only notes whose own "is a" names ' + name
+					+ ' - subclasses excluded.'
+				: 'Showing every note that is ' + article(name) + ' ' + name
+					+ ', instances of its subclasses included.');
+		} else {
+			said.push('Its filter has been edited, so what it shows is yours rather than '
+				+ 'the generated one.');
+		}
+		said.push(columns.length > 0
+			? 'Columns: file.name, ' + columns.join(', ') + '.'
+			: 'Only file.name, since ' + name + ' has no characteristics yet.');
+
+		const menu = new Menu();
+
+		menu.addItem((item) => {
+			if (typeof item.setIsLabel === 'function') item.setIsLabel(true);
+			const box = createDiv({ cls: 'oof-class-base-explainer' });
+			box.createDiv({ cls: 'oof-class-base-explainer-title', text: 'Class base' });
+			for (const line of said) {
+				box.createDiv({ cls: 'oof-class-base-explainer-line', text: line });
+			}
+			const fragment = document.createDocumentFragment();
+			fragment.appendChild(box);
+			item.setTitle(fragment);
+		});
+
+		if (typeof menu.addSeparator === 'function') menu.addSeparator();
+
+		/*
+		 * The switch he asked for. Offered either way: a base whose filter line
+		 * cannot be found still shows it, and pressing it says why rather than
+		 * doing nothing - the same answer the panel's greyed-out buttons give.
+		 */
+		menu.addItem((item) => {
+			item.setTitle('Exact matches only')
+				.setIcon(filter ? 'crosshair' : 'alert-triangle')
+				.onClick(async () => {
+					if (!filter) {
+						new Notice('OOF Class Manager: this base\'s filter no longer contains the '
+							+ 'line this would change, so it has been left alone. Reset the '
+							+ 'base to get it back.', 10000);
+						return;
+					}
+					await this.setBaseExactness(file, name, !exact);
+					new Notice(exact
+						? 'OOF Class Manager: ' + file.path + ' now shows every note that is '
+							+ article(name) + ' ' + name + '.'
+						: 'OOF Class Manager: ' + file.path + ' now shows only notes whose "is a" '
+							+ 'names ' + name + '.', 5000);
+				});
+			if (filter && typeof item.setChecked === 'function') item.setChecked(exact);
+		});
+
+		if (typeof menu.addSeparator === 'function') menu.addSeparator();
+
+		const classFile = drafts.get(name).file;
+		if (classFile instanceof TFile) {
+			menu.addItem((item) => item
+				.setTitle('Open ' + name)
+				.setIcon('file-text')
+				.onClick(() => { this.app.workspace.getLeaf(false).openFile(classFile); }));
+		}
+
+		menu.addItem((item) => {
+			item.setTitle('Reset from the class…')
+				.setIcon('refresh-cw')
+				.onClick(() => {
+					this.resetClassBase(name, file).catch((error) => {
+						console.error('oof-classes: the base reset failed', error);
+						new Notice('OOF Class Manager: the base reset failed — see the console. '
+							+ 'Nothing was written.', 8000);
+					});
+				});
+			if (typeof item.setWarning === 'function') item.setWarning(true);
+		});
+
+		if (typeof menu.showAtPosition === 'function') {
+			menu.showAtPosition({ x: rect.left, y: rect.bottom + 4 });
+		}
+	}
+
 
 	/* ------------------------------------------------------------ the plan -- */
 
@@ -5016,9 +7267,9 @@ class OofClassesPlugin extends Plugin {
 		/*
 		 * 1a3. Dates that should have been filled in when the note was made.
 		 *
-		 * A characteristic with a `default value` of `<% tp.date.now(...) %>` gets
-		 * its value from Templater at creation - which does nothing for notes that
-		 * already existed, or that predate the characteristic. Those carry an empty
+		 * A characteristic whose default is `<% tp.date.now(...) %>` gets its value
+		 * from Templater at creation - which does nothing for notes that already
+		 * existed, or that predate the characteristic. Those carry an empty
 		 * `created:` for ever unless something fills it.
 		 *
 		 * The value is the file's own creation time, never the current time: this
@@ -5036,8 +7287,18 @@ class OofClassesPlugin extends Plugin {
 				if (!isEmptyValue(instance.frontmatter[key])) continue;
 
 				const characteristic = characteristics.get(key);
-				if (!characteristic || isEmptyValue(characteristic.defaultValue)) continue;
-				if (!isTemplaterExpression(characteristic.defaultValue)) continue;
+				if (!characteristic) continue;
+
+				/*
+				 * The vault-wide default, which is the table's *All notes* row. It was
+				 * `characteristic.defaultValue` until that key was retired, and asking
+				 * with no class named is the same question: what every note carrying
+				 * this characteristic is created with.
+				 */
+				const resolved = this.defaultFor(characteristic, null, objects, drafts);
+				const expression = resolved ? resolved.starting : '';
+				if (isEmptyValue(expression)) continue;
+				if (!isTemplaterExpression(expression)) continue;
 
 				const type = String(characteristic.propertyType || '').toLowerCase();
 				if (type !== 'date' && type !== 'datetime') continue;
@@ -5046,7 +7307,7 @@ class OofClassesPlugin extends Plugin {
 				if (!stat || !stat.ctime) continue;
 
 				const value = formatMoment(new Date(stat.ctime),
-					templaterDateFormat(characteristic.defaultValue));
+					templaterDateFormat(expression));
 
 				actions.push({
 					kind: 'fill-datetime',
@@ -5057,7 +7318,7 @@ class OofClassesPlugin extends Plugin {
 					value: value,
 					detail: [
 						key + ' is empty, and its characteristic fills it with '
-							+ characteristic.defaultValue + ' when a note is made.',
+							+ expression + ' when a note is made.',
 						'This note already existed, so the value comes from the file itself: '
 							+ 'created ' + value + '.',
 					],
@@ -5126,24 +7387,56 @@ class OofClassesPlugin extends Plugin {
 
 				if (dropped.length === 0) continue;
 
-				const said = dropped.map((d) => {
-					if (d.why === 'blank') return 'an empty entry';
-					if (d.why === 'named twice') return d.name + ' is named twice';
-					return d.name + ' is already reached through ' + d.by;
-				});
+				/*
+				 * Three reasons to drop an entry, and they do not share a closing
+				 * sentence. "keeps [[Project]], which says the same thing" was
+				 * written for a *class* being dropped, where the point is that the
+				 * entry left over still reaches it. Read underneath "Removed: an
+				 * empty entry" it says Project is the redundant one — the exact
+				 * opposite of what is happening, and the reading he got. An empty
+				 * entry never said anything, so there is nothing for what is left
+				 * to be saying instead: the honest line there is that nothing else
+				 * changes.
+				 */
+				const blanks = dropped.filter((d) => d.why === 'blank').length;
+				const onlyBlanks = blanks === dropped.length;
+
+				/*
+				 * The blanks are counted rather than listed: two of them produced
+				 * the same sentence twice, which reads as two different faults.
+				 */
+				const said = [];
+				if (blanks === 1) said.push('a list entry with nothing in it');
+				else if (blanks > 1) said.push(blanks + ' list entries with nothing in them');
+				for (const d of dropped) {
+					if (d.why === 'blank') continue;
+					if (d.why === 'named twice') said.push(d.name + ' is named twice');
+					else {
+						said.push(d.by + ' is already a ' + d.name
+							+ ', so naming ' + d.name + ' as well says nothing new');
+					}
+				}
 
 				actions.push({
 					kind: 'strip-redundant-link',
-					label: 'Tidy ' + property + ' on "' + note.name + '"',
+					label: (onlyBlanks
+						? 'Remove ' + (blanks === 1 ? 'the empty entry' : blanks + ' empty entries')
+							+ ' from ' + property
+						: 'Tidy ' + property)
+						+ ' on "' + note.name + '"',
 					file: note.file,
 					path: note.file.path,
 					property: property,
 					values: kept,
 					detail: [
 						'Removed: ' + said.join('; ') + '.',
-						kept.length > 0
-							? property + ' keeps ' + kept.join(', ') + ', which says the same thing.'
-							: property + ' is left empty.',
+						kept.length === 0
+							? 'The ' + property + ' list is left empty.'
+							: onlyBlanks
+								? 'Nothing else changes — the ' + property + ' list still says '
+									+ kept.join(', ') + '.'
+								: 'What is left — ' + kept.join(', ') + ' — still says '
+									+ 'everything the list said.',
 					],
 				});
 			}
@@ -5222,6 +7515,16 @@ class OofClassesPlugin extends Plugin {
 		 * conflict and the new one arriving empty beside it.
 		 */
 		for (const action of this.propertyRenameActions(characteristics, conflicts)) {
+			actions.push(action);
+		}
+
+		/*
+		 * 1b-ter. values he has renamed. Beside the pass above and for the same
+		 * reason: a value nothing allows any more is reported by every pass below
+		 * unless it moves first, and that report would be of a fault rather than
+		 * of a rename already on its way.
+		 */
+		for (const action of this.valueRenameActions(characteristics)) {
 			actions.push(action);
 		}
 
@@ -5747,9 +8050,9 @@ class OofClassesPlugin extends Plugin {
 				const source = defaultSources[property];
 				detail.push(property + ' — filled with '
 					+ toArray(defaults[property]).join(', ')
-					+ (!source || source === 'default value'
-						? ', from its characteristic note.'
-						: ', from the ' + source + ' row of its defaults table.'));
+					+ (source
+						? ', from the ' + source + ' row of its defaults table.'
+						: ', from its characteristic note.'));
 			}
 
 			actions.push({
@@ -5815,29 +8118,46 @@ class OofClassesPlugin extends Plugin {
 					continue;
 				}
 
-				if (entry.has && entry.format === wanted) continue;
+				/*
+				 * One block, written with the format the setting names. More than one is the
+				 * defect RENAME_MARKS describes, so it is planned even when the format is
+				 * already right — what changes then is the removal of the stale copies, not
+				 * the block that is kept.
+				 */
+				if (entry.has && entry.count === 1 && entry.format === wanted) continue;
+
+				const stale = entry.count > 1;
+				const onlyStale = stale && entry.format === wanted;
 
 				actions.push({
 					kind: 'write-rename-block',
-					label: (entry.has ? 'Update' : 'Add') + ' the naming block in the template for "'
-						+ name + '"',
+					label: !entry.has
+						? 'Add the naming block to the template for "' + name + '"'
+						: onlyStale
+							? 'Remove the duplicate naming block from the template for "'
+								+ name + '"'
+							: 'Update the naming block in the template for "' + name + '"',
 					file: file,
 					path: path,
 					object: name,
 					format: wanted,
-					detail: entry.has
+					detail: !entry.has
 						? [
-							'The block names new notes `' + entry.format + '`, and *Unique file '
-								+ 'name* now says `' + wanted + '`.',
-							'Only the block is rewritten. Everything else in the template, '
-								+ 'frontmatter included, is left exactly as it is.',
-						]
-						: [
 							'A note made from this template with no name of its own is named '
 								+ 'after the moment it was made, as `' + wanted + '`.',
 							'Appended below the frontmatter, which is where it has to go — '
 								+ 'the properties above it are written through Obsidian, and '
 								+ 'that reads the `---` on the first line.',
+						]
+						: [
+							stale
+								? 'The template carries ' + entry.count + ' copies of the block. An '
+									+ 'earlier Update wrote a second one instead of replacing the '
+									+ 'first; all but the first come out.'
+								: 'The block names new notes `' + entry.format + '`, and *Unique '
+									+ 'file name* now says `' + wanted + '`.',
+							'Only the blocks are touched. Everything else in the template, '
+								+ 'frontmatter included, is left exactly as it is.',
 						],
 				});
 			}
@@ -5850,41 +8170,34 @@ class OofClassesPlugin extends Plugin {
 		 * regenerated to stay in step. A base is a starting point he goes on to
 		 * edit (adding views, sorts, group-bys), so rewriting it would throw
 		 * that work away. An existing base is never touched, however stale.
+		 *
+		 * That is now true without exception. There used to be a queue behind it -
+		 * a class whose base he had asked to be reset from the panel came through
+		 * here with `overwrite` set - and the reset lives on the base's own toolbar
+		 * since 2026-08-28, where it writes the file in front of him rather than
+		 * posting an instruction to a plan he will confirm later.
 		 */
 		if (this.settings.createBases) {
 			for (const name of drafts.keys()) {
 				const path = this.basePathFor(name);
-				const exists = !!this.app.vault.getFileByPath(path);
-				const requested = this.baseRefreshes.has(name);
-
-				/* Existing and not asked about: his, and left alone. */
-				if (exists && !requested) continue;
+				if (this.app.vault.getFileByPath(path)) continue;
 
 				const columns = this.baseColumnsFor(name, objects, drafts);
 				const detail = [];
-				if (exists) {
-					detail.push('You asked for this base to be refreshed, so it is rebuilt '
-						+ 'from scratch. Any views, sorts or filters you added are lost.');
-				}
 				detail.push('Table of everything that is a ' + name
 					+ ', templates excluded.');
 				detail.push(columns.length > 0
 					? 'Columns: file.name, ' + columns.join(', ')
 					: 'Only file.name, since ' + name + ' has no characteristics yet.');
-				if (!exists) {
-					detail.push('Created once — from then on it is yours, and Update leaves it alone.');
-				}
+				detail.push('Created once — from then on it is yours. Update leaves it '
+					+ 'alone; Class base › Reset from the class is what rebuilds it.');
 
 				actions.push({
 					kind: 'write-base',
-					label: exists
-						? 'Rewrite base for "' + name + '" — replaces your edits'
-						: 'Create base for "' + name + '"',
+					label: 'Create base for "' + name + '"',
 					path: path,
 					object: name,
 					content: this.baseContentFor(name, objects, drafts),
-					/* Only a refresh he asked for may overwrite. */
-					overwrite: exists && requested,
 					detail: detail,
 				});
 			}
@@ -6050,19 +8363,22 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		/*
-		 * 4a. strict defaults, enforced on the instances.
+		 * 4a. the three standing columns, enforced on the instances.
 		 *
-		 * The two columns of the defaults table differ in exactly this. An ordinary
-		 * default is what a note is *created* with, and is the note's own from
-		 * then on — nothing here touches it. A **strict** default is a standing
-		 * claim about every instance, so an empty value is never accepted while one
-		 * stands: *"If a characteristic has a default value, then NONE is never
-		 * accepted, and NONE will always be replaced with the default value."*
+		 * The four value columns differ in exactly this. **Starting value** is what
+		 * a note is *created* with and is the note's own from then on — nothing here
+		 * touches it. The other three are standing claims about every instance:
 		 *
-		 * A value that is neither empty nor the strict one is a different question,
-		 * and the answer is a setting. Reported by default, because a value you
-		 * typed is yours everywhere else in this plugin; overwritten if you have
-		 * said that is what strict should mean.
+		 *   None replacement    fills an empty value, and only an empty one:
+		 *                       *"NONE is never accepted, and NONE will always be
+		 *                       replaced"*. A value that is there is left alone.
+		 *   Value must be       replaces anything that is not it, empty included.
+		 *   Value must contain  adds the entry to a list that is missing it, and
+		 *                       keeps everything else in the list.
+		 *
+		 * Where a differing value is *replaced* and where it is *reported* used to be
+		 * one setting over the whole vault. It is written in the row now — which is
+		 * the same claim said per characteristic and per class, so the setting went.
 		 */
 		for (const instance of instances) {
 			const strictSeen = new Set();
@@ -6074,25 +8390,58 @@ class OofClassesPlugin extends Plugin {
 
 					const characteristic = characteristics.get(key);
 					const resolved = this.defaultFor(characteristic, className, objects, drafts);
-					const wanted = this.strictWriteValue(characteristic, resolved);
-					if (isEmptyValue(wanted)) continue;
-					/*
-					 * A strict default written as a Templater expression is
-					 * machinery: it says what the template should hold, and there is
-					 * nothing to enforce on a note that already exists. `fill-datetime`
-					 * is what recovers those, from the file's own creation time.
-					 */
-					if (isTemplaterExpression(wanted)) continue;
+					if (!resolved) continue;
 
 					const current = instance.frontmatter[key];
-					if (sameDefaultValue(current, wanted)) continue;
-
-					const shown = toArray(wanted).join(', ');
 					const where = resolved.source === ALL_NOTES_ROW
 						? 'every note carrying ' + key
 						: 'an instance of ' + resolved.source;
 
-					if (isEmptyValue(current)) {
+					/*
+					 * A value already written as a Templater expression is machinery, and
+					 * so is a claim written as one: it says what the *template* should
+					 * hold, and there is nothing to enforce on a note that exists.
+					 * `fill-datetime` is what recovers those, from the file's own
+					 * creation time.
+					 */
+					if (isTemplaterExpression(current)) continue;
+
+					const must = this.columnWriteValue(characteristic, resolved, 'must');
+					const none = this.columnWriteValue(characteristic, resolved, 'none');
+					const contains = this.columnWriteValue(characteristic, resolved, 'contains');
+
+					/* Value must be — total, so it is asked first and answers alone. */
+					if (!isEmptyValue(must) && !isTemplaterExpression(must)) {
+						if (sameDefaultValue(current, must)) continue;
+						const shown = toArray(must).join(', ');
+						actions.push({
+							kind: 'fill-default',
+							label: (isEmptyValue(current) ? 'Fill ' : 'Replace ') + key + ' on "'
+								+ instance.file.basename + '" — '
+								+ (isEmptyValue(current) ? shown
+									: toArray(current).join(', ') + ' → ' + shown),
+							file: instance.file,
+							path: instance.file.path,
+							property: key,
+							value: must,
+							overwrite: true,
+							detail: [
+								'The defaults table for ' + key + ' says ' + where
+									+ ' must be ' + shown + ', and this holds '
+									+ (isEmptyValue(current)
+										? 'nothing.' : toArray(current).join(', ') + '.'),
+								'Value must be is total: anything else is replaced. Empty the '
+									+ 'cell, or use None replacement instead, if what you meant '
+									+ 'was only to fill an empty one.',
+							],
+						});
+						continue;
+					}
+
+					/* None replacement — an empty value, and nothing else. */
+					if (!isEmptyValue(none) && !isTemplaterExpression(none)
+						&& isEmptyValue(current)) {
+						const shown = toArray(none).join(', ');
 						actions.push({
 							kind: 'fill-default',
 							label: 'Fill ' + key + ' on "' + instance.file.basename
@@ -6100,106 +8449,326 @@ class OofClassesPlugin extends Plugin {
 							file: instance.file,
 							path: instance.file.path,
 							property: key,
-							value: wanted,
+							value: none,
 							/* Only if it is still empty when the write happens. */
 							overwrite: false,
 							detail: [
-								key + ' is empty, and its defaults table gives ' + where
-									+ ' the strict value ' + shown + '.',
-								'A strict default is not a starting point: an empty value is '
+								key + ' is empty, and its defaults table replaces none with '
+									+ shown + ' for ' + where + '.',
+								'A none replacement is not a starting point: an empty value is '
 									+ 'never accepted while one stands.',
 							],
 						});
 						continue;
 					}
 
-					if (isTemplaterExpression(current)) continue;
+					/* Value must contain — an entry that has to be in the list. */
+					if (!isEmptyValue(contains) && !isTemplaterExpression(contains)) {
+						const wanted = toArray(contains).map((one) => String(one).trim())
+							.filter((one) => one !== '');
+						const held = toArray(current).map((one) => String(one).trim());
+						const missing = wanted.filter((one) => !held.some(
+							(have) => sameDefaultValue(have, one)));
+						if (missing.length === 0) continue;
 
-					if (this.settings.strictOverridesValues) {
+						/*
+						 * Only a list can gain an entry. On a single value there is no way
+						 * to add without replacing, and replacing is what the *Value must
+						 * be* column is for — so this is reported rather than guessed at.
+						 */
+						const type = String(characteristic
+							&& characteristic.propertyType || '').toLowerCase();
+						const isList = type === 'list' || type === 'tags' || type === 'multitext';
+
+						if (!isList) {
+							if (!isEmptyValue(current)
+								&& wanted.every((one) => String(current).indexOf(one) !== -1)) {
+								continue;
+							}
+							conflicts.push({
+								file: instance.file,
+								property: key,
+								value: current,
+								reason: 'The defaults table for ' + key + ' says ' + where
+									+ ' must contain ' + missing.join(', ') + ', and this holds '
+									+ (isEmptyValue(current)
+										? 'nothing' : toArray(current).join(', '))
+									+ '. ' + key + ' is not a list, so there is nothing to add '
+									+ 'to — write it yourself, or say Value must be instead.',
+							});
+							continue;
+						}
+
 						actions.push({
 							kind: 'fill-default',
-							label: 'Replace ' + key + ' on "' + instance.file.basename
-								+ '" — ' + toArray(current).join(', ') + ' → ' + shown,
+							label: 'Add to ' + key + ' on "' + instance.file.basename
+								+ '" — ' + missing.join(', '),
 							file: instance.file,
 							path: instance.file.path,
 							property: key,
-							value: wanted,
+							value: held.filter((one) => one !== '').concat(missing),
 							overwrite: true,
 							detail: [
-								key + ' holds ' + toArray(current).join(', ') + ', and the '
-									+ 'defaults table gives ' + where + ' the strict value '
-									+ shown + '.',
-								'Strict defaults also override differing values is on, so this '
-									+ 'is replaced rather than reported.',
+								'The defaults table for ' + key + ' says ' + where
+									+ ' must contain ' + missing.join(', ') + '.',
+								'Added to what is there. Nothing already in the list is '
+									+ 'removed or reordered.',
 							],
 						});
-						continue;
 					}
+				}
+			}
+		}
 
+		/*
+		 * 4b. a row that says two things at once.
+		 *
+		 * **Value must be** is total, so any other claim in the same row about the
+		 * same value would be visibly ignored for ever: a note created with the
+		 * starting value would be replaced the moment Update ran, and a none
+		 * replacement would never be reached because an empty value is already not
+		 * what the value must be. Not a preference the plugin can resolve, so it is
+		 * reported on the characteristic note, once per row.
+		 */
+		for (const characteristic of characteristics.values()) {
+			for (const row of characteristic.defaults || []) {
+				if (isEmptyValue(row.must)) continue;
+				for (const key of ['starting', 'none']) {
+					if (isEmptyValue(row[key])) continue;
+					if (String(row[key]).trim() === String(row.must).trim()) continue;
+					const column = DEFAULTS_COLUMNS[DEFAULTS_VALUE_KEYS.indexOf(key) + 1];
 					conflicts.push({
-						file: instance.file,
-						property: key,
-						value: current,
-						reason: 'The defaults table for ' + key + ' gives ' + where
-							+ ' the strict value ' + shown + ', and this holds '
-							+ toArray(current).join(', ') + '. Left untouched — change it, '
-							+ 'change the row, or turn on *Strict defaults also override '
-							+ 'differing values*.',
+						file: characteristic.file,
+						property: characteristic.name,
+						value: row[key],
+						reason: 'The ' + row.location + ' row gives ' + column.toLowerCase()
+							+ ' ' + row[key] + ' and says the value must be ' + row.must
+							+ '. What the value must be is what gets written, so the other '
+							+ 'would never be used. Empty one of them.',
 					});
 				}
 			}
 		}
 
 		/*
-		 * 4b. a row that says two different things at once.
+		 * 4c. characteristic notes with no defaults table, or none with an
+		 * *All notes* row in it.
 		 *
-		 * Both columns filled, differing, is not a preference the plugin can
-		 * resolve: the strict one is written, so the ordinary one would be visibly
-		 * ignored for ever. Reported on the characteristic note, once per row.
+		 * *Each* characteristic has one, so one without is out of step the same way
+		 * a note missing a property is. The rows are an input, like `property type`
+		 * beside them — nothing here rewrites one; a table is appended to a note
+		 * that has none, and a missing *All notes* row is put back under the header.
+		 *
+		 * That second half exists because the row is where a default for every note
+		 * lives now, so a table without one has nowhere to say it. It is the same
+		 * claim as the first half and rides the same setting.
 		 */
-		for (const characteristic of characteristics.values()) {
-			for (const row of characteristic.defaults || []) {
-				if (isEmptyValue(row.value) || isEmptyValue(row.strict)) continue;
-				if (String(row.value).trim() === String(row.strict).trim()) continue;
-				conflicts.push({
+		if (this.settings.seedDefaultsTable) {
+			for (const characteristic of characteristics.values()) {
+				if (!characteristic.file) continue;
+
+				/*
+				 * A table written with the old column names, brought up to date first:
+				 * everything below reads a row through its table's column map, so an old
+				 * table is *read* correctly either way — but a note he opens should say
+				 * what the plugin says, and the two new claims have nowhere to be written
+				 * until the columns exist.
+				 *
+				 * Values move across by **name**, so nothing lands under a heading that
+				 * means something else. `Strict default value` becomes **None
+				 * replacement**, which is what it did on its own: filling an empty value.
+				 * The other half of it was a setting, now *Value must be*.
+				 */
+				const legacy = characteristic.legacyTables || [];
+				if (legacy.length > 0) {
+					actions.push({
+						kind: 'upgrade-defaults-table',
+						label: 'Bring the defaults table in "' + characteristic.file.basename
+							+ '" up to date',
+						file: characteristic.file,
+						path: characteristic.file.path,
+						name: characteristic.name,
+						detail: [
+							'Its columns are ' + tableCells(legacy[0].header).join(', ') + '.',
+							'Rewritten as ' + DEFAULTS_COLUMNS.join(', ') + '. Every value moves '
+								+ 'by column name, so nothing lands under a heading that means '
+								+ 'something else, and every line outside the table is untouched.',
+						],
+					});
+					continue;
+				}
+
+				if (!characteristic.hasDefaultsTable) {
+					actions.push({
+						kind: 'add-defaults-table',
+						label: 'Add the defaults table to "' + characteristic.file.basename + '"',
+						file: characteristic.file,
+						path: characteristic.file.path,
+						name: characteristic.name,
+						detail: [
+							'No defaults table, so ' + characteristic.name + ' has no way to say '
+								+ 'what its value should be for a given class.',
+							'Appended to the end of the note. Nothing already written is read, '
+								+ 'moved or removed.',
+						],
+					});
+					continue;
+				}
+
+				if ((characteristic.allNotesRows || []).length > 0) continue;
+
+				/*
+				 * Left to `retire-default-value`, which inserts the row *with* the value
+				 * in it — one action rather than an empty row and then a fill.
+				 */
+				const frontmatter = this.frontmatterOf(characteristic.file) || {};
+				if (!isEmptyValue(frontmatter['default value'])) continue;
+
+				actions.push({
+					kind: 'add-all-notes-row',
+					label: 'Put the All notes row back in "'
+						+ characteristic.file.basename + '"',
 					file: characteristic.file,
-					property: characteristic.name,
-					value: row.value,
-					reason: 'The ' + row.location + ' row gives both a default value ('
-						+ row.value + ') and a different strict default value ('
-						+ row.strict + '). The strict one is what would be written, so the '
-						+ 'other would never be used. Empty one of them.',
+					path: characteristic.file.path,
+					name: characteristic.name,
+					detail: [
+						'The defaults table has no All notes row, so there is nowhere for '
+							+ characteristic.name + ' to say what every note carrying it '
+							+ 'should hold — only what one class or another should.',
+						'Inserted empty, under the header. Every other line is left exactly '
+							+ 'as it is.',
+					],
 				});
 			}
 		}
 
 		/*
-		 * 4c. characteristic notes with no defaults table at all.
+		 * 4d. `default value:` in the frontmatter, which is retired.
 		 *
-		 * *Each* characteristic has one, so one without is out of step the same way
-		 * a note missing a property is. This is the only thing in the plugin that
-		 * writes into a note's **body**, and it is append-only — a table is added to
-		 * a note that has none, and an existing one is never rewritten. The rows are
-		 * an input, like `property type` beside them.
+		 * It said what the table's *All notes* row says — a value for every note
+		 * carrying the characteristic, whatever its class — and two spellings of one
+		 * claim is two things that can disagree. His call, 2026-08-30: the table is
+		 * the one that can *also* say "for this class", so it is the frontmatter key
+		 * that goes.
+		 *
+		 * The key is still read (see `defaultValue`), because a key that is never
+		 * looked at is a value silently doing nothing. It is read in order to be
+		 * moved here and removed.
+		 *
+		 * An empty key is simply removed. A key with a value needs somewhere to put
+		 * it, and that is the *All notes* row: filled if the row is there, inserted
+		 * if the table is there without one. A note with no table at all waits for
+		 * `add-defaults-table` in this same plan — and if that is switched off, the
+		 * value has nowhere to go and is reported instead of dropped.
 		 */
-		if (this.settings.seedDefaultsTable) {
-			for (const characteristic of characteristics.values()) {
-				if (characteristic.hasDefaultsTable) continue;
-				if (!characteristic.file) continue;
+		for (const characteristic of characteristics.values()) {
+			if (!characteristic.file) continue;
+			/*
+			 * The key being *present* is what there is to do something about, not its
+			 * value: an empty one is a line to remove, and `defaultValue` reads the
+			 * same either way.
+			 */
+			const frontmatter = this.frontmatterOf(characteristic.file) || {};
+			if (!('default value' in frontmatter)) continue;
+			const held = frontmatter['default value'];
+
+			const entry = this.defaultsEntryFor(characteristic.file);
+			const row = (entry.allRows || [])[0] || null;
+			const text = toArray(held).map((one) => String(one).trim()).join(', ').trim();
+
+			if (isEmptyValue(held)) {
 				actions.push({
-					kind: 'add-defaults-table',
-					label: 'Add the defaults table to "' + characteristic.file.basename + '"',
+					kind: 'retire-default-value',
+					label: 'Remove the empty default value from "'
+						+ characteristic.file.basename + '"',
 					file: characteristic.file,
 					path: characteristic.file.path,
 					name: characteristic.name,
+					moveValue: '',
+					targetLine: null,
 					detail: [
-						'No defaults table, so ' + characteristic.name + ' has no way to say '
-							+ 'what its value should be for a given class.',
-						'Appended to the end of the note. Nothing already written is read, '
-							+ 'moved or removed.',
+						'A default for every note is what the All notes row of the defaults '
+							+ 'table says. The empty key below possible values says nothing '
+							+ 'and is removed.',
 					],
 				});
+				continue;
 			}
+
+			/* Nowhere to put it yet, and something in this plan is about to make one. */
+			if (!row && !entry.hasTable && this.settings.seedDefaultsTable) continue;
+
+			if (!row && !entry.hasTable) {
+				conflicts.push({
+					file: characteristic.file,
+					property: characteristic.name,
+					value: text,
+					reason: 'default value is retired — the All notes row of the defaults '
+						+ 'table is where a value for every note lives now. This note has no '
+						+ 'table, and *Every characteristic note carries the table* is off, '
+						+ 'so there is nowhere to move ' + text + ' to. Turn that on, or add '
+						+ 'the table yourself.',
+				});
+				continue;
+			}
+
+			if (row && !isEmptyValue(row.must) && row.must.trim() !== text) {
+				conflicts.push({
+					file: characteristic.file,
+					property: characteristic.name,
+					value: text,
+					reason: 'default value says ' + text + ', and the All notes row already '
+						+ 'says the value must be ' + row.must + ' for every note — which is '
+						+ 'what would be written, so the other would never be used. Settle it '
+						+ 'in the row and the key will be removed.',
+				});
+				continue;
+			}
+
+			if (row && !isEmptyValue(row.starting) && row.starting.trim() !== text) {
+				conflicts.push({
+					file: characteristic.file,
+					property: characteristic.name,
+					value: text,
+					reason: 'default value says ' + text + ', and the All notes row of the '
+						+ 'defaults table already says ' + row.starting + '. Two answers to one '
+						+ 'question, so neither is written over: keep the one you mean in the '
+						+ 'row, and the key will be removed.',
+				});
+				continue;
+			}
+
+			const already = row && !isEmptyValue(row.starting);
+			actions.push({
+				kind: 'retire-default-value',
+				label: already
+					? 'Remove the default value from "' + characteristic.file.basename
+						+ '" — the All notes row already says it'
+					: 'Move the default value of "' + characteristic.file.basename
+						+ '" into the All notes row',
+				file: characteristic.file,
+				path: characteristic.file.path,
+				name: characteristic.name,
+				/* Empty when the row already says it: then this is only a removal. */
+				moveValue: already ? '' : text,
+				/* The row to fill, or null to insert one under the header rule. */
+				targetLine: row ? row.line : null,
+				detail: already ? [
+					'The All notes row of the defaults table already gives every note '
+						+ row.starting + ' to start with. The key says the same thing a second '
+						+ 'way, and is removed.',
+				] : [
+					text + ' is what every note carrying ' + characteristic.name
+						+ ' starts with, whatever its class — which is what the Starting value '
+						+ 'cell of the All notes row says.',
+					row
+						? 'The value moves into that row and the key is removed. Nothing '
+							+ 'changes about what a note is created with.'
+						: 'The row is inserted under the header, the value goes in it, and '
+							+ 'the key is removed. Nothing changes about what a note is '
+							+ 'created with.',
+				],
+			});
 		}
 
 		/*
@@ -6207,13 +8776,32 @@ class OofClassesPlugin extends Plugin {
 		 * plugin has no business choosing a different value than the one he
 		 * typed.
 		 */
-		for (const complaint of this.valueDiscrepancies({
+		const localPicture = {
 			characteristics: characteristics,
 			classes: objects,
 			instances: new Map(instances.map((i) => [i.file.path, {
 				file: i.file, keys: new Set(Object.keys(i.frontmatter)), values: i.frontmatter,
 			}])),
-		})) {
+		};
+
+		/*
+		 * Two kinds of offending value are held back from this report: one he has
+		 * already answered for, and one carried by enough notes to be a question
+		 * of its own. Both are raised once, by the pass that can actually carry a
+		 * rename, rather than twenty-one times over as faults.
+		 */
+		const answered = new Set();
+		for (const entry of this.pendingValueRenames()) {
+			answered.add(valueRenameKey(entry.characteristic, entry.from));
+		}
+		for (const [key, byValue] of this.strandedValues(localPicture)) {
+			for (const stranded of byValue.values()) {
+				if (stranded.files.length < 2) continue;
+				answered.add(valueRenameKey(key, stranded.value));
+			}
+		}
+
+		for (const complaint of this.valueDiscrepancies(localPicture, answered)) {
 			conflicts.push(complaint);
 		}
 
@@ -6708,6 +9296,96 @@ class OofClassesPlugin extends Plugin {
 			});
 		}
 
+		/*
+		 * Values nothing allows any more, one item per value. The same question as
+		 * the stranded key above asked one level down, and it has the same answer:
+		 * he says what it became, and Update carries every note across.
+		 */
+		const picture = this.picture();
+		const renaming = new Set(this.pendingValueRenames()
+			.map((entry) => valueRenameKey(entry.characteristic, entry.from)));
+
+		for (const [key, byValue] of this.strandedValues(picture)) {
+			const suggestion = this.suggestValueRenameFor(key, picture);
+			for (const stranded of byValue.values()) {
+				if (renaming.has(valueRenameKey(key, stranded.value))) continue;
+				/*
+				 * One note holding a word nothing allows is a typo, and the pass that
+				 * reports values reports it as itself, naming the note. Two or more
+				 * is a shape, and gets this instead.
+				 */
+				if (stranded.files.length < 2) continue;
+
+				found.push({
+					severity: 'insolvable',
+					kind: 'stranded-value',
+					property: key,
+					subject: key + ' · ' + stranded.value,
+					label: '"' + stranded.value + '" — on ' + stranded.files.length
+						+ ' notes, no longer a possible value for ' + key,
+					file: stranded.files[0] || null,
+					path: stranded.files[0] ? stranded.files[0].path : '',
+					detail: [
+						key + ' no longer allows "' + stranded.value + '", and '
+							+ stranded.files.length + ' notes still hold it.',
+						'Most often this is a value renamed in `possible values` with the '
+							+ 'notes left behind. Say what it became and Update will move '
+							+ 'every one of them.',
+					].concat(suggestion
+						? ['"' + suggestion + '" is allowed and nothing uses it, which is '
+							+ 'what a rename looks like from the outside.']
+						: []),
+					strandedValue: stranded,
+					suggestion: suggestion,
+					fix: null,
+				});
+			}
+		}
+
+		/*
+		 * And what a rename cannot reach: the word inside a base filter, or in the
+		 * prose of a note. Named rather than rewritten — see `scanValueMentions`.
+		 */
+		for (const entry of this.pendingValueRenames()) {
+			const mentions = this.valueMentionsFor(entry);
+			const total = mentions.bases.length + mentions.notes.length;
+			if (total === 0) continue;
+
+			const said = [];
+			if (mentions.bases.length > 0) {
+				said.push(mentions.bases.length + ' base'
+					+ (mentions.bases.length === 1 ? '' : 's'));
+			}
+			if (mentions.notes.length > 0) {
+				said.push(mentions.notes.length + ' note'
+					+ (mentions.notes.length === 1 ? '' : 's'));
+			}
+
+			const hits = mentions.bases.concat(mentions.notes);
+			found.push({
+				severity: 'insolvable',
+				kind: 'value-mentions',
+				property: entry.characteristic,
+				subject: entry.characteristic + ' · ' + entry.from,
+				label: '"' + entry.from + '" is still written in ' + andList(said),
+				file: hits[0] ? hits[0].file : null,
+				path: hits[0] ? hits[0].file.path : '',
+				detail: [
+					'Only in the text. A note carrying "' + entry.from + '" as a '
+						+ entry.characteristic + ' is renamed like any other — this is '
+						+ 'about the word written in a sentence, or inside a base filter, '
+						+ 'and neither of those is rewritten.',
+					'A filter is an expression and a sentence is prose, so replacing the '
+						+ 'word inside either is the fuzzy edit this rename exists to '
+						+ 'avoid. They are named here instead, and yours to change or to '
+						+ 'leave.',
+				],
+				mentions: hits,
+				renamedTo: entry.to,
+				fix: null,
+			});
+		}
+
 		const dismissed = this.dismissed;
 		const live = found.filter((d) => !dismissed.has(discrepancyId(d)));
 
@@ -6867,13 +9545,12 @@ class OofClassesPlugin extends Plugin {
 				written++;
 			} catch (error) {
 				console.error('oof-classes: failed to apply', action, error);
-				new Notice('OOF Classes: "' + action.label + '" failed — see the console.', 8000);
+				new Notice('OOF Class Manager: "' + action.label + '" failed — see the console.', 8000);
 			}
 		}
 
 		/* Applied intentions are no longer pending, on disk as well as in memory. */
 		this.drafts.clear();
-		this.baseRefreshes.clear();
 		await this.persist();
 		return written;
 	}
@@ -6910,7 +9587,7 @@ class OofClassesPlugin extends Plugin {
 					applied.push(discrepancy);
 				} catch (error) {
 					console.error('oof-classes: failed to apply', discrepancy.fix, error);
-					new Notice('OOF Classes: "' + discrepancy.label + '" failed — see the console.',
+					new Notice('OOF Class Manager: "' + discrepancy.label + '" failed — see the console.',
 						8000);
 				}
 			}
@@ -6923,7 +9600,7 @@ class OofClassesPlugin extends Plugin {
 		this.invalidatePicture();
 		const remaining = this.findDiscrepancies().solvable.length;
 		if (remaining > 0) {
-			new Notice('OOF Classes: ' + remaining + ' discrepanc'
+			new Notice('OOF Class Manager: ' + remaining + ' discrepanc'
 				+ (remaining === 1 ? 'y' : 'ies') + ' would not settle after ' + cap
 				+ ' passes. Nothing further was written — see the console.', 10000);
 			console.error('oof-classes: convergence did not settle',
@@ -6941,7 +9618,6 @@ class OofClassesPlugin extends Plugin {
 	async applyUpdate() {
 		const result = await this.converge();
 		this.drafts.clear();
-		this.baseRefreshes.clear();
 		this.invalidatePicture();
 		this.forgetFinishedRenames();
 		await this.persist();
@@ -6955,7 +9631,27 @@ class OofClassesPlugin extends Plugin {
 	 * needs it, and a forgotten rename is a value stranded under a name nothing
 	 * declares.
 	 */
+	/*
+	 * A value rename is done once nothing anywhere still holds the old word: no
+	 * note, no template, and not the characteristic's own `possible values`,
+	 * `default value` or defaults table. Same rule as the renames below, same
+	 * reason - a note he had not opened still needs it.
+	 */
+	forgetFinishedValueRenames() {
+		const pending = this.pendingValueRenames();
+		if (pending.length === 0) return;
+
+		const characteristics = this.scanCharacteristics();
+		this.settings.pendingValueRenames = pending.filter(
+			(entry) => this.valueRenameOutstanding(entry, characteristics));
+
+		/* What is still written outside frontmatter has changed with them. */
+		this.scanValueMentions().catch(() => {});
+	}
+
 	forgetFinishedRenames() {
+		this.forgetFinishedValueRenames();
+
 		const pending = toArray(this.settings.pendingPropertyRenames)
 			.filter((entry) => entry && entry.from && entry.to && entry.from !== entry.to);
 		if (pending.length === 0) return;
@@ -7007,6 +9703,14 @@ class OofClassesPlugin extends Plugin {
 			};
 		}
 
+		/*
+		 * The retired key, leaving. Only ever removed — where it held a value, that
+		 * value is put in the table's *All notes* row first, by the write itself.
+		 */
+		if (action.kind === 'retire-default-value') {
+			return (fm) => { delete fm['default value']; };
+		}
+
 		if (action.kind === 'describe-characteristic') {
 			return (fm) => {
 				if (action.setType) fm['property type'] = action.setType;
@@ -7024,6 +9728,26 @@ class OofClassesPlugin extends Plugin {
 			};
 		}
 
+		/*
+		 * One value moving. The property is not touched, its other values are not
+		 * touched, and nothing outside the frontmatter is read - which is the
+		 * whole of what makes this a rename rather than a search and replace.
+		 */
+		if (action.kind === 'rename-value') {
+			return (fm) => {
+				for (const entry of action.properties) {
+					const next = renameWithin(fm[entry.property], entry.from, entry.to);
+					/*
+					 * Null when what is there is no longer the value that was renamed
+					 * - he may have edited it between the plan and the write, and what
+					 * he typed is newer than this.
+					 */
+					if (next === null) continue;
+					fm[entry.property] = next;
+				}
+			};
+		}
+
 		if (action.kind === 'update-instance') {
 			return (fm) => {
 				for (const key of action.add) if (!(key in fm)) fm[key] = null;
@@ -7034,7 +9758,13 @@ class OofClassesPlugin extends Plugin {
 
 		if (action.kind === 'apply-class') {
 			return (fm) => {
-				fm[this.settings.isAProperty] = [asLink(action.object)];
+				/*
+				 * Every selected class, not one — `is a` is a list, and a selection of
+				 * three means the note is all three. `action.object` stays the first of
+				 * them for the labels that were written when there could only be one.
+				 */
+				const applying = action.objects || [action.object];
+				fm[this.settings.isAProperty] = applying.map(asLink);
 				/*
 				 * The class's keys arrive empty, so the note is a complete instance
 				 * rather than one claiming a class it does not carry. Anything
@@ -7169,10 +9899,94 @@ class OofClassesPlugin extends Plugin {
 		 * is already there, so the preview has a before as well as an after — he
 		 * should see the format leaving, not only the one arriving.
 		 */
+		/*
+		 * The third, and the only one whose before and after are the *same* lines
+		 * with a word changed. Produced by `rewriteTableCell`, which is the
+		 * function that will do the writing - so what he is shown is the change
+		 * rather than a description of it.
+		 */
+		if (action.kind === 'rename-defaults-value') {
+			const before = [];
+			const after = [];
+			for (const row of toArray(file ? this.defaultsEntryFor(file).rows : [])) {
+				let next = row.raw;
+				for (const key of DEFAULTS_VALUE_KEYS) {
+					if (row.columns[key] === undefined) continue;
+					const changed = rewriteTableCell(next, row.columns[key],
+						action.from, action.to);
+					if (changed !== null) next = changed;
+				}
+				if (next === row.raw) continue;
+				before.push(row.raw);
+				after.push(next);
+			}
+			return { path: action.path, before: before, after: after };
+		}
+
+		/*
+		 * The fourth, and the only one that is a frontmatter change and a body
+		 * change at once: the key leaves and, when it held one, its value arrives
+		 * in the table's *All notes* row. Both sides in one diff because they are
+		 * one move — seeing the key go without seeing where the value went would
+		 * look like a value being thrown away.
+		 *
+		 * The row is built by `allNotesRowWrite`, which is the function that will
+		 * do the writing, so this cannot describe something else.
+		 */
+		/*
+		 * The table's own lines, before and after. Built by `upgradeDefaultsTable`,
+		 * which is the function that will do the writing — so a value that would
+		 * land in the wrong column is visible here rather than only afterwards.
+		 */
+		if (action.kind === 'upgrade-defaults-table') {
+			const before = [];
+			const after = [];
+			for (const table of (file ? this.defaultsEntryFor(file).legacy : [])) {
+				const lines = toArray(table.lines);
+				before.push(...lines);
+				after.push(...upgradeDefaultsTable(lines, table.map));
+			}
+			return { path: action.path, before: before, after: after };
+		}
+
+		/* The same row arriving, with nothing in it and no key leaving. */
+		if (action.kind === 'add-all-notes-row') {
+			return { path: action.path, before: [], after: [allNotesRowWrite(null, '', null)] };
+		}
+
+		if (action.kind === 'retire-default-value') {
+			const current = file ? (this.frontmatterOf(file) || {}) : {};
+			const copy = {};
+			for (const key of Object.keys(current)) {
+				copy[key] = Array.isArray(current[key]) ? current[key].slice() : current[key];
+			}
+			this.frontmatterMutation(action)(copy);
+
+			const before = this.frontmatterLines(current);
+			const after = this.frontmatterLines(copy);
+
+			if (!isEmptyValue(action.moveValue)) {
+				const rows = file ? (this.defaultsEntryFor(file).allRows || []) : [];
+				const row = rows[0] || null;
+				if (row) before.push(row.raw);
+				after.push(allNotesRowWrite(row ? row.raw : null, action.moveValue,
+					row ? row.columns : null));
+			}
+
+			return { path: action.path, before: before, after: after };
+		}
+
 		if (action.kind === 'write-rename-block') {
 			const cached = this.renameEntryFor(action.path);
-			const before = cached && cached.has
-				? renameBlock(cached.format) : [];
+			/*
+			 * The real lines out of the file, not a block rebuilt from the format: two
+			 * copies of it are the thing being repaired, and a reconstruction shows one.
+			 */
+			const before = [];
+			for (const one of (cached && cached.blocks) || []) {
+				if (before.length) before.push('');
+				before.push(...one);
+			}
 			return {
 				path: action.path,
 				before: before,
@@ -7188,7 +10002,6 @@ class OofClassesPlugin extends Plugin {
 				made['property type'] = action.propertyType || null;
 				made['is base characteristic'] = !!action.isBase;
 				made['possible values'] = null;
-				made['default value'] = null;
 			} else if (mutation) {
 				mutation(made);
 			}
@@ -7246,7 +10059,7 @@ class OofClassesPlugin extends Plugin {
 			const content = '---\ncharacteristic meaning: \nproperty type: '
 				+ (action.propertyType || '')
 				+ '\nis base characteristic: ' + (action.isBase ? 'true' : 'false')
-				+ '\npossible values: \ndefault value: \n---\n\n'
+				+ '\npossible values: \n---\n\n'
 				+ defaultsTableBlock().join('\n') + '\n';
 			const made = await this.app.vault.create(action.path, content);
 			/*
@@ -7287,28 +10100,209 @@ class OofClassesPlugin extends Plugin {
 			return;
 		}
 
+		if (action.kind === 'rename-defaults-value') {
+			/*
+			 * The third write into a body, and the narrowest of them. The table is
+			 * found the way `parseDefaultsTable` finds it, and inside it only a cell
+			 * holding exactly the old word is rewritten - so a row about something
+			 * else, and every line outside the table, comes out byte-identical.
+			 *
+			 * Located again here rather than by the line numbers the plan carried:
+			 * a note edited between the plan and the write is then changed in the
+			 * right place, or not at all.
+			 */
+			let written = null;
+			const rewrite = (data) => {
+				const lines = String(data).split('\n');
+				let map = null;
+				for (let i = 0; i < lines.length; i++) {
+					const line = lines[i];
+					if (line.indexOf('|') === -1) { map = null; continue; }
+					const header = defaultsColumnMap(tableCells(line));
+					if (header) { map = header; continue; }
+					if (!map || isTableRule(line)) continue;
+
+					let next = line;
+					for (const key of DEFAULTS_VALUE_KEYS) {
+						if (map[key] === undefined) continue;
+						const changed = rewriteTableCell(next, map[key], action.from, action.to);
+						if (changed !== null) next = changed;
+					}
+					lines[i] = next;
+				}
+				written = lines.join('\n');
+				return written;
+			};
+
+			if (typeof this.app.vault.process === 'function') {
+				await this.app.vault.process(action.file, rewrite);
+			} else {
+				const data = await this.app.vault.read(action.file);
+				const next = rewrite(data);
+				if (next !== data) await this.app.vault.modify(action.file, next);
+			}
+			/* Same reason again: the loop re-plans before the event arrives. */
+			if (written !== null) this.rememberDefaults(action.file, written, true);
+			return;
+		}
+
+		if (action.kind === 'upgrade-defaults-table') {
+			/*
+			 * Located again here rather than by the line numbers the plan carried, the
+			 * same as every other body write: a note edited in between is changed in
+			 * the right place, or not at all. Only the lines of a defaults table are
+			 * replaced, back to front so the earlier ranges keep their indices.
+			 */
+			let written = null;
+			const upgrade = (data) => {
+				const lines = String(data).split('\n');
+				const tables = findLegacyDefaultsTables(data);
+				for (let i = tables.length - 1; i >= 0; i--) {
+					const table = tables[i];
+					lines.splice(table.start, table.end - table.start + 1,
+						...upgradeDefaultsTable(lines.slice(table.start, table.end + 1),
+							table.map));
+				}
+				written = lines.join('\n');
+				return written;
+			};
+
+			if (typeof this.app.vault.process === 'function') {
+				await this.app.vault.process(action.file, upgrade);
+			} else {
+				const data = await this.app.vault.read(action.file);
+				const next = upgrade(data);
+				if (next !== data) await this.app.vault.modify(action.file, next);
+			}
+			/* Same reason as the other body writes: the loop re-plans before the event. */
+			if (written !== null) this.rememberDefaults(action.file, written, true);
+			return;
+		}
+
+		if (action.kind === 'retire-default-value' || action.kind === 'add-all-notes-row') {
+			/*
+			 * The fourth write into a body, and the only one that puts a value into
+			 * the table rather than only moving words around inside it. It earns that
+			 * because it is not new information: it is a value already in the note,
+			 * moving to the one place that now holds it.
+			 *
+			 * The row goes in **first**. If the second write never lands the note says
+			 * the same thing twice, which the next plan settles by removing the key —
+			 * whereas removing the key first and failing to write the row loses the
+			 * value outright.
+			 *
+			 * `add-all-notes-row` is the same write with nothing to put in the cell.
+			 */
+			const seeding = action.kind === 'add-all-notes-row';
+			let written = null;
+			if (seeding || !isEmptyValue(action.moveValue)) {
+				/*
+				 * Located here rather than by the line number the plan carried, the same
+				 * as `rename-defaults-value`: a note edited in between is changed in the
+				 * right place, or not at all. Only the *All notes* row of a defaults
+				 * table is touched, and only its first value cell.
+				 */
+				const place = (data) => {
+					const lines = String(data).split('\n');
+					let map = null;
+					let rule = -1;
+					let done = false;
+
+					for (let i = 0; i < lines.length && !done; i++) {
+						const line = lines[i];
+						if (line.indexOf('|') === -1) { map = null; continue; }
+						const cells = tableCells(line);
+						const header = defaultsColumnMap(cells);
+						if (header) { map = header; rule = -1; continue; }
+						if (!map) continue;
+						if (isTableRule(line)) { rule = i; continue; }
+						if (!isAllNotesLocation(cells[map.location])) continue;
+						/*
+						 * A row that appeared between the plan and the write. Seeding one
+						 * has nothing to add to it, and blanking its cell would destroy a
+						 * value he typed in the meantime.
+						 */
+						if (seeding) return String(data);
+						lines[i] = allNotesRowWrite(line, action.moveValue, map);
+						done = true;
+					}
+
+					/*
+					 * No row to fill. Inserted directly under the header rule, where a
+					 * seeded table puts it — never appended to the end of the table,
+					 * which would land it after his own class rows.
+					 */
+					if (!done && rule !== -1) {
+						lines.splice(rule + 1, 0, allNotesRowWrite(null, action.moveValue, null));
+						done = true;
+					}
+
+					/*
+					 * And no table either — which the plan only allows through when
+					 * `add-defaults-table` is switched off, so there is nothing to wait
+					 * for. Written as a whole table rather than dropped.
+					 */
+					if (!done) {
+						const body = lines.join('\n').replace(/\s*$/, '');
+						const table = defaultsTableBlock().slice(0, 2)
+							.concat(allNotesRowWrite(null, action.moveValue, null));
+						written = body + '\n\n' + table.join('\n') + '\n';
+						return written;
+					}
+
+					written = lines.join('\n');
+					return written;
+				};
+
+				if (typeof this.app.vault.process === 'function') {
+					await this.app.vault.process(action.file, place);
+				} else {
+					const data = await this.app.vault.read(action.file);
+					const next = place(data);
+					if (next !== data) await this.app.vault.modify(action.file, next);
+				}
+				/* Same reason as the other body writes: the loop re-plans before the event. */
+				if (written !== null) this.rememberDefaults(action.file, written, true);
+			}
+
+			if (!seeding) {
+				await this.app.fileManager.processFrontMatter(
+					action.file, this.frontmatterMutation(action));
+			}
+			return;
+		}
+
 		if (action.kind === 'write-rename-block') {
 			/*
-			 * The second write into a body, and the only one that removes anything.
-			 * It is still narrow: the block is located by its mark, and only the
-			 * lines between its `<%*` and its `%>` are replaced. Every other line
-			 * comes out byte-identical — the same rule the .base surgery follows.
+			 * The second write into a body, and the first that removed anything. It is
+			 * still narrow: the blocks are located by their mark, and only the lines
+			 * between a `<%*` and its `%>` are touched. Every other line comes out
+			 * byte-identical — the same rule the .base surgery follows.
+			 *
+			 * The first block is rewritten in place and any others are removed. Keeping
+			 * the *first* position rather than the last is what makes a repaired template
+			 * byte-identical to one written from scratch, where the block sits directly
+			 * below the frontmatter.
 			 */
 			let written = null;
 			const rewrite = (data) => {
 				const text = String(data);
-				const found = findRenameBlock(text);
+				const found = findRenameBlocks(text);
 				const block = action.format ? renameBlock(action.format) : null;
 
-				if (found) {
+				if (found.blocks.length) {
 					const lines = found.lines.slice();
-					if (block) {
-						lines.splice(found.start, found.end - found.start + 1, ...block);
-					} else {
+					/* Back to front, so the earlier ranges keep their indices. */
+					for (let i = found.blocks.length - 1; i >= 0; i--) {
+						const range = found.blocks[i];
+						if (i === 0 && block) {
+							lines.splice(range.start, range.end - range.start + 1, ...block);
+							continue;
+						}
 						/* Take the blank line above it too, or removal leaves a gap. */
-						let from = found.start;
+						let from = range.start;
 						while (from > 0 && lines[from - 1].trim() === '') from--;
-						lines.splice(from, found.end - from + 1);
+						lines.splice(from, range.end - from + 1);
 					}
 					written = lines.join('\n');
 				} else if (block) {
@@ -7338,7 +10332,7 @@ class OofClassesPlugin extends Plugin {
 			 * the plan was built.
 			 */
 			if (this.fileAt(action.target)) {
-				new Notice('OOF Classes: "' + action.target + '" already exists, so "'
+				new Notice('OOF Class Manager: "' + action.target + '" already exists, so "'
 					+ action.file.basename + '" was left alone.', 8000);
 				return;
 			}
@@ -7353,7 +10347,7 @@ class OofClassesPlugin extends Plugin {
 			 * links get broken.
 			 */
 			if (this.fileAt(action.target)) {
-				new Notice('OOF Classes: "' + action.target + '" already exists, so "'
+				new Notice('OOF Class Manager: "' + action.target + '" already exists, so "'
 					+ action.file.basename + '" was left alone.', 8000);
 				return;
 			}
@@ -7375,7 +10369,7 @@ class OofClassesPlugin extends Plugin {
 		 */
 		if (['fill-datetime', 'fill-default', 'strip-redundant-link', 'strip-root-link',
 			'describe-characteristic', 'update-instance',
-			'rename-property', 'apply-class'].indexOf(action.kind) !== -1) {
+			'rename-property', 'rename-value', 'apply-class'].indexOf(action.kind) !== -1) {
 			const mutation = this.frontmatterMutation(action);
 			await this.app.fileManager.processFrontMatter(action.file, mutation);
 			return;
@@ -7456,19 +10450,15 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		if (action.kind === 'write-base') {
-			const existing = this.app.vault.getFileByPath(action.path);
+			/*
+			 * An existing base is his, full stop. The plan creates one that is not
+			 * there and never touches one that is; rebuilding a base is done from
+			 * its own toolbar, on the file, with the diff shown first.
+			 */
+			if (this.app.vault.getFileByPath(action.path)) return;
 
-			/* An existing base is his; only a refresh he asked for replaces it. */
-			if (existing && !action.overwrite) return;
-
-			if (existing) {
-				await this.app.vault.modify(existing, action.content);
-			} else {
-				await this.ensureFolder(this.settings.basesFolder);
-				await this.app.vault.create(action.path, action.content);
-			}
-
-			this.baseRefreshes.delete(action.object);
+			await this.ensureFolder(this.settings.basesFolder);
+			await this.app.vault.create(action.path, action.content);
 			return;
 		}
 
@@ -7621,10 +10611,6 @@ class OofClassesPlugin extends Plugin {
 			this.drafts.set(name, this.drafts.get(oldName));
 			this.drafts.delete(oldName);
 		}
-		if (this.baseRefreshes.has(oldName)) {
-			this.baseRefreshes.delete(oldName);
-			this.baseRefreshes.add(name);
-		}
 		await this.persist();
 
 		return { ok: true, renamed: renamed };
@@ -7683,7 +10669,6 @@ class OofClassesPlugin extends Plugin {
 		/* Everything the panel remembers about it goes too, or it comes back. */
 		this.drafts.delete(name);
 		this.expanded.delete(name);
-		this.baseRefreshes.delete(name);
 		if (this.symbolWrites) this.symbolWrites.delete(name);
 		await this.persist();
 
@@ -7720,27 +10705,42 @@ class OofClassesPlugin extends Plugin {
 	 * Returns a `reason` instead of an action when there is nothing sensible to
 	 * do, so the caller can say why rather than silently doing nothing.
 	 */
-	applyClassAction(className, file) {
+	applyClassAction(classNames, file) {
+		/*
+		 * One class or several — a custom selection can hold any number, and its
+		 * meaning is "make the note all of these at once", not "do this five
+		 * times". So the whole action is built from a list, and one name is a list
+		 * of one rather than a separate path through here.
+		 */
+		const names = Array.isArray(classNames) ? classNames.slice() : [classNames];
+
+		if (names.length === 0) {
+			return { reason: 'Nothing is selected, so there is no class to apply.' };
+		}
 		if (!(file instanceof TFile) || file.extension !== 'md') {
 			return { reason: 'Open a note first — there is nothing to apply a class to.' };
 		}
 
 		const objects = this.scanClasses();
 		const drafts = this.allDrafts(objects);
-		if (!drafts.has(className)) {
-			return { reason: '"' + className + '" is not a class yet. Press Update first.' };
+
+		for (const className of names) {
+			if (!drafts.has(className)) {
+				return { reason: '"' + className + '" is not a class yet. Press Update first.' };
+			}
+
+			/*
+			 * A class note is not an instance of another class by `is a` — that is
+			 * what `type of` is for, and writing `is a` between two classes is the
+			 * mistake the whole two-relations design exists to prevent.
+			 */
+			const target = drafts.get(className);
+			if (target && target.file && target.file.path === file.path) {
+				return { reason: '"' + className + '" is that class. A class is not an '
+					+ 'instance of itself.' };
+			}
 		}
 
-		/*
-		 * A class note is not an instance of another class by `is a` — that is what
-		 * `type of` is for, and writing `is a` between two classes is the mistake
-		 * the whole two-relations design exists to prevent.
-		 */
-		const target = drafts.get(className);
-		if (target && target.file && target.file.path === file.path) {
-			return { reason: '"' + className + '" is that class. A class is not an instance '
-				+ 'of itself.' };
-		}
 		if (drafts.has(file.basename) && objects.has(file.basename)) {
 			return { reason: '"' + file.basename + '" is a class. To put a class under '
 				+ 'another, use `' + this.settings.inheritsProperty + '` on its card, not `'
@@ -7751,18 +10751,33 @@ class OofClassesPlugin extends Plugin {
 		const current = toArray(frontmatter[this.settings.isAProperty])
 			.map(linkName).filter((name) => !!name);
 
-		/* Case-insensitively, because that is how Obsidian resolves the link. */
-		if (current.length === 1
-			&& current[0].toLowerCase() === className.toLowerCase()) {
-			return { reason: '"' + file.basename + '" is already ' + article(className)
-				+ ' ' + className + '.' };
+		/*
+		 * Already exactly these, case-insensitively, because that is how Obsidian
+		 * resolves the link. Order does not count: `is a` is a set, and rewriting
+		 * the property to say the same thing in another order is not a change worth
+		 * a confirmation.
+		 */
+		const same = (list) => list.map((n) => n.toLowerCase()).sort().join('\u0000');
+		if (current.length === names.length && same(current) === same(names)) {
+			return { reason: '"' + file.basename + '" is already '
+				+ andList(names.map((n) => article(n) + ' ' + n)) + '.' };
 		}
 
-		const expected = this.effectiveCharacteristics(className, objects, drafts);
+		/*
+		 * The union of what all of them declare, in the order the classes were
+		 * given, each class's own order within that. A characteristic two of them
+		 * share is one key, not two.
+		 */
+		const expected = [];
+		for (const className of names) {
+			for (const key of this.effectiveCharacteristics(className, objects, drafts)) {
+				if (expected.indexOf(key) === -1) expected.push(key);
+			}
+		}
 		const add = expected.filter((key) => !(key in frontmatter));
 
 		/*
-		 * Keys the note carries that the new class does not declare. Not removed —
+		 * Keys the note carries that the new classes do not declare. Not removed —
 		 * see the mutation — but he is told, because that is the surprising half of
 		 * changing a note's class.
 		 */
@@ -7777,11 +10792,14 @@ class OofClassesPlugin extends Plugin {
 		return {
 			action: {
 				kind: 'apply-class',
-				object: className,
+				/* `object` is the label everything downstream already reads. */
+				object: names[0],
+				objects: names,
 				file: file,
 				path: file.path,
 				add: add,
 			},
+			names: names,
 			replacing: current,
 			add: add,
 			kept: kept,
@@ -7816,7 +10834,7 @@ class OofClassesPlugin extends Plugin {
 		const templatePath = this.templatePathFor(objectName);
 		const template = this.app.vault.getFileByPath(templatePath);
 		if (!(template instanceof TFile)) {
-			new Notice('OOF Classes: no template for "' + objectName + '" yet. Press Update first.', 6000);
+			new Notice('OOF Class Manager: no template for "' + objectName + '" yet. Press Update first.', 6000);
 			return null;
 		}
 
@@ -7838,6 +10856,46 @@ class OofClassesPlugin extends Plugin {
 		const content = await this.app.vault.read(template);
 		const file = await this.app.vault.create(path, content);
 		await this.app.workspace.getLeaf(true).openFile(file);
+		return file;
+	}
+
+
+	/*
+	 * An instance of several classes at once — his `is a` will name all of them.
+	 *
+	 * **It is made from the first one's template**, and that is the only answer
+	 * available: a note is created from one file, and the templates are one per
+	 * class. So the first class selected is the primary one — it decides the body,
+	 * the folder and whatever Templater runs — and the rest arrive afterwards as
+	 * `is a` entries and as their characteristics, added empty.
+	 *
+	 * Written through `processFrontMatter` like every other write, and into a note
+	 * that was created a moment ago by us, so there is nothing of his to lose.
+	 */
+	async createInstanceOfMany(names, noteName, folder) {
+		const file = await this.createInstance(names[0], noteName, folder);
+		if (!(file instanceof TFile) || names.length < 2) return file;
+
+		const objects = this.scanClasses();
+		const drafts = this.allDrafts(objects);
+
+		/* The union, in the order the classes were selected. */
+		const expected = [];
+		for (const name of names) {
+			for (const key of this.effectiveCharacteristics(name, objects, drafts)) {
+				if (expected.indexOf(key) === -1) expected.push(key);
+			}
+		}
+
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			fm[this.settings.isAProperty] = names.map(asLink);
+			/*
+			 * Never overwritten: the template may have filled one in, and a default
+			 * value it wrote is exactly the kind of thing this must not undo.
+			 */
+			for (const key of expected) if (!(key in fm)) fm[key] = null;
+		});
+
 		return file;
 	}
 
@@ -7992,7 +11050,8 @@ class OofClassesPlugin extends Plugin {
 			}
 		}
 
-		for (const name of toArray(data.baseRefreshes)) this.baseRefreshes.add(name);
+		this.dynamicBaseOurs = !!data.dynamicBase;
+
 		for (const name of toArray(data.expanded)) this.expanded.add(name);
 		for (const id of toArray(data.dismissed)) this.dismissed.add(id);
 	}
@@ -8009,10 +11068,15 @@ class OofClassesPlugin extends Plugin {
 				for (const [name, value] of (this.symbolWrites || new Map())) out[name] = value;
 				return out;
 			})(),
-			baseRefreshes: Array.from(this.baseRefreshes),
 			expanded: Array.from(this.expanded),
 			dismissed: Array.from(this.dismissed),
 			migrations: Array.from(this.migrations || []),
+			/*
+			 * That the dynamic base at that path is ours to rewrite. Remembered
+			 * rather than sniffed out of the file, because a marker inside a `.base`
+			 * would be a line Obsidian's own base editor is entitled to drop.
+			 */
+			dynamicBase: !!this.dynamicBaseOurs,
 		});
 	}
 
@@ -8073,14 +11137,6 @@ class OofClassesPlugin extends Plugin {
 
 	async discardDrafts() {
 		this.drafts.clear();
-		this.baseRefreshes.clear();
-		await this.persist();
-	}
-
-	/* Queue or unqueue one class's base for regeneration on the next Update. */
-	async toggleBaseRefresh(name) {
-		if (this.baseRefreshes.has(name)) this.baseRefreshes.delete(name);
-		else this.baseRefreshes.add(name);
 		await this.persist();
 	}
 
@@ -8097,6 +11153,16 @@ class ClassesView extends ItemView {
 	constructor(leaf, plugin) {
 		super(leaf);
 		this.plugin = plugin;
+
+		/*
+		 * Which classes are highlighted, and why. Deliberately **not** persisted:
+		 * a selection is where you are in a piece of work, not a preference, and
+		 * opening the vault tomorrow to a panel still holding three classes you
+		 * picked on Tuesday would be a state you have to notice and undo. It starts
+		 * where the panel has always started — following the note you are reading.
+		 */
+		this.selectionMode = 'active';
+		this.selection = new Set();
 	}
 
 	getViewType() { return VIEW_TYPE; }
@@ -8115,10 +11181,42 @@ class ClassesView extends ItemView {
 		}));
 
 		/* Follow whatever note he is looking at. */
-		this.registerEvent(this.app.workspace.on('file-open', () => { this.queueRender(); }));
-		this.registerEvent(this.app.workspace.on('active-leaf-change', () => { this.queueRender(); }));
+		this.registerEvent(this.app.workspace.on('file-open', (file) => {
+			if (file instanceof TFile) this.enteredNote = true;
+			this.queueRender();
+		}));
+		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
+			if (this.isNoteLeaf(leaf)) this.enteredNote = true;
+			this.queueRender();
+		}));
 
 		this.render();
+	}
+
+	/*
+	 * Whether becoming active makes this leaf "the note he is now looking at".
+	 *
+	 * Clicking back into a note you already have open fires **no `file-open`** —
+	 * the active file has not changed, only the leaf — and that is exactly the
+	 * moment the panel should come home. Graph Focus learnt this first and its
+	 * `onActiveLeafChange` says so in as many words; this is the same fix.
+	 *
+	 * The guard is what makes it safe, and it has to be, because the leaf that
+	 * becomes active when you click a dot is **this panel's own**. Two tests, both
+	 * of which our panel fails: the leaf must carry a file (an `ItemView` has no
+	 * `.file`), and it must live in the main area rather than in a sidebar. So a
+	 * click inside the panel can never undo the selection that click just made —
+	 * which is the trap the whole design has been avoiding since the first version.
+	 *
+	 * `getActiveFile()` is deliberately not used as a fallback: it answers with the
+	 * last note whatever leaf you clicked, which is precisely the confusion the
+	 * guard exists to prevent.
+	 */
+	isNoteLeaf(leaf) {
+		const view = leaf && leaf.view;
+		if (!view || !(view.file instanceof TFile)) return false;
+		if (typeof leaf.getRoot !== 'function') return true;
+		return leaf.getRoot() === this.app.workspace.rootSplit;
 	}
 
 	queueRender() {
@@ -8136,8 +11234,17 @@ class ClassesView extends ItemView {
 			 * Only event-driven redraws are skipped this way. Anything he does in
 			 * the panel calls `render()` directly and always draws.
 			 */
-			const signature = this.renderSignature();
-			if (signature === this.lastSignature) return;
+			/*
+			 * Except when he has just gone back into a note. The signature is taken
+			 * *before* the render, so it still describes the state the render is
+			 * about to change — a skip here would swallow the very event that hands
+			 * the panel back to the active note, and the flag would sit set until
+			 * something unrelated redrew.
+			 */
+			if (!this.enteredNote) {
+				const signature = this.renderSignature();
+				if (signature === this.lastSignature) return;
+			}
 			this.render();
 		}, 300);
 	}
@@ -8168,7 +11275,8 @@ class ClassesView extends ItemView {
 				+ ':' + (characteristic.defaultValue || '')
 				/* A row edited in a body changes the plan, so it changes this too. */
 				+ ':' + (characteristic.defaults || [])
-					.map((row) => row.location + '=' + row.value + '/' + row.strict)
+					.map((row) => row.location + '='
+						+ DEFAULTS_VALUE_KEYS.map((key) => row[key]).join('/'))
 					.join('~'));
 		}
 
@@ -8181,9 +11289,15 @@ class ClassesView extends ItemView {
 			+ '::' + found.solvable.length + '/' + found.insolvable.length
 			+ '/' + found.dismissed.length
 			+ '::' + (active ? active.path : '')
+			/* Which of two highlighted classes the toolbar is acting on. */
+			+ '::' + String(this.toolbarClass || '')
+			/* And what the panel is highlighting at all — the mode and the set. */
+			+ '::' + String(this.selectionMode || 'active')
+			+ '::' + Array.from(this.selection || []).join(',')
 			+ '::' + String(this.filter || '')
+			/* And whether the bar it is typed into is open at all. */
+			+ '::' + String(!!this.searchOpen)
 			+ '::' + Array.from(plugin.expanded).sort().join(',')
-			+ '::' + Array.from(plugin.baseRefreshes).sort().join(',')
 			+ '::' + plugin.isDirty(objects);
 	}
 
@@ -8288,6 +11402,92 @@ class ClassesView extends ItemView {
 		 */
 		const body = container.createDiv({ cls: 'oof-panel-body' });
 
+		/*
+		 * The classes the active note is about — itself if it is a class, else
+		 * whatever its `is a` names.
+		 *
+		 * Worked out before the header rather than with the list, because in
+		 * toolbar mode the header holds the actions and they act on this.
+		 */
+		const activeFile = plugin.settings.followActiveNote
+			? this.app.workspace.getActiveFile()
+			: null;
+
+		/*
+		 * Scroll to it only when he has actually moved to another note. Doing it
+		 * on every render would yank the panel around while he edits chips.
+		 */
+		const activePath = activeFile ? activeFile.path : null;
+		const moved = activePath !== this.lastActivePath;
+		this.lastActivePath = activePath;
+
+		/*
+		 * --- which classes are highlighted, and why ---
+		 *
+		 * Two modes, his `Moving options for classes.md`: the panel either follows
+		 * the note you are reading, or holds a selection you made by clicking dots.
+		 * Everything downstream — the card highlight, the lit rails, the toolbar —
+		 * reads `this.active` and never asks which of the two put a name in it.
+		 *
+		 * **Selecting is a toolbar-mode thing.** The dots exist to feed a row of
+		 * buttons that acts on the selection; with an identical row of buttons on
+		 * every card there is nothing for a selection to drive, so it is not
+		 * offered and the panel simply tracks the active note.
+		 */
+		this.selecting = plugin.settings.classActions === 'toolbar';
+		if (!this.selection) this.selection = new Set();
+		if (!this.selecting) this.selectionMode = 'active';
+
+		/*
+		 * Not just which classes, but how the open file is about them: its own
+		 * note, its template, its base, a characteristic it declares, or an
+		 * instance. The chip on the card says which, so it has to be carried.
+		 */
+		const relation = plugin.activeClassesFor(activeFile, objects, drafts);
+		const tracked = relation.names;
+		this.activeKind = relation.kind;
+
+		/*
+		 * Opening a note hands the panel back to active-note tracking — his rule.
+		 * Keyed on the active **file changing**, not on a leaf becoming active:
+		 * clicking a dot in the sidebar changes the active leaf and would otherwise
+		 * undo the very click that selected.
+		 *
+		 * What happens to the set is the one setting here. Kept, so the mode button
+		 * returns you to exactly what you had picked; or replaced by the classes of
+		 * the note you just opened, so the selection follows you and switching to it
+		 * always starts from where you are standing.
+		 */
+		/*
+		 * `moved` is not enough on its own, and that was the bug: clicking back into
+		 * the note you already have open changes no path, so nothing fired. What
+		 * actually happened is that a note leaf became active, which `isNoteLeaf`
+		 * watches for — `moved` stays in the test only as a belt-and-braces for a
+		 * file that changed without either event reaching us.
+		 */
+		const entered = this.enteredNote || moved;
+		this.enteredNote = false;
+
+		if (entered) {
+			if (this.selectionMode === 'custom') this.selectionMode = 'active';
+			if (plugin.settings.resetSelectionOnNote) this.selection = new Set(tracked);
+		}
+
+		/* A selected class that has since stopped being one is not a subject. */
+		this.selection = new Set(Array.from(this.selection).filter((name) => drafts.has(name)));
+
+		/*
+		 * An empty selection either stands or hands the panel back — the one place
+		 * that decides it, so `pickClass` and the × need no rule of their own.
+		 */
+		if (this.selection.size === 0 && !plugin.settings.emptySelectionStands) {
+			this.selectionMode = 'active';
+		}
+
+		this.active = this.selectionMode === 'custom'
+			? new Set(this.selection)
+			: new Set(tracked);
+
 		this.renderHeader(body, drafts, objects, { shown: names.length, total });
 
 		/* When he is hunting for a class, the rest of the panel is noise. */
@@ -8300,23 +11500,6 @@ class ClassesView extends ItemView {
 		const list = body.createDiv({ cls: 'oof-class-list' });
 
 		/*
-		 * The classes the active note is about — itself if it is a class, else
-		 * whatever its `is a` names.
-		 */
-		const activeFile = plugin.settings.followActiveNote
-			? this.app.workspace.getActiveFile()
-			: null;
-		this.active = new Set(plugin.classesForFile(activeFile, objects));
-
-		/*
-		 * Scroll to it only when he has actually moved to another note. Doing it
-		 * on every render would yank the panel around while he edits chips.
-		 */
-		const activePath = activeFile ? activeFile.path : null;
-		const moved = activePath !== this.lastActivePath;
-		this.lastActivePath = activePath;
-
-		/*
 		 * The tree is the sort: `classTree` decides the order, so the sort setting
 		 * has nothing to say while it is on. It is also skipped while searching —
 		 * a filtered tree is a tree with holes in it, and the rails would run to
@@ -8326,6 +11509,15 @@ class ClassesView extends ItemView {
 		 * to light, and the elements the last drawing filed are gone. */
 		this.hoverIndex = null;
 		this.hovered = [];
+
+		/*
+		 * Whether the classes are drawn as a plain stack of cards. The two tree
+		 * layouts draw a node beside every card already; the flat list has none, so
+		 * the cards grow one of their own — his N.B., and the reason it is worth
+		 * having: the dot is the select button, so a layout without one would be a
+		 * layout you cannot select in.
+		 */
+		this.flatList = plugin.settings.classLayout === 'list' || !!filter;
 
 		if (plugin.settings.classLayout === 'brackets' && !filter) {
 			this.renderClassBrackets(list, names, objects, drafts, characteristics);
@@ -8526,19 +11718,7 @@ class ClassesView extends ItemView {
 			label: 'New class',
 			onClick: () => {
 				new NewObjectModal(this.app, this.plugin, (name) => {
-					if (!name || drafts.has(name)) return;
-					/*
-					 * The prefix is a characteristic's. A class drafted under one goes
-					 * on to create `∘ Thing.md`, `∘ Thing Template.md` and
-					 * `∘ Thing Base.base`, none of which is a thing that should exist.
-					 */
-					if (plugin.looksLikeCharacteristic(name)) {
-						new Notice('OOF Classes: "' + plugin.settings.characteristicPrefix
-							+ '" starts the name of a characteristic, not a class.', 6000);
-						return;
-					}
-					this.plugin.drafts.set(name, { values: this.plugin.emptyLogicValues() });
-					this.plugin.persist().then(() => { this.render(); });
+					this.createClassNamed(name, drafts, null);
 				}).open();
 			},
 		});
@@ -8557,7 +11737,7 @@ class ClassesView extends ItemView {
 		if (!pending) discard.setAttribute('disabled', 'true');
 		discard.onclick = async () => {
 			await plugin.discardDrafts();
-			new Notice('OOF Classes: pending edits discarded. Your notes were never touched.');
+			new Notice('OOF Class Manager: pending edits discarded. Your notes were never touched.');
 			this.render();
 		};
 
@@ -8594,26 +11774,45 @@ class ClassesView extends ItemView {
 		};
 
 		/*
-		 * Filtering the list. Re-rendering rebuilds this input, so focus and the
-		 * caret are put back afterwards - otherwise every keystroke would drop
-		 * him out of the box.
+		 * Filtering the list — a looking glass that opens a search bar, which is
+		 * how Bases does it and how he asked for it.
+		 *
+		 * The bar is not left standing there when there is nothing to find: an
+		 * input that is empty most of the time still spends a row of a 300px
+		 * sidebar and still reads as a thing you were meant to have filled in. So
+		 * the row is one icon until it is wanted.
+		 *
+		 * Obsidian's own `SearchComponent` rather than a bare input, for the sake
+		 * of the × that clears it: that is the app's markup and the app's
+		 * stylesheet, so it hides itself while the box is empty, sits where every
+		 * other × in Obsidian sits, and puts focus back in the field afterwards —
+		 * none of which is worth reimplementing badly.
+		 *
+		 * Re-rendering rebuilds this input, so focus and the caret are put back
+		 * afterwards - otherwise every keystroke would drop him out of the box.
 		 */
-		const search = header.createEl('input', {
-			cls: 'oof-search',
-			attr: { type: 'search', placeholder: 'Find a class…' },
-		});
-		search.setAttribute('data-oof-focus', '::search');
-		search.value = this.filter || '';
+		const searchOpen = !!this.searchOpen;
+		const search = new SearchComponent(header);
+		search.containerEl.addClass('oof-search-bar');
+		search.inputEl.addClass('oof-search');
+		search.setPlaceholder('Find a class…');
+		search.setValue(this.filter || '');
+		search.inputEl.setAttribute('data-oof-focus', '::search');
 		/* Focus and caret come back through the shared restore in `render()`. */
-		search.oninput = () => {
-			this.filter = search.value;
+		search.onChange((value) => {
+			this.filter = value;
 			this.render();
+		});
+		/*
+		 * Escape closes the bar rather than only emptying it. Emptying is what the
+		 * × is for, and from an already-empty box the only thing left to ask for
+		 * is the row back.
+		 */
+		search.inputEl.onkeydown = (event) => {
+			if (event.key !== 'Escape') return;
+			this.closeSearch();
 		};
-		search.onkeydown = (event) => {
-			if (event.key !== 'Escape' || !this.filter) return;
-			this.filter = '';
-			this.render();
-		};
+		if (!searchOpen) search.containerEl.hide();
 
 		/*
 		 * Cards are closed by default, so this is the way back to seeing everything
@@ -8636,6 +11835,24 @@ class ClassesView extends ItemView {
 		 * two icons.
 		 */
 		const folding = title.createDiv({ cls: 'oof-fold-buttons' });
+
+		/*
+		 * The looking glass, first in the group: it opens something above the list
+		 * rather than changing the list itself.
+		 *
+		 * A second press closes the bar *and* drops the filter, which is what
+		 * closing a search means — a hidden bar still narrowing the list would be
+		 * a panel lying about how many classes there are. Bases closes its own
+		 * search the same way.
+		 */
+		this.headerIcon(folding, 'search', '⌕', {
+			cls: 'oof-search-toggle' + (searchOpen ? ' is-active' : ''),
+			label: searchOpen ? 'Close the search' : 'Find a class',
+			onClick: () => {
+				if (this.searchOpen) this.closeSearch();
+				else this.openSearch();
+			},
+		});
 
 		/*
 		 * List or tree, in the panel rather than only in the settings. It belongs
@@ -8702,6 +11919,312 @@ class ClassesView extends ItemView {
 				this.render();
 			},
 		});
+
+		/*
+		 * The actions, when they live here rather than on every card. Inside the
+		 * header rather than under it, so they stay put while the classes scroll:
+		 * they act on the highlighted class, which is very often exactly the card
+		 * that has just gone off the top.
+		 */
+		if (plugin.settings.classActions === 'toolbar') {
+			this.renderClassToolbar(header, objects, drafts);
+		}
+	}
+
+	/*
+	 * One row of actions, above all the classes, for the classes the panel is
+	 * highlighting — his `Moving options for classes.md`.
+	 *
+	 * **It only has buttons while something is highlighted**, which is what he
+	 * asked for and is also the only coherent reading: these act on *a* class, and
+	 * with none highlighted there is no class for them to act on. The row itself
+	 * stays, saying so — a row that comes and goes as you move between notes would
+	 * shift the whole panel up and down under the pointer.
+	 *
+	 * The names mean two different things in the two selection modes, and that is
+	 * deliberate. Tracking the active note, the panel is *reporting* what the note
+	 * is, and a note that is `is a` two classes gives a picker: which one the
+	 * single-class buttons open. In a custom selection the panel is *taking
+	 * instructions*, and the whole set is the instruction — every selected class is
+	 * acted on at once. The mode button and the row's own tint say which of the two
+	 * you are looking at.
+	 */
+	renderClassToolbar(container, objects, drafts) {
+		const plugin = this.plugin;
+		const custom = this.selectionMode === 'custom';
+		const bar = container.createDiv({
+			cls: 'oof-class-toolbar' + (custom ? ' is-custom' : ''),
+		});
+
+		/* A draft is what every action reads, so a name without one is no subject. */
+		const active = Array.from(this.active || []).filter((name) => drafts.has(name));
+
+		this.renderSelectionMode(bar, active.length);
+
+		if (active.length === 0) {
+			/*
+			 * Three different nothings, and they want different sentences. Standing
+			 * on an emptied selection is a state he asked for and chose, so it says
+			 * how to leave it rather than how to arrive somewhere.
+			 */
+			bar.createSpan({
+				cls: 'oof-toolbar-empty',
+				text: custom
+					? 'Nothing selected — click a dot, or click back into a note.'
+					: (plugin.settings.followActiveNote
+						? 'Nothing highlighted — open a class, or click the dot beside one.'
+						: 'Following the active note is off. Click the dot beside a class.'),
+			});
+			return;
+		}
+
+		/*
+		 * Which of them the buttons act on. In a custom selection, all of them; when
+		 * tracking the active note, one — kept across renders so that opening a
+		 * template does not throw the choice away, and dropped the moment it stops
+		 * being one of the highlighted classes.
+		 */
+		if (!custom && (!this.toolbarClass || active.indexOf(this.toolbarClass) === -1)) {
+			this.toolbarClass = active[0];
+		}
+		const acting = custom ? active : [this.toolbarClass];
+		const several = !custom && active.length > 1;
+
+		const names = bar.createDiv({ cls: 'oof-toolbar-names' });
+		for (const name of active) {
+			const picked = custom || name === this.toolbarClass;
+			const el = names.createEl('a', {
+				cls: 'oof-toolbar-name' + (picked ? ' is-chosen' : ''),
+				attr: {
+					title: picked
+						? 'Open ' + name
+						: 'These actions act on ' + name + ' instead',
+				},
+			});
+
+			const symbol = plugin.symbolFor(name, objects, drafts);
+			if (symbol.symbol) {
+				paintSymbol(el.createSpan({
+					cls: 'oof-symbol' + (symbol.inherited ? ' is-inherited' : ''),
+				}), symbol.symbol);
+			}
+			el.createSpan({ text: name });
+
+			el.onclick = (event) => {
+				event.preventDefault();
+				if (several && !picked) {
+					this.toolbarClass = name;
+					this.render();
+					return;
+				}
+				this.openClassNote(name, drafts);
+			};
+		}
+
+		/*
+		 * Unselect the lot. Only in a custom selection — in tracking mode the
+		 * highlight belongs to the note you have open, and there is nothing of his
+		 * to clear.
+		 *
+		 * It sits at the end of the names rather than with the file buttons on the
+		 * right: it acts on the selection, and those act on a class.
+		 */
+		if (custom) {
+			const clear = names.createEl('a', {
+				cls: 'oof-toolbar-clear',
+				attr: {
+					'aria-label': 'Unselect all classes',
+					title: plugin.settings.emptySelectionStands
+						? 'Unselect all classes — nothing will be highlighted until you '
+							+ 'click back into a note'
+						: 'Unselect all classes and go back to following the active note',
+				},
+			});
+			if (typeof setIcon === 'function') setIcon(clear, 'x');
+			else clear.textContent = '×';
+			clear.onclick = (event) => {
+				event.preventDefault();
+				this.clearSelection();
+			};
+		}
+
+		const actions = bar.createDiv({ cls: 'oof-toolbar-actions' });
+		this.classActionButtons(actions, objects, drafts, acting, { includeNote: false });
+	}
+
+	/*
+	 * Which of the two selection modes the panel is in, and the way to change it by
+	 * hand — his note asks for both: the change is *shown*, and either mode can
+	 * still be turned on deliberately.
+	 *
+	 * The switch back to a custom selection is only offered when there is a
+	 * selection to go back to, which is the other half of his rule: the set is
+	 * **kept** when the mode flips away from it, so toggling it on by hand brings it
+	 * back — while clicking a dot enters the mode afresh and scraps it.
+	 */
+	renderSelectionMode(bar, highlighted) {
+		const custom = this.selectionMode === 'custom';
+		const kept = this.selection ? this.selection.size : 0;
+		const canGoBack = custom || kept > 0;
+
+		const button = bar.createEl('a', {
+			cls: 'oof-selection-mode' + (custom ? ' is-custom' : '')
+				+ (canGoBack ? '' : ' is-stuck'),
+			attr: {
+				/*
+				 * What is behind the button, named. With *opening a note resets the
+				 * selection* on, the kept set is the class you are reading — so it
+				 * says which class, rather than "your selection of 1 class", which
+				 * would be true and tell him nothing.
+				 */
+				title: custom
+					? (kept === 0
+						? 'You have unselected everything. Click to follow the active note '
+							+ 'again, or click a dot to start a new selection.'
+						: 'Your own selection of ' + kept + ' class'
+							+ (kept === 1 ? '' : 'es') + '. Click to follow the active note again.')
+					: (kept > 0
+						? 'Following the active note. Click to select '
+							+ andList(Array.from(this.selection))
+							+ ', and shift or ctrl-click a dot to pick more.'
+						: 'Following the active note. Click the dot beside a class to select '
+							+ 'your own instead.'),
+			},
+		});
+		if (typeof setIcon === 'function') {
+			setIcon(button, custom ? 'mouse-pointer-click' : 'crosshair');
+		}
+		button.createSpan({
+			cls: 'oof-selection-mode-label',
+			text: custom
+				? 'selection' + (highlighted > 1 ? ' ' + highlighted : '')
+				: 'active note',
+		});
+
+		button.onclick = (event) => {
+			event.preventDefault();
+			if (!canGoBack) return;
+			this.selectionMode = custom ? 'active' : 'custom';
+			this.render();
+		};
+	}
+
+	/*
+	 * A dot is a select button — his note, and the reason the flat list grows dots
+	 * of its own even though nothing is drawn between them.
+	 *
+	 * Plain click selects that class alone; shift or ctrl adds or removes one.
+	 * Arriving from active-note tracking **scraps** whatever was selected before,
+	 * which is his rule and the difference between coming back to a selection by
+	 * hand and starting a new one.
+	 */
+	wireSelectDot(el, name, target) {
+		if (!this.selecting) return el;
+
+		const chosen = this.selectionMode === 'custom'
+			&& this.selection && this.selection.has(name);
+		el.addClass('is-selectable');
+		if (chosen) el.addClass('is-selected');
+
+		/*
+		 * The class the state is painted on and the box the click lands in are not
+		 * always the same element. A rail's node is 8px of circle positioned by
+		 * hand and is its own target; a card's is a dot inside a pad, because 8px
+		 * is not something to ask anyone to hit twice.
+		 */
+		const hit = target || el;
+		hit.setAttribute('aria-label', chosen ? 'Deselect ' + name : 'Select ' + name);
+		hit.setAttribute('title', chosen
+			? 'Deselect ' + name + ' — shift or ctrl-click to select more than one'
+			: 'Select ' + name + ' — shift or ctrl-click to select more than one');
+
+		hit.onclick = (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.pickClass(name, !!(event.shiftKey || event.ctrlKey || event.metaKey));
+		};
+		return el;
+	}
+
+	pickClass(name, extend) {
+		if (!this.selection) this.selection = new Set();
+
+		if (this.selectionMode !== 'custom') {
+			this.selectionMode = 'custom';
+			/*
+			 * Arriving from active-note tracking, a plain click starts a new
+			 * selection — his rule: turning the mode back on by clicking a dot
+			 * scraps what was stored.
+			 *
+			 * A **modifier** click does not, and reading it that way was a bug he
+			 * hit repeatedly: shift-clicking a second class while the panel was
+			 * highlighting one of its own dropped that one and kept only the new.
+			 * What his rule scraps is the *stored* selection from earlier, not the
+			 * class in front of you — and shift-click has one meaning everywhere,
+			 * which is "and this one as well".
+			 *
+			 * So it extends what is **showing**, `this.active`, and not the stored
+			 * set: the stored set is not on the screen, and the mode button is the
+			 * way back to it.
+			 */
+			this.selection = extend
+				? new Set(Array.from(this.active || []).concat([name]))
+				: new Set([name]);
+			this.render();
+			return;
+		}
+
+		if (!extend) this.selection = new Set([name]);
+		else if (this.selection.has(name)) this.selection.delete(name);
+		else this.selection.add(name);
+
+		/*
+		 * What an empty set means is decided in `render()`, in one place. The last
+		 * selected class is deliberately not special-cased into staying — his N.B.,
+		 * and he is right: a control that refuses the last of something is a
+		 * control you have to learn an exception for.
+		 */
+		this.render();
+	}
+
+	/* Unselect everything at once. */
+	clearSelection() {
+		this.selection = new Set();
+		this.render();
+	}
+
+	/* The class's own note, or a word about why there isn't one yet. */
+	openClassNote(name, drafts) {
+		const draft = drafts.get(name);
+		if (draft && draft.file) {
+			this.app.workspace.getLeaf(false).openFile(draft.file);
+			return;
+		}
+		new Notice('No note for "' + name + '" yet — Update creates it.', 4000);
+	}
+
+	/*
+	 * The search bar, opened and closed by the looking glass beside it.
+	 *
+	 * Focus is taken here rather than through `render()`'s restore, because the
+	 * restore puts back whatever *was* focused and what was focused is the button
+	 * that was just pressed. `preventScroll` for the restore's own reason —
+	 * focusing an input drags the panel to wherever it happens to be.
+	 */
+	openSearch() {
+		this.searchOpen = true;
+		this.render();
+		const input = this.containerEl.querySelector('.oof-search');
+		if (!input) return;
+		input.focus({ preventScroll: true });
+		input.select();
+	}
+
+	/* Closing empties it: a bar you cannot see must not go on narrowing the list. */
+	closeSearch() {
+		this.searchOpen = false;
+		this.filter = '';
+		this.render();
 	}
 
 	/*
@@ -8877,6 +12400,22 @@ class ClassesView extends ItemView {
 				});
 			}
 
+			/* The same question, one level down, and the same button for it. */
+			if (discrepancy.kind === 'stranded-value') {
+				this.iconButton(head, 'replace', {
+					label: 'Say what it was renamed to',
+					tooltip: 'Move "' + discrepancy.strandedValue.value + '" to another '
+						+ 'value of ' + discrepancy.property + ', on every note holding it.',
+					onClick: () => {
+						new RenameValueModal(this.app, plugin, {
+							characteristic: discrepancy.property,
+							from: discrepancy.strandedValue.value,
+							suggestion: discrepancy.suggestion,
+						}, () => this.render()).open();
+					},
+				});
+			}
+
 			if (discrepancy.file) {
 				this.iconButton(head, 'file-text', {
 					label: 'Open ' + discrepancy.file.basename,
@@ -8939,7 +12478,7 @@ class ClassesView extends ItemView {
 				];
 				const missing = anchors.filter((a) => !next.includes(a));
 				if (missing.length > 0) {
-					new Notice('OOF Classes: "' + missing.join('", "')
+					new Notice('OOF Class Manager: "' + missing.join('", "')
 						+ '" is used by the engine and cannot be removed.', 6000);
 					return;
 				}
@@ -9394,6 +12933,8 @@ class ClassesView extends ItemView {
 			});
 			dot.style.left = x(row.lane);
 			this.fileHover('dot:' + row.name, dot);
+			/* And the dot is the select button, when there is a toolbar to feed. */
+			this.wireSelectDot(dot, row.name);
 			if (plugin.isRootClass(row.name)) dot.addClass('is-root');
 			if (row.parents.length > 1) dot.addClass('is-merge');
 
@@ -9577,6 +13118,8 @@ class ClassesView extends ItemView {
 			});
 			dot.style.left = x(nodeColumn);
 			this.fileHover('dot:' + row.name, dot);
+			/* And the dot is the select button, when there is a toolbar to feed. */
+			this.wireSelectDot(dot, row.name);
 			if (plugin.isRootClass(row.name)) dot.addClass('is-root');
 			if (row.parents.length > 1) dot.addClass('is-merge');
 
@@ -9586,6 +13129,281 @@ class ClassesView extends ItemView {
 
 		this.repaintHover();
 		return tree_el;
+	}
+
+	/*
+	 * Drafting a class. Both ways in arrive here — the + beside the count, and
+	 * *New subclass of X…* in a class's own menu — so the two guards are stated
+	 * once rather than once each. The + used to fail silently on a name already
+	 * taken; it says so now, which is the only behaviour that changed.
+	 *
+	 * `parent` is the whole of what makes a subclass a subclass: a draft whose
+	 * `type of` already names the class the menu was opened on. Nothing is written
+	 * to the vault — a new class is a draft like every other edit here, and Update
+	 * is what tells the vault about it.
+	 */
+	createClassNamed(name, drafts, parent) {
+		const plugin = this.plugin;
+		const clean = String(name || '').trim();
+		if (!clean) return false;
+
+		if (drafts.has(clean)) {
+			new Notice('OOF Class Manager: there is already a class called "'
+				+ clean + '".', 5000);
+			return false;
+		}
+		/*
+		 * The prefix is a characteristic's. A class drafted under one goes on to
+		 * create `∘ Thing.md`, `∘ Thing Template.md` and `∘ Thing Base.base`, none
+		 * of which is a thing that should exist.
+		 */
+		if (plugin.looksLikeCharacteristic(clean)) {
+			new Notice('OOF Class Manager: "' + plugin.settings.characteristicPrefix
+				+ '" starts the name of a characteristic, not a class.', 6000);
+			return false;
+		}
+
+		const values = plugin.emptyLogicValues();
+		if (parent) values[plugin.settings.inheritsProperty] = [parent];
+		plugin.drafts.set(clean, { values: values });
+
+		/*
+		 * Opened, because a new class is empty and the one thing worth seeing on it
+		 * is the `type of` row already naming its parent — the confirmation that
+		 * the subclass really is one, before Update has written a byte.
+		 */
+		plugin.expanded.add(clean);
+		plugin.persist().then(() => { this.render(); });
+		return true;
+	}
+
+	classActionSpecs(objects, drafts, names, options) {
+		const plugin = this.plugin;
+		const opts = options || {};
+		const list = Array.isArray(names) ? names.filter(Boolean) : [names];
+		if (list.length === 0) return [];
+
+		const primary = list[0];
+		const draft = drafts.get(primary);
+		if (!draft) return [];
+		const many = list.length > 1;
+		const phrase = andList(list.slice());
+
+		const templateFile = this.app.vault.getFileByPath(plugin.templatePathFor(primary));
+		const baseFile = this.app.vault.getFileByPath(plugin.basePathFor(primary));
+
+		const specs = [];
+		/*
+		 * A file that does not exist yet is *pending*; an action that cannot apply
+		 * to this selection is *blocked*. Both carry a `reason`, and carrying it on
+		 * the spec rather than in the drawing code is what lets the menu say it in
+		 * words where an icon can only say it after being pressed.
+		 */
+		const pending = (why, short) => ({ cls: 'oof-icon-pending', reason: why, short: short });
+		const blocked = (why, short) => ({ cls: 'oof-icon-disabled', reason: why, short: short });
+
+		if (opts.includeNote !== false) {
+			specs.push(Object.assign({
+				icon: 'file-text',
+				group: 'open',
+				label: 'Open note',
+				tooltip: draft.file ? draft.file.path : null,
+				run: () => { this.app.workspace.getLeaf(false).openFile(draft.file); },
+			}, draft.file ? {} : pending(
+				'No note for "' + primary + '" yet — Update creates it.', 'no note yet')));
+		}
+
+		if (many) {
+			specs.push(Object.assign({
+				icon: 'layout-template',
+				group: 'open',
+				label: 'Open template',
+			}, blocked(
+				'A template belongs to one class, and ' + list.length + ' are selected ('
+					+ phrase + ').',
+				'one class at a time')));
+		} else {
+			specs.push(Object.assign({
+				icon: 'layout-template',
+				group: 'open',
+				label: 'Open template',
+				tooltip: templateFile instanceof TFile ? templateFile.path : null,
+				run: () => { this.app.workspace.getLeaf(false).openFile(templateFile); },
+			}, templateFile instanceof TFile ? {} : pending(
+				'No template for "' + primary + '" yet — Update creates it.', 'none yet')));
+		}
+
+		if (plugin.settings.createBases && many) {
+			/*
+			 * The dynamic base: one file, rewritten to whichever classes are
+			 * selected. It is the single thing in the plugin written without an
+			 * Update plan in front of it — see `openDynamicBase`, which refuses a
+			 * file of that name it did not create.
+			 */
+			if (plugin.settings.multiClassBase === 'dynamic') {
+				specs.push({
+					icon: 'table-2',
+					group: 'open',
+					label: 'Open the dynamic base',
+					tooltip: 'One base showing every instance of ' + phrase + '. It is '
+						+ 'rewritten each time you open it with a different selection.',
+					run: () => { plugin.openDynamicBase(list, objects, drafts); },
+				});
+			} else {
+				specs.push(Object.assign({
+					icon: 'table-2',
+					group: 'open',
+					label: 'Open base',
+				}, blocked(
+					'Two bases cannot be opened at once. Switch "Several classes at once" '
+						+ 'to the dynamic base to see ' + phrase + ' in one.',
+					'one class at a time')));
+			}
+		} else if (plugin.settings.createBases) {
+			specs.push(Object.assign({
+				icon: 'table-2',
+				group: 'open',
+				label: 'Open base',
+				tooltip: baseFile ? baseFile.path : null,
+				run: () => { this.app.workspace.getLeaf(false).openFile(baseFile); },
+			}, baseFile ? {} : pending(
+				'No base for "' + primary + '" yet — Update creates it.', 'none yet')));
+		}
+
+		/*
+		 * Applying the class to the note he already has open. Always offered, never
+		 * hidden by what the active note happens to be: the panel would then
+		 * re-render its icons on every file he opens, and a button that comes and
+		 * goes is worse than one that explains itself when pressed.
+		 *
+		 * With several selected the note becomes all of them at once — his note:
+		 * *"will give that note all of the selected classes"*.
+		 */
+		specs.push({
+			icon: 'file-check',
+			group: 'make',
+			cls: 'oof-apply-class',
+			label: many ? 'Apply these classes to the open note' : 'Apply to the open note',
+			tooltip: 'Make the open note '
+				+ andList(list.map((name) => article(name) + ' ' + name)),
+			run: () => {
+				const file = this.app.workspace.getActiveFile();
+				const situation = plugin.applyClassAction(list, file);
+				if (situation.reason) {
+					new Notice('OOF Class Manager: ' + situation.reason, 5000);
+					return;
+				}
+				new ApplyClassModal(this.app, plugin, list, file, situation,
+					() => this.render()).open();
+			},
+		});
+
+		/*
+		 * Making an instance is what a class is *for*, so it ends the row and gets
+		 * the biggest glyph. Obsidian's own "new note" icon, because that is what
+		 * it does.
+		 *
+		 * With several selected the new note is `is a` all of them, and it is made
+		 * from the **first** one's template — a note comes from one file, and that
+		 * is the only place the body can come from.
+		 */
+		if (templateFile instanceof TFile) {
+			specs.push({
+				icon: 'file-plus',
+				group: 'make',
+				cls: 'oof-new-instance',
+				label: many ? 'New note that is ' + phrase : 'New ' + primary,
+				tooltip: many
+					? 'New note that is ' + andList(list.map((name) => article(name) + ' ' + name))
+						+ ', from ' + primary + '’s template'
+					: 'New ' + primary + ', from its template',
+				run: () => {
+					/*
+					 * No name is asked for — his call, 2026-08-24. The note is named
+					 * after the moment it was made, which is the whole point of the
+					 * *Unique file name* setting: there is nothing to ask.
+					 *
+					 * The modal survives for the one case that still has a question to
+					 * answer: with the format emptied the convention is off, and there
+					 * is no name to generate.
+					 */
+					const format = String(plugin.settings.uniqueNameFormat || '').trim();
+					if (format) {
+						plugin.createInstanceOfMany(list, plugin.uniqueInstanceName(format));
+						return;
+					}
+					new NewInstanceModal(this.app, phrase, (noteName) => {
+						plugin.createInstanceOfMany(list, noteName);
+					}).open();
+				},
+			});
+		} else {
+			specs.push(Object.assign({
+				icon: 'file-plus',
+				group: 'make',
+				label: many ? 'New note' : 'New ' + primary,
+			}, pending(
+				many
+					? 'No template for "' + primary + '" yet, and a new note is made from the '
+						+ 'first selected class’s template. Press Update first.'
+					: 'No template for "' + primary + '" yet — Update creates it, and a new '
+						+ 'note is made from it.',
+				'no template yet'), { cls: 'oof-icon-pending oof-new-instance' }));
+		}
+
+		return specs;
+	}
+
+	/*
+	 * The buttons that act on a class: its note, its template, its base, applying
+	 * it to the note he has open, and making an instance of it. Drawn either on
+	 * the class's own card or once in the toolbar above the list, so they are
+	 * built here and handed the box to go in.
+	 *
+	 * The note button is the one that differs between the two. In toolbar mode it
+	 * is left out, because there the class name is what opens the note.
+	 *
+	 * A file that does not exist yet keeps its place, faint, and says why when
+	 * clicked: the row would jump about as templates and bases came into being
+	 * otherwise. Since 2026-08-30 that rule finally covers the note button and the
+	 * new-instance button too — both used to be dropped outright when their file
+	 * was missing, which is the jumping the rule exists to stop.
+	 *
+	 * **`names` is a list**, because a custom selection can hold several classes
+	 * and the meaning is "all of these at once", not "this, five times". Two of
+	 * them split on that count:
+	 *
+	 *   apply, new instance   act on every selected class — one note that is a
+	 *                         Person and a Teacher, not two notes
+	 *   template, base        each belongs to exactly one class, so with several
+	 *                         selected they grey out and say why
+	 *
+	 * The base is the one his note singles out, because two bases cannot be opened
+	 * at once. *Where several classes share a base* decides: grey it out, or open
+	 * the one dynamic base rewritten to show them all.
+	 *
+	 * The first selected class is the primary one and the single-class buttons
+	 * follow it, so that with one selected nothing about this row has changed.
+	 *
+	 * What each button *is* lives in `classActionSpecs`, which a class's own
+	 * right-click menu reads as well — so the row and the menu cannot come to
+	 * disagree about what opening a base means, or about when it is possible.
+	 */
+	classActionButtons(actions, objects, drafts, names, options) {
+		for (const spec of this.classActionSpecs(objects, drafts, names, options)) {
+			this.iconButton(actions, spec.icon, {
+				cls: spec.cls || '',
+				label: spec.label,
+				tooltip: spec.reason || spec.tooltip || spec.label,
+				onClick: (event) => {
+					if (spec.reason) {
+						new Notice('OOF Class Manager: ' + spec.reason, 6000);
+						return;
+					}
+					spec.run(event);
+				},
+			});
+		}
 	}
 
 	renderObject(container, draft, objects, drafts, characteristics) {
@@ -9600,8 +13418,12 @@ class ClassesView extends ItemView {
 				+ (open ? ' is-open' : ' is-closed'),
 		});
 
-		const templateFile = this.app.vault.getFileByPath(plugin.templatePathFor(draft.name));
-		const baseFile = this.app.vault.getFileByPath(plugin.basePathFor(draft.name));
+		/*
+		 * Where the buttons are. In toolbar mode this card carries none of them:
+		 * the top line is left to say what the class is, and the one control that
+		 * survives — the three-dot menu — moves to the far right.
+		 */
+		const onToolbar = plugin.settings.classActions === 'toolbar';
 
 		/*
 		 * --- 1. one row per class: the name and everything that acts on it ---
@@ -9614,6 +13436,20 @@ class ClassesView extends ItemView {
 			await plugin.toggleExpanded(draft.name);
 			this.render();
 		};
+
+		/*
+		 * The dot, in the layouts that have no rail to hang one in — his N.B.
+		 * *"we will need to change the simple list view for the classes to still
+		 * have dots, even if they will not be connected to anything."*
+		 *
+		 * Before the twisty, which is where the rail's node is relative to the card
+		 * in the other two layouts: outside everything, at the leading edge. It
+		 * takes a hit area of its own rather than relying on 8 pixels of circle.
+		 */
+		if (this.selecting && this.flatList) {
+			const hit = title.createSpan({ cls: 'oof-dot-hit' });
+			this.wireSelectDot(hit.createSpan({ cls: 'oof-flat-dot' }), draft.name, hit);
+		}
 
 		const twisty = title.createSpan({ cls: 'oof-twisty' });
 		if (typeof setIcon === 'function') setIcon(twisty, 'chevron-right');
@@ -9639,7 +13475,25 @@ class ClassesView extends ItemView {
 			paintSymbol(mark, symbol.symbol);
 		}
 
-		title.createSpan({ text: draft.name, cls: 'oof-object-name' });
+		const nameEl = title.createSpan({
+			text: draft.name,
+			cls: 'oof-object-name' + (onToolbar ? ' is-link' : ''),
+		});
+
+		/*
+		 * With the note icon gone, the name is what opens the note — his ask. It
+		 * stops the click going any further, so the name opens and the rest of the
+		 * row still folds: two things to do with one row, and the one you meant is
+		 * decided by which of them you aimed at.
+		 */
+		if (onToolbar) {
+			nameEl.setAttribute('title', draft.file ? draft.file.path : 'No note yet');
+			nameEl.onclick = (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.openClassNote(draft.name, drafts);
+			};
+		}
 
 		/*
 		 * The pencil belongs to the name, so it stays beside it rather than joining
@@ -9654,10 +13508,10 @@ class ClassesView extends ItemView {
 			new RenameClassModal(this.app, plugin, draft.name, async (next) => {
 				const result = await plugin.renameClass(draft.name, next);
 				if (!result.ok) {
-					if (result.reason !== 'unchanged') new Notice('OOF Classes: ' + result.reason, 6000);
+					if (result.reason !== 'unchanged') new Notice('OOF Class Manager: ' + result.reason, 6000);
 					return;
 				}
-				new Notice('OOF Classes: renamed to "' + next + '". Obsidian updated the links.');
+				new Notice('OOF Class Manager: renamed to "' + next + '". Obsidian updated the links.');
 				this.render();
 			}).open();
 		};
@@ -9702,7 +13556,7 @@ class ClassesView extends ItemView {
 				confirmText: 'Delete the class',
 				onConfirm: async () => {
 					const done = await plugin.deleteClass(draft.name);
-					new Notice('OOF Classes: "' + draft.name + '" deleted — '
+					new Notice('OOF Class Manager: "' + draft.name + '" deleted — '
 						+ (done.trashed.length > 0
 							? done.trashed.length + ' file'
 								+ (done.trashed.length === 1 ? '' : 's') + ' in the trash.'
@@ -9713,52 +13567,157 @@ class ClassesView extends ItemView {
 		};
 
 		/*
+		 * Making a subclass of this one — his ask, 2026-08-30. It is a class like
+		 * any other; the only thing the menu adds is that its `type of` already
+		 * names the class you right-clicked, which is the whole of what "sub" means
+		 * here. Drafted, not written: like every other class it waits for Update.
+		 */
+		const newSubclass = () => {
+			new NewObjectModal(this.app, plugin, (name) => {
+				this.createClassNamed(name, drafts, draft.name);
+			}, {
+				heading: 'New subclass of ' + draft.name,
+				desc: 'The class note to create. It starts out ' + plugin.settings.inheritsProperty
+					+ ' ' + draft.name + ', so it inherits every characteristic ' + draft.name
+					+ ' declares.',
+			}).open();
+		};
+
+		/*
+		 * Everything that acts on a class, in one menu — his ask, 2026-08-30:
+		 * *"right clicking on a class should bring up all the important options"*.
+		 *
+		 * **It is one menu with two ways in**, the three-dot button and a
+		 * right-click anywhere on the class's line, rather than a short menu on the
+		 * button and a long one on the row. Two menus over one class are two places
+		 * to add the next item to, and the one you did not update is the one he
+		 * right-clicks.
+		 *
+		 * **The five file actions are read off `classActionSpecs`**, which is what
+		 * draws the icon row, so the menu cannot come to disagree with the buttons
+		 * about when a base can be opened or what applying does. The menu gets
+		 * something the icons never could, though: a missing file can say so in
+		 * words — *Open template — none yet* — instead of being a faint glyph that
+		 * only explains itself once pressed. Disabled items in Obsidian swallow
+		 * their own clicks (`MenuItem.handleEvent` returns early), so saying it in
+		 * the title is not a nicety here, it is the only way to say it at all.
+		 *
+		 * The order is what each item does to the vault: go somewhere, make
+		 * something, change what this class is, destroy it. Delete sits alone after
+		 * a separator, at the far end of that progression.
+		 */
+		const classMenu = (event) => {
+			/* No Menu in the harness, and none needed: rename is what it was. */
+			if (typeof Menu !== 'function') {
+				rename();
+				return;
+			}
+
+			const menu = new Menu();
+			const separate = () => {
+				if (typeof menu.addSeparator === 'function') menu.addSeparator();
+			};
+
+			const add = (options) => menu.addItem((item) => {
+				item.setTitle(options.title);
+				if (options.icon) item.setIcon(options.icon);
+				if (options.tooltip && item.dom && item.dom.setAttribute) {
+					item.dom.setAttribute('title', options.tooltip);
+				}
+				if (options.disabled) {
+					if (typeof item.setDisabled === 'function') item.setDisabled(true);
+					return;
+				}
+				item.onClick(options.run);
+			});
+
+			let group = null;
+			for (const spec of this.classActionSpecs(objects, drafts, [draft.name],
+				{ includeNote: true })) {
+				if (group !== null && spec.group !== group) separate();
+				group = spec.group;
+				add({
+					title: spec.reason ? spec.label + ' — ' + (spec.short || 'not now') : spec.label,
+					icon: spec.icon,
+					tooltip: spec.reason || spec.tooltip,
+					disabled: Boolean(spec.reason),
+					run: () => { spec.run(event); },
+				});
+			}
+
+			separate();
+			add({
+				title: 'New subclass of ' + draft.name + '…',
+				icon: 'git-branch-plus',
+				tooltip: 'A new class that is ' + plugin.settings.inheritsProperty + ' '
+					+ draft.name,
+				run: newSubclass,
+			});
+
+			separate();
+			add({ title: 'Rename…', icon: 'pencil', run: rename });
+			if (plugin.settings.symbolProperty) {
+				/*
+				 * No *Remove symbol* here, his call: removing one is a thing you do
+				 * having looked at what it is, and the picker already offers it. A
+				 * menu that both opens a chooser and quietly throws the choice away
+				 * puts a destructive item one slip below an ordinary one.
+				 */
+				add({
+					title: draft.symbol ? 'Change symbol…' : 'Add a symbol…',
+					icon: 'shapes',
+					run: pickSymbol,
+				});
+			}
+
+			separate();
+			add({ title: 'Delete class…', icon: 'trash-2', run: remove });
+
+			if (event && typeof menu.showAtMouseEvent === 'function') {
+				menu.showAtMouseEvent(event);
+			} else if (typeof menu.showAtPosition === 'function') {
+				menu.showAtPosition({ x: 0, y: 0 });
+			}
+		};
+
+		/*
 		 * Three dots rather than a pencil (his call, 2026-08-24, in two steps: first
 		 * a hamburger, then this). The button opens a menu of things that act on the
 		 * class, and a pencil says "rename" — which it was, back when renaming was
 		 * all it did. A hamburger says *navigation*, the application's own menu;
 		 * three dots say *more actions for this item*, which is what this is.
 		 */
-		this.iconButton(title, overflowIconName(), {
-			cls: 'oof-rename',
+		const addClassMenu = (parent, extra) => this.iconButton(parent, overflowIconName(), {
+			cls: ('oof-rename ' + (extra || '')).trim(),
 			label: 'Class menu',
-			tooltip: 'Rename, change the symbol, or delete this class',
-			onClick: (event) => {
-				/* No Menu in the harness, and none needed: rename is what it was. */
-				if (typeof Menu !== 'function') {
-					rename();
-					return;
-				}
-
-				const menu = new Menu();
-				menu.addItem((item) => item
-					.setTitle('Rename…')
-					.setIcon('pencil')
-					.onClick(rename));
-				if (plugin.settings.symbolProperty) {
-					/*
-					 * No *Remove symbol* here, his call: removing one is a thing you do
-					 * having looked at what it is, and the picker already offers it. A
-					 * menu that both opens a chooser and quietly throws the choice away
-					 * puts a destructive item one slip below an ordinary one.
-					 */
-					menu.addItem((item) => item
-						.setTitle(draft.symbol ? 'Change symbol…' : 'Add a symbol…')
-						.setIcon('shapes')
-						.onClick(pickSymbol));
-				}
-				if (typeof menu.addSeparator === 'function') menu.addSeparator();
-				menu.addItem((item) => item
-					.setTitle('Delete class…')
-					.setIcon('trash-2')
-					.onClick(remove));
-				if (event && typeof menu.showAtMouseEvent === 'function') {
-					menu.showAtMouseEvent(event);
-				} else if (typeof menu.showAtPosition === 'function') {
-					menu.showAtPosition({ x: 0, y: 0 });
-				}
-			},
+			tooltip: 'Everything that acts on this class — right-clicking the row '
+				+ 'opens the same menu',
+			onClick: classMenu,
 		});
+
+		/*
+		 * The row itself is the second way in, and in toolbar mode it is the useful
+		 * one: there the card carries no buttons at all, and the toolbar acts on
+		 * whatever is *selected* — so without this there is no way to open the base
+		 * of a class you can see but have not selected.
+		 *
+		 * `stopPropagation` because the chips in the body have a context menu of
+		 * their own; this one belongs to the line that names the class.
+		 */
+		title.oncontextmenu = (event) => {
+			if (typeof Menu !== 'function') return;
+			event.preventDefault();
+			event.stopPropagation();
+			classMenu(event);
+		};
+
+		/*
+		 * Beside the name while the action icons are here too — it is about what
+		 * the class is called, and the icons are about its files, so the two kinds
+		 * sit at opposite ends. With the icons gone there is no other end, and it
+		 * takes the far right, which is where it is looked for.
+		 */
+		if (!onToolbar) addClassMenu(title);
 
 		/*
 		 * How much this class adds. First of the badges, because it is about the
@@ -9780,182 +13739,54 @@ class ClassesView extends ItemView {
 		/* Said, not only coloured: nothing else in the panel explains the pinning. */
 		if (isRoot) title.createSpan({ text: 'root', cls: 'oof-badge oof-badge-root' });
 		if (draft.isNew) title.createSpan({ text: 'new', cls: 'oof-badge' });
-		if (isActive) {
-			const active = this.app.workspace.getActiveFile();
-			const itself = active && active.basename === draft.name;
-
+		if (isActive && this.selectionMode === 'custom') {
 			/*
-			 * Chipped either way, so the chip is the constant and the word inside
-			 * it says what the relation is: `active` when the class note itself is
-			 * what you are reading, `is a` when you are reading one of its
-			 * instances. The prose half - "active note" - is kept only for the
-			 * instance, where the chip is about the link and something else still
-			 * has to say which note is meant; on the class note the chip already
-			 * sits on the thing it is talking about.
+			 * A different word, because it is a different claim. `active` and `is a`
+			 * say something about the note you are reading; this one says you picked
+			 * it, and nothing about the note is involved.
 			 */
-			if (!itself) title.createSpan({ text: 'active note', cls: 'oof-active-label' });
+			title.createSpan({ text: 'selected', cls: 'oof-badge oof-badge-active' });
+		} else if (isActive) {
+			/*
+			 * Chipped whatever the relation is, so the chip is the constant and the
+			 * word inside it says which relation: `active` when the class note
+			 * itself is what you are reading, `is a` for one of its instances, and
+			 * since 2026-08-27 `template`, `base` and `declares` for the three other
+			 * ways a file can be about a class.
+			 *
+			 * The prose half — "active note" — is kept only for an instance, where
+			 * the chip is about the link and something else still has to say which
+			 * note is meant. The other four sit on the thing they are talking about
+			 * closely enough that the chip alone is the whole sentence.
+			 */
+			const WORDS = {
+				self: 'active',
+				template: 'template',
+				base: 'base',
+				characteristic: 'declares',
+				instance: 'is a',
+			};
+			const kind = this.activeKind || 'self';
+
+			if (kind === 'instance') {
+				title.createSpan({ text: 'active note', cls: 'oof-active-label' });
+			}
 			title.createSpan({
-				text: itself ? 'active' : 'is a',
+				text: WORDS[kind] || 'active',
 				cls: 'oof-badge oof-badge-active',
 			});
 		}
 
-		/*
-		 * The three files a class has, as icons on the same row - they used to be
-		 * words on a row of their own beneath it. A file that does not exist yet
-		 * keeps its place, faint, and says why when clicked: the row would jump
-		 * about as templates and bases came into being otherwise.
-		 */
 		const actions = title.createDiv({ cls: 'oof-object-actions' });
 
-		if (draft.file) {
-			this.iconButton(actions, 'file-text', {
-				label: 'Open note',
-				tooltip: draft.file.path,
-				onClick: () => { this.app.workspace.getLeaf(false).openFile(draft.file); },
-			});
-		}
-
-		this.iconButton(actions, 'layout-template', {
-			cls: templateFile instanceof TFile ? '' : 'oof-icon-pending',
-			label: 'Open template',
-			tooltip: templateFile instanceof TFile
-				? templateFile.path
-				: 'No template yet — Update creates it.',
-			onClick: () => {
-				if (templateFile instanceof TFile) {
-					this.app.workspace.getLeaf(false).openFile(templateFile);
-					return;
-				}
-				new Notice('No template for "' + draft.name + '" yet — Update creates it.', 4000);
-			},
-		});
-
-		if (plugin.settings.createBases) {
-			this.iconButton(actions, 'table-2', {
-				cls: baseFile ? '' : 'oof-icon-pending',
-				label: 'Open base',
-				tooltip: baseFile ? baseFile.path : 'No base yet — Update creates it.',
-				onClick: () => {
-					if (baseFile) {
-						this.app.workspace.getLeaf(false).openFile(baseFile);
-						return;
-					}
-					new Notice('No base for "' + draft.name + '" yet — Update creates it.', 4000);
-				},
-			});
-
-			/*
-			 * A base is created once and then his. Regenerating one is an explicit
-			 * request, queued like any other edit so it shows up in the Update plan
-			 * before anything is overwritten.
-			 */
-			if (baseFile) {
-				const queued = plugin.baseRefreshes.has(draft.name);
-
-				/*
-				 * The one control here that destroys work of his that nothing else
-				 * holds a copy of - the views, sorts and filters he built on a base
-				 * by hand. So it asks for a typed code first.
-				 *
-				 * It looks like its neighbours, though. It was red for a while and
-				 * he took the colour back off: the code is the protection, and a
-				 * red icon on every class card is a warning worn down by being
-				 * always there. The alarm belongs at the moment of the act.
-				 *
-				 * Only *arming* it asks. Cancelling a queued reset is the safe
-				 * direction, and putting a gate in front of the way out would be
-				 * safety theatre rather than safety.
-				 */
-				this.iconButton(actions, queued ? 'rotate-ccw' : 'refresh-cw', {
-					cls: queued ? 'oof-icon-warning' : '',
-					label: queued ? 'Cancel the queued base reset' : 'Reset base',
-					tooltip: queued
-						? 'Queued. Update will regenerate this base, replacing your edits. '
-							+ 'Click to cancel.'
-						: 'Reset this base to what the plugin would generate — replacing any '
-							+ 'views, sorts and filters you added. Asks for a code first.',
-					onClick: async () => {
-						if (queued) {
-							await plugin.toggleBaseRefresh(draft.name);
-							this.render();
-							return;
-						}
-
-						new ConfirmCodeModal(this.app, {
-							title: 'Reset the base for "' + draft.name + '"?',
-							lines: [
-								baseFile.path + ' will be rebuilt from scratch on the next '
-									+ 'Update, exactly as the plugin would generate it today.',
-								'Any views, sorts, group-bys and filters you added to it are '
-									+ 'lost. Nothing else keeps a copy of them.',
-								'Nothing is written yet — this queues it, and the Update plan '
-									+ 'will show it once more before it happens.',
-							],
-							confirmText: 'Queue the reset',
-							onConfirm: async () => {
-								await plugin.toggleBaseRefresh(draft.name);
-								this.render();
-							},
-						}).open();
-					},
-				});
-			}
-		}
-
 		/*
-		 * Applying the class to the note he already has open. Always offered, never
-		 * hidden by what the active note happens to be: the panel would then
-		 * re-render its icons on every file he opens, and a button that comes and
-		 * goes is worse than one that explains itself when pressed.
+		 * In toolbar mode this box holds the menu alone. It is still this box,
+		 * rather than one of its own, because everything that keeps a control
+		 * against the right-hand edge while a long row scrolls under it is already
+		 * written against `.oof-object-actions`.
 		 */
-		this.iconButton(actions, 'file-check', {
-			cls: 'oof-apply-class',
-			label: 'Apply to the open note',
-			tooltip: 'Make the open note ' + article(draft.name) + ' ' + draft.name,
-			onClick: () => {
-				const file = this.app.workspace.getActiveFile();
-				const situation = plugin.applyClassAction(draft.name, file);
-				if (situation.reason) {
-					new Notice('OOF Classes: ' + situation.reason, 5000);
-					return;
-				}
-				new ApplyClassModal(this.app, plugin, draft.name, file, situation,
-					() => this.render()).open();
-			},
-		});
-
-		/*
-		 * Making an instance is what a class is *for*, so it ends the row and gets
-		 * the biggest glyph. Obsidian's own "new note" icon, because that is what
-		 * it does. Only where there is a template to make one from.
-		 */
-		if (templateFile instanceof TFile) {
-			this.iconButton(actions, 'file-plus', {
-				cls: 'oof-new-instance',
-				label: 'New ' + draft.name,
-				tooltip: 'New ' + draft.name + ', from its template',
-				onClick: () => {
-					/*
-					 * No name is asked for — his call, 2026-08-24. The note is named
-					 * after the moment it was made, which is the whole point of the
-					 * *Unique file name* setting: there is nothing to ask.
-					 *
-					 * The modal survives for the one case that still has a question to
-					 * answer: with the format emptied the convention is off, and there
-					 * is no name to generate.
-					 */
-					const format = String(plugin.settings.uniqueNameFormat || '').trim();
-					if (format) {
-						plugin.createInstance(draft.name, plugin.uniqueInstanceName(format));
-						return;
-					}
-					new NewInstanceModal(this.app, draft.name, (noteName) => {
-						plugin.createInstance(draft.name, noteName);
-					}).open();
-				},
-			});
-		}
+		if (onToolbar) addClassMenu(actions, 'oof-rename-end');
+		else this.classActionButtons(actions, objects, drafts, [draft.name], { includeNote: true });
 
 		/* --- 2. the body, which is what the dropdown hides --- */
 		if (!open) return;
@@ -10032,6 +13863,11 @@ class ClassesView extends ItemView {
 					const object = objects.get(name);
 					return object && object.file ? name : name + ' — no note yet';
 				},
+				menu: isCharacteristics
+					? (name, event) => {
+						if (characteristics.has(name)) this.characteristicMenu(name, event);
+					}
+					: null,
 				missing: isCharacteristics
 					? (name) => !characteristics.has(name)
 					: (name) => {
@@ -10056,6 +13892,9 @@ class ClassesView extends ItemView {
 								+ (draft.values[plugin.settings.isAProperty] || []).join(', ');
 						},
 						missing: (name) => !characteristics.has(name),
+						menu: (name, event) => {
+							if (characteristics.has(name)) this.characteristicMenu(name, event);
+						},
 						muted: true,
 					});
 				}
@@ -10104,6 +13943,9 @@ class ClassesView extends ItemView {
 				onOpen: openCharacteristic,
 				tooltip: characteristicTooltip,
 				missing: (name) => !characteristics.has(name),
+				menu: (name, event) => {
+					if (characteristics.has(name)) this.characteristicMenu(name, event);
+				},
 				muted: true,
 			});
 		}
@@ -10234,6 +14076,26 @@ class ClassesView extends ItemView {
 		return el;
 	}
 
+	/*
+	 * The menu behind a characteristic chip.
+	 *
+	 * One item, and it is the one that cannot be reached any other way: which
+	 * values are written under a characteristic, and on how many notes, is
+	 * something only this plugin knows the extent of. Everything else a chip can
+	 * do it already does by being clicked.
+	 */
+	characteristicMenu(name, event) {
+		const menu = new Menu();
+		menu.addItem((item) => item
+			.setTitle('Rename a value of ' + name + '\u2026')
+			.setIcon('replace')
+			.onClick(() => {
+				new RenameValueModal(this.app, this.plugin, { characteristic: name },
+					() => this.render()).open();
+			}));
+		menu.showAtMouseEvent(event);
+	}
+
 	renderChipRow(card, label, values, options) {
 		/*
 		 * A name that survives a rebuild: the card it belongs to plus the row. The
@@ -10268,6 +14130,19 @@ class ClassesView extends ItemView {
 			text.onclick = open;
 			/* The padding around the text is a click target too. */
 			chip.onclick = open;
+
+			/*
+			 * Right-click, for what a chip cannot say by being clicked. Opening the
+			 * note is the obvious thing a chip does and stays the left button's; this
+			 * is for the one operation only the plugin knows the extent of.
+			 */
+			if (options.menu) {
+				chip.oncontextmenu = (event) => {
+					event.preventDefault();
+					event.stopPropagation();
+					options.menu(value, event);
+				};
+			}
 
 			if (!onChange) continue;
 
@@ -10502,7 +14377,7 @@ class UpdateModal extends Modal {
 				const written = result.applied.length;
 				const rounds = result.passes.length;
 
-				new Notice('OOF Classes: ' + written + ' change'
+				new Notice('OOF Class Manager: ' + written + ' change'
 					+ (written === 1 ? '' : 's') + ' written'
 					+ (rounds > 1 ? ', over ' + rounds + ' passes' : '')
 					+ (result.settled ? '.' : ' — and it did not settle, see the console.'));
@@ -10517,21 +14392,28 @@ class UpdateModal extends Modal {
 }
 
 class NewObjectModal extends Modal {
-	constructor(app, plugin, onSubmit) {
+	/*
+	 * `options` is what makes this the subclass modal too — a heading and a
+	 * description, and nothing else. The parent is not asked for here: the menu it
+	 * was opened from already named the class, and a field repeating it would be a
+	 * field to get wrong.
+	 */
+	constructor(app, plugin, onSubmit, options) {
 		super(app);
 		this.plugin = plugin;
 		this.onSubmit = onSubmit;
+		this.options = options || {};
 	}
 
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl('h3', { text: 'New class' });
+		contentEl.createEl('h3', { text: this.options.heading || 'New class' });
 
 		let name = '';
 		new Setting(contentEl)
 			.setName('Name')
-			.setDesc('The class note to create, e.g. "Artist".')
+			.setDesc(this.options.desc || 'The class note to create, e.g. "Artist".')
 			.addText((text) => {
 				text.onChange((value) => { name = value.trim(); });
 				window.setTimeout(() => text.inputEl.focus(), 0);
@@ -10656,14 +14538,42 @@ class SymbolPickerModal extends Modal {
 			grid.empty();
 			const query = this.query.trim().toLowerCase();
 
+			/*
+			 * Both grid classes set here, every time, rather than added in the
+			 * branch that wants them: they were, and it happened to work only
+			 * because the emoji branch was the one that removed. A second class
+			 * makes that a coincidence to rely on, so each tab now states what
+			 * the grid is instead of what it changed.
+			 */
+			if (this.tab === 'emoji') grid.removeClass('is-wide');
+			else grid.addClass('is-wide');
+			if (this.tab === 'symbols') grid.addClass('is-glyphs');
+			else grid.removeClass('is-glyphs');
+
 			if (this.tab === 'symbols') {
-				grid.addClass('is-wide');
-				for (const glyph of SYMBOL_PALETTE) cell(glyph, glyph);
+				/*
+				 * Searched and grouped, exactly like the emoji tab — the two are
+				 * the same thing now that this one is a hundred and sixty
+				 * characters rather than sixty. The label is the whole word list,
+				 * because for a kanji that gloss is the only way to read the cell.
+				 */
+				let any = false;
+				for (const [group, entries] of SYMBOL_GROUPS) {
+					const matching = entries.filter(
+						([glyph, words]) => !query
+							|| words.indexOf(query) !== -1 || glyph === query);
+					if (matching.length === 0) continue;
+					any = true;
+					grid.createDiv({ cls: 'oof-picker-group', text: group });
+					for (const [glyph, words] of matching) cell(glyph, words);
+				}
+				if (!any) {
+					grid.createDiv({ cls: 'oof-picker-more', text: 'No symbol called that.' });
+				}
 				return;
 			}
 
 			if (this.tab === 'icons') {
-				grid.addClass('is-wide');
 				const icons = availableIcons();
 
 				/*
@@ -10715,7 +14625,6 @@ class SymbolPickerModal extends Modal {
 				return;
 			}
 
-			grid.removeClass('is-wide');
 			for (const [group, entries] of EMOJI_GROUPS) {
 				const matching = entries.filter(
 					([glyph, words]) => !query
@@ -10937,7 +14846,8 @@ class ChangeModal extends Modal {
 			 * Nothing to apply, so nothing to show as a change — the file as it
 			 * stands is what he needs to look at, with the line at issue marked.
 			 */
-			this.renderCurrent(contentEl, d);
+			if (d.mentions) this.renderMentions(contentEl, d);
+			else this.renderCurrent(contentEl, d);
 		} else {
 			const rows = diffLines(preview.before, preview.after);
 			const changed = rows.filter((r) => r.sign !== ' ').length;
@@ -10963,6 +14873,52 @@ class ChangeModal extends Modal {
 	}
 
 	renderDiff(contentEl, rows) { renderDiffInto(contentEl, rows); }
+
+	/*
+	 * Where the word still is.
+	 *
+	 * Its own rendering because `renderCurrent` shows **frontmatter**, and this
+	 * discrepancy is the one kind that is never about frontmatter. Shown against
+	 * that note's `status: effort`, it marked the very line the rename was about
+	 * to change while saying nothing would be written — the opposite of true, and
+	 * on the one note where the prose must *not* change, since it is the record
+	 * of choosing the name.
+	 */
+	renderMentions(contentEl, d) {
+		contentEl.createEl('p', {
+			cls: 'oof-modal-lede',
+			text: 'Nothing will be written for these. Every line still carrying the '
+				+ 'word:',
+		});
+
+		for (const hit of d.mentions.slice(0, 6)) {
+			contentEl.createEl('div', { text: hit.file.path, cls: 'oof-plan-path' });
+			const block = contentEl.createEl('pre', { cls: 'oof-diff' });
+
+			if (!hit.lines || hit.lines.length === 0) {
+				block.createEl('div', {
+					text: '  (the word is in this file; the lines were not kept)',
+					cls: 'oof-diff-same',
+				});
+				continue;
+			}
+
+			for (const line of hit.lines) {
+				block.createEl('div', {
+					text: '! ' + line.number + '  ' + line.text,
+					cls: 'oof-diff-subject',
+				});
+			}
+		}
+
+		const more = d.mentions.length - 6;
+		if (more > 0) {
+			contentEl.createEl('p', {
+				cls: 'oof-modal-lede',
+				text: '…and ' + more + ' more file' + (more === 1 ? '' : 's') + '.',
+			});
+		}
+	}
 
 	renderCurrent(contentEl, d) {
 		const file = d.file;
@@ -11012,6 +14968,18 @@ class ConfirmCodeModal extends Modal {
 
 		for (const line of this.options.lines || []) {
 			contentEl.createEl('p', { text: line, cls: 'oof-danger-line' });
+		}
+
+		/*
+		 * Optional, and only the base reset passes one so far. A description of
+		 * what will be overwritten is a promise; the diff is the thing itself, and
+		 * this is the one modal in the plugin where nothing else stands between
+		 * the answer and the write. Same renderer as the discrepancy view and the
+		 * apply-a-class question, so a yes here is a yes to lines he has read.
+		 */
+		if (this.options.diff) {
+			renderDiffInto(contentEl,
+				diffLines(this.options.diff.before, this.options.diff.after));
 		}
 
 		contentEl.createEl('p', {
@@ -11070,13 +15038,20 @@ class ConfirmCodeModal extends Modal {
  * here is a yes to lines he has read.
  */
 class ApplyClassModal extends Modal {
-	constructor(app, plugin, className, file, situation, onDone) {
+	constructor(app, plugin, classNames, file, situation, onDone) {
 		super(app);
 		this.plugin = plugin;
-		this.className = className;
+		/* One or several — a custom selection makes the note all of them at once. */
+		this.names = Array.isArray(classNames) ? classNames.slice() : [classNames];
+		this.className = this.names[0];
 		this.file = file;
 		this.situation = situation;
 		this.onDone = onDone || (() => {});
+	}
+
+	/* "a Person", or "a Person and a Teacher". */
+	phrase() {
+		return andList(this.names.map((name) => article(name) + ' ' + name));
 	}
 
 	onOpen() {
@@ -11086,8 +15061,7 @@ class ApplyClassModal extends Modal {
 
 		const s = this.situation;
 		contentEl.createEl('h3', {
-			text: 'Make "' + this.file.basename + '" ' + article(this.className)
-				+ ' ' + this.className + '?',
+			text: 'Make "' + this.file.basename + '" ' + this.phrase() + '?',
 		});
 		contentEl.createEl('div', { text: this.file.path, cls: 'oof-plan-path' });
 
@@ -11105,8 +15079,7 @@ class ApplyClassModal extends Modal {
 			say(s.add.length + ' propert' + (s.add.length === 1 ? 'y arrives' : 'ies arrive')
 				+ ' empty: ' + s.add.join(', ') + '.');
 		} else {
-			say('The note already carries every property ' + article(this.className)
-				+ ' ' + this.className + ' has.');
+			say('The note already carries every property ' + this.phrase() + ' has.');
 		}
 
 		/*
@@ -11115,8 +15088,8 @@ class ApplyClassModal extends Modal {
 		 */
 		if (s.kept.length > 0) {
 			say(andList(s.kept) + ' ' + (s.kept.length === 1 ? 'is' : 'are')
-				+ ' not part of ' + this.className + '. Nothing is removed here — the '
-				+ 'next Update decides, and it only ever removes an empty one.');
+				+ ' not part of ' + andList(this.names.slice()) + '. Nothing is removed '
+				+ 'here — the next Update decides, and it only ever removes an empty one.');
 		}
 
 		const preview = this.plugin.changePreview(s.action);
@@ -11135,8 +15108,7 @@ class ApplyClassModal extends Modal {
 		confirm.onclick = async () => {
 			this.close();
 			await this.plugin.applyAction(s.action);
-			new Notice('"' + this.file.basename + '" is now ' + article(this.className)
-				+ ' ' + this.className + '.', 4000);
+			new Notice('"' + this.file.basename + '" is now ' + this.phrase() + '.', 4000);
 			this.onDone();
 		};
 		window.setTimeout(() => confirm.focus(), 0);
@@ -11211,18 +15183,224 @@ class RenamePropertyModal extends Modal {
 		});
 		confirm.onclick = async () => {
 			if (!chosen || chosen === key) {
-				new Notice('OOF Classes: pick what "' + key + '" became first.', 4000);
+				new Notice('OOF Class Manager: pick what "' + key + '" became first.', 4000);
 				return;
 			}
 			this.close();
 			await this.plugin.recordPropertyRename(key, chosen);
-			new Notice('OOF Classes: "' + key + '" → "' + chosen
+			new Notice('OOF Class Manager: "' + key + '" → "' + chosen
 				+ '" on the next Update.', 5000);
 			this.onDone();
 		};
 	}
 
 	onClose() { this.contentEl.empty(); }
+}
+
+/*
+ * What a value became.
+ *
+ * Three ways in and one modal, because they are one question: from a
+ * characteristic chip on a class card, from the command, and from a value the
+ * plugin found stranded by itself. What differs is only how much of it arrives
+ * already answered.
+ *
+ * The count is the whole of the reassurance this modal owes him. A rename that
+ * says "21 notes" before it runs is a rename he can check; one that says
+ * "everywhere" is the search and replace he did not want.
+ */
+class RenameValueModal extends Modal {
+	constructor(app, plugin, seed, onDone) {
+		super(app);
+		this.plugin = plugin;
+		this.seed = seed || {};
+		this.onDone = onDone || (() => {});
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('oof-change-modal');
+
+		const picture = this.plugin.picture();
+		const names = Array.from(picture.characteristics.keys()).sort();
+
+		this.key = this.seed.characteristic || '';
+		this.from = this.seed.from || '';
+		this.to = this.seed.suggestion || '';
+
+		contentEl.createEl('h3', {
+			text: this.seed.from
+				? 'What did "' + this.seed.from + '" become?'
+				: 'Rename a value',
+		});
+
+		contentEl.createEl('p', {
+			cls: 'oof-modal-lede',
+			text: 'The value moves under one characteristic and nowhere else — the '
+				+ 'same word written under another one, or in a sentence, is left '
+				+ 'exactly as it is. Nothing is written now; this goes into the next '
+				+ 'Update, with a diff.',
+		});
+
+		if (this.seed.characteristic) {
+			new Setting(contentEl)
+				.setName('Characteristic')
+				.setDesc('The property this value is written under.')
+				.addButton((button) => {
+					button.setButtonText(this.key);
+					button.setDisabled(true);
+				});
+		} else {
+			new Setting(contentEl)
+				.setName('Characteristic')
+				.setDesc('The property this value is written under.')
+				.addDropdown((dropdown) => {
+					dropdown.addOption('', '—');
+					for (const name of names) dropdown.addOption(name, name);
+					dropdown.setValue(this.key);
+					dropdown.onChange((value) => {
+						this.key = value;
+						this.from = '';
+						this.paint();
+					});
+				});
+		}
+
+		this.rest = contentEl.createDiv();
+		this.paint();
+	}
+
+	paint() {
+		this.rest.empty();
+
+		const plugin = this.plugin;
+		const picture = plugin.picture();
+		const characteristic = picture.characteristics.get(this.key);
+
+		if (!characteristic) {
+			this.rest.createEl('p', {
+				cls: 'oof-modal-lede', text: 'Pick a characteristic first.',
+			});
+			this.addButtons();
+			return;
+		}
+
+		const inUse = plugin.valuesInUse(this.key);
+		const allowed = plugin.literalValuesOf(characteristic, picture);
+
+		/*
+		 * Every value actually written under this characteristic, commonest first,
+		 * with how many notes hold it. Read off the vault rather than off
+		 * `possible values`, because the ones that need renaming are exactly the
+		 * ones `possible values` no longer mentions.
+		 */
+		if (!this.seed.from) {
+			new Setting(this.rest)
+				.setName('The value now')
+				.setDesc('Everything written under ' + this.key + ' in the vault.')
+				.addDropdown((dropdown) => {
+					dropdown.addOption('', '—');
+					const held = Array.from(inUse.values())
+						.sort((a, b) => b.files.length - a.files.length);
+					for (const value of held) {
+						dropdown.addOption(value.value,
+							value.value + '  · ' + value.files.length);
+					}
+					dropdown.setValue(this.from);
+					dropdown.onChange((value) => { this.from = value; this.paint(); });
+				});
+		}
+
+		new Setting(this.rest)
+			.setName('It becomes')
+			.setDesc(allowed.length > 0
+				? this.key + ' allows ' + allowed.join(', ') + '.'
+				: this.key + ' does not say which values it allows.')
+			.addText((text) => {
+				text.setPlaceholder('the new value');
+				text.setValue(this.to);
+				text.onChange((value) => { this.to = value; this.say(); });
+			});
+
+		this.line = this.rest.createEl('p', { cls: 'oof-modal-lede' });
+		this.addButtons();
+		this.say();
+	}
+
+	/* The count, and whether there is anything to press. */
+	say() {
+		if (!this.line) return;
+
+		const plugin = this.plugin;
+		const inUse = this.key ? plugin.valuesInUse(this.key) : new Map();
+		const held = inUse.get(String(this.from).trim().toLowerCase());
+		const to = String(this.to).trim();
+
+		let blocked = '';
+		if (!this.key || !this.from) blocked = 'Pick the value to rename.';
+		else if (held && held.link) {
+			/*
+			 * A link is a note, and Obsidian renames a note properly — every link
+			 * pointing at it is rewritten, which is the one thing this pass cannot
+			 * do. Sending him there is the honest answer, not a limitation to work
+			 * around.
+			 */
+			blocked = '"' + held.value + '" is a link to a note. Rename the note '
+				+ 'instead — Obsidian rewrites every link that points at it.';
+		} else if (!to) blocked = 'Say what it becomes.';
+		else if (to === String(this.from).trim()) blocked = 'That is the same value.';
+
+		if (blocked) {
+			this.line.setText(blocked);
+			if (this.confirm) this.confirm.disabled = true;
+			return;
+		}
+
+		const count = held ? held.files.length : 0;
+		const cells = plugin.defaultsCellsHolding(
+			plugin.picture().characteristics.get(this.key), this.from);
+
+		const parts = [count + ' note' + (count === 1 ? '' : 's')];
+		if (allowsWord(plugin, this.key, this.from)) parts.push('possible values');
+		if (cells.length > 0) {
+			parts.push(cells.length + ' defaults cell' + (cells.length === 1 ? '' : 's'));
+		}
+
+		this.line.setText('"' + this.from + '" becomes "' + to + '" on '
+			+ andList(parts) + ', on the next Update.');
+		if (this.confirm) this.confirm.disabled = false;
+	}
+
+	addButtons() {
+		const buttons = this.rest.createDiv({ cls: 'oof-modal-buttons' });
+		const cancel = buttons.createEl('button', { text: 'Cancel' });
+		cancel.onclick = () => this.close();
+
+		this.confirm = buttons.createEl('button', {
+			text: 'Rename it', cls: 'mod-cta',
+		});
+		this.confirm.disabled = true;
+		this.confirm.onclick = async () => {
+			const to = String(this.to).trim();
+			if (!this.key || !this.from || !to) return;
+			this.close();
+			await this.plugin.recordValueRename(this.key, this.from, to);
+			new Notice('OOF Class Manager: ' + this.key + ' "' + this.from + '" → "' + to
+				+ '" on the next Update.', 5000);
+			this.onDone();
+		};
+	}
+
+	onClose() { this.contentEl.empty(); }
+}
+
+/* Does this characteristic's `possible values` still name this word? */
+function allowsWord(plugin, key, word) {
+	const characteristic = plugin.picture().characteristics.get(key);
+	if (!characteristic) return false;
+	return toArray(characteristic.possibleValuesRaw).some(
+		(entry) => renamesTo(entry, word, word) !== null);
 }
 
 class NewInstanceModal extends Modal {
@@ -11475,6 +15653,93 @@ class OofClassesSettingTab extends PluginSettingTab {
 					}));
 		}
 
+		new Setting(containerEl)
+			.setName('Where a class’s actions live')
+			.setDesc('On every card, or once in a row above all of them. The row acts '
+				+ 'on the class the note you are reading is about, so it has buttons '
+				+ 'only while one is highlighted — with nothing highlighted there is no '
+				+ 'class for them to act on, and it says so rather than offering '
+				+ 'buttons with no subject. Two things move with them: the class name '
+				+ 'becomes what opens the class’s note, in place of the note button, '
+				+ 'and the three-dot menu goes to the far right of the card. Needs '
+				+ '“Follow the active note” on to have anything to act on.')
+			.addDropdown((dropdown) => dropdown
+				.addOption('card', 'On each card, beside its name')
+				.addOption('toolbar', 'In one row above the classes')
+				.setValue(this.plugin.settings.classActions)
+				.onChange(async (value) => {
+					this.plugin.settings.classActions = value;
+					await this.plugin.persist();
+					this.plugin.refreshViews();
+					/* The base question below only exists for the row. */
+					this.display();
+				}));
+
+		/*
+		 * Only the toolbar can hold a selection of several classes, so this question
+		 * only arises there. Hidden rather than left doing nothing, the same as the
+		 * tree's own sub-settings.
+		 */
+		if (this.plugin.settings.classActions === 'toolbar') {
+			new Setting(containerEl)
+				.setName('Opening a note resets the selection')
+				.setDesc('On: the selection follows you — whichever note you open becomes '
+					+ 'the selection, so switching back to it always starts from the class '
+					+ 'you are reading and shift or ctrl-clicking a dot picks more from '
+					+ 'there. Off: the set you picked is kept while the panel follows the '
+					+ 'active note, so the mode button returns you to exactly what you had. '
+					+ 'Either way, opening a note is what hands the panel back to '
+					+ 'active-note tracking — clicking again inside the note you already '
+					+ 'have open changes nothing.')
+				.addToggle((toggle) => toggle
+					.setValue(this.plugin.settings.resetSelectionOnNote)
+					.onChange(async (value) => {
+						this.plugin.settings.resetSelectionOnNote = value;
+						await this.plugin.persist();
+						this.plugin.refreshViews();
+					}));
+
+			new Setting(containerEl)
+				.setName('Unselecting every class leaves nothing selected')
+				.setDesc('On: emptying the selection — with the × in the row, or by '
+					+ 'shift or ctrl-clicking the last one off — leaves nothing '
+					+ 'highlighted, and it stays that way until you click back into a '
+					+ 'note. The last selected class is not special: it can be '
+					+ 'unselected like any other. Off: the panel hands itself straight '
+					+ 'back to the active note the moment the set is empty, so something '
+					+ 'is always highlighted while the note you are reading is about a '
+					+ 'class.')
+				.addToggle((toggle) => toggle
+					.setValue(this.plugin.settings.emptySelectionStands)
+					.onChange(async (value) => {
+						this.plugin.settings.emptySelectionStands = value;
+						await this.plugin.persist();
+						this.plugin.refreshViews();
+					}));
+
+			new Setting(containerEl)
+				.setName('Several classes at once')
+				.setDesc('Click the dot beside a class to select it, shift or ctrl-click '
+					+ 'another to select both. A new note then becomes an instance of all '
+					+ 'of them and applying gives the open note all of them — but two '
+					+ 'bases cannot be opened at once, so this decides what the base '
+					+ 'button does. Grey it out, or open one base that is rewritten each '
+					+ 'time to show the instances of whichever classes are selected. That '
+					+ 'dynamic base is the one file this plugin rewrites without showing '
+					+ 'you a plan first; it lives at ' + this.plugin.dynamicBasePath()
+					+ ', holds nothing that is not derived from the selection, and a file '
+					+ 'of that name it did not create is never overwritten.')
+				.addDropdown((dropdown) => dropdown
+					.addOption('static', 'Grey the base button out')
+					.addOption('dynamic', 'Open one dynamic base, rewritten each time')
+					.setValue(this.plugin.settings.multiClassBase)
+					.onChange(async (value) => {
+						this.plugin.settings.multiClassBase = value;
+						await this.plugin.persist();
+						this.plugin.refreshViews();
+					}));
+		}
+
 		/* Applies in every layout: an open card is an open card. */
 		new Setting(containerEl)
 			.setName('A row with more in it than fits')
@@ -11534,6 +15799,23 @@ class OofClassesSettingTab extends PluginSettingTab {
 				}));
 
 		if (this.plugin.settings.createBases) {
+			new Setting(containerEl)
+				.setName('A "Class base" button on the base\'s toolbar')
+				.setDesc('Adds Class base beside Filter, Properties and Sort on a base this '
+					+ 'plugin generated. It says what a class base is, it holds the '
+					+ 'exact-matches-only switch, and it is where a base is reset from its '
+					+ 'class — the reset lives there rather than on the class card, so it '
+					+ 'is aimed at a file you are looking at. Nothing is written by showing '
+					+ 'it.')
+				.addToggle((toggle) => toggle
+					.setValue(this.plugin.settings.classBaseToolbar)
+					.onChange(async (value) => {
+						this.plugin.settings.classBaseToolbar = value;
+						await this.plugin.saveSettings();
+						this.plugin.clearBaseToolbars();
+						this.plugin.queueBaseToolbars(true);
+					}));
+
 			this.addText(containerEl, 'Bases folder', 'Where the generated bases go.', 'basesFolder');
 			this.addText(containerEl, 'Base suffix', 'Appended to a class name to name its base.', 'baseSuffix');
 
@@ -11555,7 +15837,9 @@ class OofClassesSettingTab extends PluginSettingTab {
 		containerEl.createEl('p', {
 			text: 'file.isA("Person"), file.inheritsFrom("Person"), file.ancestors() and '
 				+ 'file.isADistance("Person") are available in any base formula, filter or sort. '
-				+ 'They read the same properties as the panel, so they can never disagree with it.',
+				+ 'They read the same properties as the panel, so they can never disagree with it. '
+				+ 'file.isADistance("Person") == 1 is "named Person in its own is a", which is '
+				+ 'what the Class base menu\'s exact-matches switch writes.',
 			cls: 'setting-item-description',
 		});
 
@@ -11577,7 +15861,7 @@ class OofClassesSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Hide the "Add property" button')
 			.setDesc('Removes it from the properties panel. The command '
-				+ '"OOF Classes: Add a property to the open note" does the same thing, '
+				+ '"OOF Class Manager: Add a property to the open note" does the same thing, '
 				+ 'so give it a hotkey in Settings → Hotkeys first.')
 			.addToggle((toggle) => toggle
 				.setValue(this.plugin.settings.hideAddProperty)
@@ -11676,31 +15960,22 @@ class OofClassesSettingTab extends PluginSettingTab {
 		containerEl.createEl('h3', { text: 'Default values' });
 		containerEl.createEl('p', {
 			text: 'Each characteristic note carries a table saying what its value should '
-				+ 'be, and where: a row per class, plus an "All notes" row. The default '
-				+ 'value is what a note is created with; the strict default value is '
-				+ 'enforced, so an empty value is never accepted while one stands.',
+				+ 'be, and where: a row per class, inherited nearest-first, plus an '
+				+ '"All notes" row for every note carrying the characteristic. Starting '
+				+ 'value is what a note is created with and is then its own. The other '
+				+ 'three are standing claims about every instance — None replacement '
+				+ 'fills an empty value, Value must be replaces anything that is not it, '
+				+ 'and Value must contain adds a missing entry to a list. The table is '
+				+ 'the only place a default is written.',
 			cls: 'setting-item-description',
 		});
 
 		new Setting(containerEl)
-			.setName('Strict defaults also override differing values')
-			.setDesc('Off, a strict default fills an empty value and a value that '
-				+ 'disagrees is reported for you to settle — the same rule as everywhere '
-				+ 'else here, where a value you typed is yours. On, it is replaced.')
-			.addToggle((toggle) => toggle
-				.setValue(this.plugin.settings.strictOverridesValues)
-				.onChange(async (value) => {
-					this.plugin.settings.strictOverridesValues = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
 			.setName('Every characteristic note carries the table')
 			.setDesc('On, Update appends an empty table to any characteristic note '
-				+ 'without one, so every characteristic can say what its value should be. '
-				+ 'This is the only thing that writes into a note\'s body, and it only '
-				+ 'ever appends — an existing table is never rewritten. Off, only the '
-				+ 'notes Update creates carry one.')
+				+ 'without one, puts back a missing All notes row, and brings a table '
+				+ 'written with the old column names up to date. Off, only the notes '
+				+ 'Update creates carry one.')
 			.addToggle((toggle) => toggle
 				.setValue(this.plugin.settings.seedDefaultsTable)
 				.onChange(async (value) => {
@@ -11726,6 +16001,51 @@ class OofClassesSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 					this.plugin.invalidatePicture();
 					this.plugin.refreshViews();
+				}));
+
+		new Setting(containerEl)
+			.setName('Right-click a property value to rename it')
+			.setDesc('Right-clicking a value in a note\'s properties offers to rename '
+				+ 'it on every note that holds it, the same way the panel does. Only '
+				+ 'values of properties a characteristic declares, and never the '
+				+ 'property name — that menu is Obsidian\'s. Off gives the right-click '
+				+ 'back to Obsidian and Electron.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.renameValueFromProperties)
+				.onChange(async (value) => {
+					this.plugin.settings.renameValueFromProperties = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Offer the possible values in a property field')
+			.setDesc('Clicking into a value suggests what the characteristic permits, '
+				+ 'in the order its note lists them, rather than the values the vault '
+				+ 'already holds sorted alphabetically — so a value no note carries yet '
+				+ 'is offered too. Only listed values: where a characteristic says '
+				+ 'nothing, or names an interval or a class, Obsidian\'s own '
+				+ 'suggestions stand.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.suggestPossibleValues)
+				.onChange(async (value) => {
+					this.plugin.settings.suggestPossibleValues = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Offer a class\'s instances too')
+			.setDesc('A characteristic naming a class — "[[Project]]" — fills the '
+				+ 'field with every note that is a Project, rather than the ones the '
+				+ 'vault already files under that key. Off, because a class is a type '
+				+ 'rather than a list: the instances come out alphabetically, which is '
+				+ 'how Obsidian sorts anyway, and typing "[[" already reaches every '
+				+ 'note in the vault. Worth turning on for a vault whose classes have '
+				+ 'few instances. Needs the setting above.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.suggestClassInstances)
+				.onChange(async (value) => {
+					this.plugin.settings.suggestClassInstances = value;
+					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)

@@ -25,7 +25,7 @@ and scrolling up turns it back — there is no second key and no mode to switch.
 direction to be stuck with.
 
 It works in the global graph, in a local graph, and in the graph layout the
-**Bases Graph View** plugin adds — the same three places Graph Focus attaches
+**Graphs for Bases** plugin adds — the same three places Graph Focus attaches
 to, found the same way.
 
 Each pane keeps its own angle. Nothing is persisted: reopening Obsidian, or
@@ -172,7 +172,7 @@ about a number without anyone having to reach the code doing the reading.
     `pan = width/2·dpr - node.x·scale`, and without the rotation it aims at
     where the note would sit if the graph were level — and settles there
     (fixed in Graph Focus 1.36.0).
-  - Bases Graph View's `nodeAnchor()` places the hover tooltip over a node the
+  - Graphs for Bases's `nodeAnchor()` places the hover tooltip over a node the
     same way, putting it most of the pane away at 90° (fixed in 1.46.0).
 
   Note that grepping for `panX` finds these two and misses the labels entirely,

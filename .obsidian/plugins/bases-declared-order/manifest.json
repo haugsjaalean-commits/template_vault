@@ -1,0 +1,9 @@
+{
+  "id": "bases-declared-order",
+  "name": "OOF Declared Order",
+  "version": "1.0.1",
+  "minAppVersion": "1.13.0",
+  "description": "A third sort direction for Bases — “As listed” — putting rows and groups in the order a characteristic note gives its values in, rather than alphabetically.",
+  "author": "Claude (written for Leander)",
+  "isDesktopOnly": false
+}

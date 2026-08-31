@@ -5,15 +5,34 @@ filters:
         - file.hasTag("class")
 formulas:
   word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
 properties:
   formula.word count:
     displayName: word count
+  formula.link distance:
+    displayName: link distance
 views:
+  - type: table
+    name: Table
+    groupBy:
+      property: file.folder
+      direction: DESC
+    order:
+      - rating
+      - file.name
+      - type of
+      - characteristics
+    sort:
+      - property: type of
+        direction: ASC
+      - property: rating
+        direction: DESC
   - type: graph
     name: Graph
     groupBy:
       property: file.tags
-      direction: ASC
+      direction: DESC
     order:
       - file.name
     sort:
@@ -38,9 +57,23 @@ views:
       repelStrength: 20
       linkStrength: 1
       linkDistance: 30
-      scale: 0.1635553349891084
+      scale: 0.16355533498910796
       close: true
     ringRank: value
     ringSpread: 1.5
   - type: table
-    name: Table
+    name: Base Classes
+    filters:
+      and:
+        - note["type of"].isEmpty()
+        - file.inFolder("Obsidian/Notes")
+    groupBy:
+      property: file.tags
+      direction: ASC
+    order:
+      - rating
+      - file.name
+      - characteristics
+    sort:
+      - property: rating
+        direction: DESC

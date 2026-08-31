@@ -10,9 +10,9 @@ related:
   - "[[theme testing note]]"
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 ---
 
 Stenopaper is a new style that I have invented.

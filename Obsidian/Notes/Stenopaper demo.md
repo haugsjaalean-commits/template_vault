@@ -9,9 +9,9 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 ---
 
 This paragraph sits above every heading in the note, and it still gets the paper.

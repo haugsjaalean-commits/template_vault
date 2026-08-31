@@ -13,7 +13,7 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage:
-maturity:
 ---

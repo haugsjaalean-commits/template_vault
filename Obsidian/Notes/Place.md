@@ -10,10 +10,10 @@ created: 2026-08-17 12:22
 ext links:
 related:
 note rating:
-rating:
+rating: 6
+evolution:
 garden:
 life stage:
-maturity:
 ---
 
 A place is a location.

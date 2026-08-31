@@ -7,14 +7,14 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 ---
 
 <%*
 /*
- * OOF Classes: unique file name — a new note is named after the moment it was made.
+ * OOF Class Manager: unique file name — a new note is named after the moment it was made.
  *
  * Only when it has no name of its own yet: a note created by following a
  * link arrives carrying that link's name, and renaming it would rewrite

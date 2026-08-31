@@ -8,12 +8,12 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
 done: true
 duedate:
-importance:
+active priority:
 urgency:
 what to do:
 ---

@@ -8,13 +8,12 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 birth day:
 death day:
 children:
-relation to me:
 historical importance:
 location:
 creation domain:

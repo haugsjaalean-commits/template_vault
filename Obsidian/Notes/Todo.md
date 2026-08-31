@@ -4,7 +4,7 @@ tags:
 symbol: lucide:check-circle
 is a:
 characteristics:
-  - "[[∘ importance]]"
+  - "[[∘ active priority]]"
   - "[[∘ urgency]]"
   - "[[∘ done]]"
   - "[[∘ duedate]]"
@@ -14,8 +14,15 @@ created: 2026-08-16 18:29
 ext links:
 related:
 note rating:
-rating:
+rating: 9
+evolution:
 garden:
 life stage:
-maturity:
 ---
+
+## Inline Todos
+![[Inline Todo Base.base]]
+
+
+
+

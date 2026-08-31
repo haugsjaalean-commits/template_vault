@@ -1,0 +1,38 @@
+filters:
+  and:
+    - file.isA("Object")
+    - '!file.inFolder("Obsidian/Templates")'
+formulas:
+  word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
+properties:
+  formula.word count:
+    displayName: word count
+  formula.link distance:
+    displayName: link distance
+views:
+  - type: cards
+    name: Cards
+    groupBy:
+      property: is a
+      direction: ASC
+    order:
+      - file.name
+      - rating
+    sort:
+      - property: rating
+        direction: DESC
+    image: note.cover image
+  - type: table
+    name: Table
+    order:
+      - file.name
+      - related
+      - note rating
+      - rating
+      - created
+      - garden
+      - life stage
+      - ext links
+      - evolution

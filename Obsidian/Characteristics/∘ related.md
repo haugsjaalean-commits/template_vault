@@ -6,6 +6,6 @@ possible values:
   - "[[Obsidian Note]]"
 ---
 
-| Default location | Default value | Strict default value |
-| ---------------- | ------------- | -------------------- |
-| All notes        |               |                      |
+| Location  | Starting value | None replacement | Value must contain | Value must be |
+| --------- | -------------- | ---------------- | ------------------ | ------------- |
+| All notes |                |                  |                    |               |

@@ -1,4 +1,4 @@
-# OOF Classes
+# OOF Class Manager
 
 A panel over the **classes** of the vault — the notes that act as classes.
 Edit a class's name, characteristics and parents in one place; press
@@ -12,7 +12,7 @@ This is the plugin described in `OOF 0.3`.
 | | where | shape |
 |---|---|---|
 | **class** | `Obsidian/Notes/` | `#class`, `characteristics:`, `type of:` |
-| **characteristic** | `Obsidian/Characteristics/` | named `∘ <name>`; `characteristic meaning:`, `property type:`, `possible values:`, `default value:`, and a [defaults table](#the-defaults-table) in the body |
+| **characteristic** | `Obsidian/Characteristics/` | named `∘ <name>`; `characteristic meaning:`, `property type:`, `possible values:`, and a [defaults table](#the-defaults-table) in the body |
 | **template** | `Obsidian/Templates/` | `is a: [[Class]]` + one key per characteristic |
 | **instance** | anywhere | `is a: [[Class]]` + the same keys, filled in |
 
@@ -87,6 +87,14 @@ that stays.
 Two classes that reach *each other* — a cycle — are both kept, because there is no
 saying which of them is the redundant one. Two unrelated classes are both kept
 too; that is a note being two things at once, not a mistake.
+
+**A blank entry is reported on its own terms.** The closing sentence — *what is
+left still says everything the list said* — was written for a dropped **class**,
+where the point is that the entry left over still reaches it. Read underneath
+*Removed: an empty entry* it says the surviving class is the redundant one, which
+is the opposite of what is happening. An empty entry never said anything, so
+there is nothing for the rest of the list to be saying instead; the line there is
+*nothing else changes*, and the label names the empty entry outright.
 
 **Existing links to the root are removed.** An `is a: "[[Obsidian Note]]"` written
 before you set the root says exactly what the setting now says, so Update takes it
@@ -302,6 +310,9 @@ each hop.
 
 A note that has **both** keys with values is reported instead: which one is real
 is yours to say.
+
+Renaming what is written *under* a key is a separate thing, one level down —
+see [Renaming a value](#renaming-a-value).
 
 #### A rename it never saw
 
@@ -579,18 +590,50 @@ Z. Switch *Order in the panel* to **By descent** to group them by generation
 instead — everything a class descends from above it, alphabetically within each
 generation, so `Person` and `Zebra` come first, then `Artist`, then `Aardvark`.
 
-A **Find a class…** box at the top filters the list as you type,
-case-insensitively. Escape clears it; the base-characteristics card steps out of
-the way while you are searching.
+The **looking glass** on the title row opens a **Find a class…** box, which
+filters the list as you type, case-insensitively. The **×** at its end clears it
+and leaves you typing; pressing the looking glass again closes the box and drops
+the filter with it, so a bar you cannot see never goes on narrowing the list.
+Escape does the same as a second press. The base-characteristics card steps out
+of the way while you are searching.
+
+The box is not there until you ask for it — the same way Bases opens its own
+search — because a field that is empty most of the time still spends a row of a
+narrow sidebar.
 
 ### It follows the note you are reading
 
-The panel highlights the class the active note is about — **itself** if that note
-is a class, otherwise whatever its `is a` names — and scrolls to it. The card is
-outlined, and marked *active* when the note is the class itself, or *active note*
-followed by an `is a` chip when the note is one of its instances. Only the chip
-is filled: `is a` is a property name and looks like one, while *active note* is
-prose and is merely coloured.
+The panel highlights the class the active note is about, scrolls to it, and
+outlines its card. **There are five ways a file can be about a class**, and the
+chip on the card says which one:
+
+| the open file | chip | highlights |
+|---|---|---|
+| the class note itself | *active* | that class |
+| its generated `<Class> Template.md` | *template* | that class |
+| its generated `<Class> Base.base` | *base* | that class |
+| a characteristic note | *declares* | every class that **declares** it |
+| anything else | *active note* + *is a* | whatever its `is a` names |
+
+Only the chip is filled: `is a` is a property name and looks like one, while
+*active note* is prose and is merely coloured. That prose half is kept for the
+instance alone, where the chip is about the link and something still has to say
+which note is meant; the other four sit close enough to what they are talking
+about that the chip is the whole sentence.
+
+The template and the base are matched **by path** — against the path the plugin
+would generate — rather than by reading the file. A template does carry
+`is a: [[Class]]` and used to be picked up that way, but only by accident: matched
+by path it still belongs to its class with that property emptied, and it is
+reported as a template rather than as an instance, which is the one thing a
+template is not. A `.base` has no frontmatter at all, so nothing but the path
+could ever have found it.
+
+A characteristic highlights the classes that **declare** it, not every class that
+ends up carrying it. That is the distinction the rest of the panel draws
+everywhere — `inherited` sits apart from `characteristics`, and `+N` counts only
+what a class adds — and it is the readable answer: the two classes that introduce
+`visual domain`, rather than the nineteen that inherit `created`.
 
 It scrolls **only when you move to a different note**, never on an ordinary
 redraw, so it will not yank the list around while you are editing chips. Turn it
@@ -885,38 +928,109 @@ marks everything below it; a subclass overrides by setting its own. That is what
 makes one symbol worth typing, and why an inherited one is drawn faint: the mark
 is true of all of them, but only one of them said it.
 
-**Set it from the pencil beside the class name** — see below.
+**Set it from the class’s menu** — right-click its row, or press the **⋮** on
+it. See below.
 
 Like every other edit here it goes through **Update**: the plan says
 `symbol — empty → ◆` before anything is written. Clearing one empties the property
 rather than removing it, for the same reason the root's `is a` is written empty —
 an absent property and an empty one look nothing alike in the properties view.
 
-### Setting one: the pencil's menu
+### The class menu
 
-The **pencil** beside a class name opens a menu:
+**Right-click a class's row**, or press the **⋮** on it, and you get everything
+that acts on that class:
 
 ```
+▤ Open note
+▥ Open template
+▦ Open base
+──────────────────────────
+▣ Apply to the open note
+✚ New Visual Artist
+──────────────────────────
+⑂ New subclass of Visual Artist…
+──────────────────────────
 ✎ Rename…
 ◈ Change symbol…
-✕ Remove symbol
+──────────────────────────
+🗑 Delete class…
 ```
 
-Both change what the class is *called* — by name, or by mark — which is why they
-share a button rather than costing the row another icon. That row is full; a
-symbol button of its own is what squeezed the class name to nothing the first
-time round.
+**One menu, two ways in.** The button and the right-click open the same menu, not
+a short one and a long one — two menus over one class are two places to add the
+next item to, and the one you forget is the one you right-click.
+
+The order is what each item does to the vault: **go somewhere**, **make
+something**, **change what this class is**, **destroy it**. Delete sits alone
+after a separator at the far end of that progression.
+
+**The five file actions are the icon row's, read off the same list**, so the menu
+cannot come to disagree with the buttons about when a base can be opened or what
+applying does. The menu gets one thing the icons never could, though: a file that
+does not exist yet says so **in words** — *Open template — none yet*, *New
+Teacher — no template yet* — instead of being a faint glyph that only explains
+itself once pressed. Obsidian's disabled menu items swallow their own clicks, so
+saying it in the title is not a nicety here; it is the only way to say it at all.
+
+**Right-clicking is the only way in when the actions are on the toolbar.** There
+the cards carry no buttons and the toolbar acts on whatever is *selected* — so
+without this there is no way to open the base of a class you can see but have not
+selected.
+
+**New subclass of X…** drafts a class whose `type of` already names the one you
+right-clicked, and opens its card so you can see that it does. It is a draft like
+every other edit here: nothing is written until Update. The parent is not asked
+for in the box — the menu you opened it from already named it, and a field
+repeating it is a field to get wrong.
+
+Renaming and the symbol are together at the bottom because both change what the
+class is *called* — by name, or by mark.
+
+There is **no *Remove symbol*** item: removing one is a thing you do having looked
+at what it is, and the picker already offers it. A menu that both opens a chooser
+and quietly throws the choice away puts a destructive item one slip below an
+ordinary one.
 
 **Change symbol…** opens the picker, with three tabs:
 
 | tab | what |
 |---|---|
-| **Symbols** | 60 typographic marks — the default, and the ask |
+| **Symbols** | 169 characters — marks, cursors and kanji, grouped and searchable |
 | **Icons** | every Lucide icon Obsidian ships — all of them, searchable by name |
 | **Emoji** | a broad set, grouped and searchable by word |
 
 It opens on whichever tab the current symbol came from, and choosing the one
 already set removes it — the same click, undone.
+
+**The Symbols tab is grouped and searchable**, in nine groups: Shapes, Marks,
+Cursors, Arrows, Things, and four of kanji — nature, people, mind, doing. It was
+a flat, unsearchable grid of sixty while sixty was a screenful, and it is a
+hundred and sixty-nine now, which is the alphabetical-icons problem in miniature:
+the glyph you would have picked is three screens from the one you thought of.
+Every glyph the flat list held is still here, redistributed — dropping one would
+strand a class already marked with it, since the tab a stored symbol opens on is
+decided by asking whether it is in this list.
+
+Each glyph carries the words you would look it up by, and those words are also
+what the hover says. That matters most for the kanji: a grid of ideographs with no
+gloss is a grid you cannot read. Each carries its English meaning **and** its
+romaji, so 森 is reachable whether you think `forest` or `mori`.
+
+**Kanji belong in this tab rather than the emoji one**, for the reason that tab
+exists at all: an ideograph is one character drawn in the text colour at the text
+weight — a *word*, not a sticker. They are also the densest marks available. 森
+says forest in one square.
+
+**Cursors** is the caret, in both senses of the word: the proofreader's mark that
+means *insert here* (`‸ ⁁ ^ ⌃`), and the bar an editor blinks at you while you
+type (`▏ ▎ ▌ ▮ ❘ ⌶ ⎀`). Both readings carry the same words, and both spellings —
+*caret* and *carrot* — find the row.
+
+The tab's grid is drawn one step larger than the others (`.is-glyphs`). At UI
+size 語 and 話 are the same smudge; the icons grid is `is-wide` too and is
+deliberately not caught by that rule, since its cells hold an SVG sized by its
+own.
 
 **The Icons tab is the Notion-looking one.** Obsidian bundles Lucide, which is the
 flat outline set Notion's icons are drawn from, and `getIconIds()` hands over
@@ -1027,7 +1141,6 @@ underneath it.
 | **📄** note | opens the class note |
 | **▤** template | opens `<Class> Template.md` |
 | **▦** base | opens `<Class> Base.base` |
-| **⟳** reset | queues that base to be regenerated, losing your edits — asks for a typed code |
 | **☑** apply | makes the note you have open an instance of this class — asks yes or no |
 | **＋** new note, ending the row | creates an instance from the template |
 
@@ -1037,12 +1150,190 @@ new-instance are the same act from either end — one makes an instance of the n
 you have, the other makes a note that is an instance — so they sit together and
 end the row.
 
+There was a sixth, **⟳ reset**, which rebuilt a class's base. It lives on
+[the base's own toolbar](#the-class-base-button) now.
+
 A file that does not exist yet keeps its place, faint, and says why when clicked —
 *No base for "Artist" yet — Update creates it* — rather than making the row jump
 about as templates and bases come into being.
 
 **New class** is the **+** beside the count of classes in the header, in the same
 accent colour and at the same size as the number itself.
+
+### Or in one row above all of them
+
+*Where a class's actions live* moves the icons off the cards and into **one row at
+the top of the panel**, inside the header, so it stays put while the classes
+scroll under it.
+
+That row acts on **the class the note you are reading is about** — the one the
+panel is already highlighting — and it carries the four actions that are about a
+class rather than about the panel:
+
+| | what | |
+|---|---|---|
+| **▤** template | opens `<Class> Template.md` | |
+| **▦** base | opens `<Class> Base.base` | |
+| **☑** apply | makes the note you have open an instance of this class | orange |
+| **＋** new note | creates an instance from the template | green |
+
+**Two of them are coloured here and nowhere else**, and the same reason covers
+both: only in this row is each one the only one of its kind on the screen, so a
+colour carries meaning instead of becoming wallpaper. That is exactly why the
+reset button's red came *off* the cards — a warning on twenty-one rows is a
+warning worn down by being always there. Orange changes the note you have open;
+green makes a new one. They are Obsidian's own colour variables, so your theme
+picks the shades.
+
+There were three. The reset was the red one, and on 2026-08-28 it left this row
+as well, for [the base's own toolbar](#the-class-base-button) — the same argument
+carried one step further: the button that destroys a file belongs on the file.
+
+The two that open a file are left uncoloured — but not faint, the way they are on
+a card. Five quiet glyphs on every row down the panel keep out of the way of the
+names beside them; one set of five, in a row that exists to hold them, just reads
+as disabled.
+
+**It has buttons only while a class is highlighted.** These act on *a* class, and
+with none highlighted there is no class for them to act on; the row stays where it
+is and says so, rather than offering five buttons with no subject or shifting the
+whole panel up and down as you move between notes. It therefore needs *Follow the
+active note* on to do anything at all.
+
+Two things move with the icons, because they are one question and not three:
+
+- **The class name opens the class note.** The note icon is gone — with the file
+  buttons collected at the top, one of them opening the note whose row you are
+  looking at would be the odd one out — so the name is the link. Clicking the name
+  opens the note; clicking anywhere else on the row still folds and unfolds it.
+- **The three-dot menu goes to the far right of the card**, into the space the
+  icons left. On a card that still carries the icons it sits beside the name,
+  because it is about what the class is *called* while they are about its files;
+  with no icons there is no other end for it to be at.
+
+Here the menu is also how you reach a class you have **not** selected. The
+toolbar acts on the selection; **right-clicking a class's row** — or pressing its
+**⋮** — opens that class's own menu, with its note, its template, its base, apply
+and new-instance all in it. See *The class menu*.
+
+A note can be `is a` more than one class, and then the row names each of them:
+whichever is chosen is the one the buttons act on, and clicking another hands them
+over. Clicking the one already chosen opens its note, like any other class name.
+
+### Selecting classes yourself
+
+The toolbar has two ways of deciding which classes it acts on, and it moves
+between them on its own as you work.
+
+**Active note tracking** is what the panel has always done: it highlights the
+class the note you are reading is about — the class itself, or whatever its
+`is a` names.
+
+**A custom selection** is yours. **Click the dot beside a class** to select it,
+and **shift or ctrl-click** another to select both. The toolbar names every
+selected class, tints itself in the accent, and its buttons act on the whole set.
+
+The mode is shown at the head of the toolbar — `ACTIVE NOTE` or `SELECTION 3` —
+and that label is also the button that switches between them by hand.
+
+|  | what happens |
+|---|---|
+| click a dot | a custom selection of just that class |
+| shift / ctrl-click a dot | that class joins or leaves the selection |
+| open another note | back to active note tracking |
+| click the mode label | to a custom selection, from whatever the set now holds |
+| click a dot from tracking | a **new** selection; the stored one is scrapped |
+| shift / ctrl-click a dot from tracking | the highlighted class **stays**, and this one joins it |
+| the **×** at the end of the names | unselects every class at once |
+| ctrl-click the last one off | it goes, like any other — the last is not special |
+
+Those two differ because shift-click means one thing everywhere, and it is "and
+this one as well". What a plain dot click scraps is the **stored** selection from
+earlier, which is not on the screen; the class the panel is currently highlighting
+*is* on the screen, so a modifier click extends from it. The stored set stays
+reachable through the mode label.
+
+**Unselecting every class leaves nothing selected** — on by default — decides
+what an emptied selection means:
+
+- **On:** nothing is highlighted, and it stays that way. The row says so, and the
+  active note's class comes back only when you **click back into the note**.
+- **Off:** the panel hands itself straight back to the active note the moment the
+  set is empty, so something is always highlighted while the note you are reading
+  is about a class.
+
+**Opening a note resets the selection** — on by default — decides what happens to
+the set on that second row:
+
+- **On:** the selection follows you. Whichever note you open becomes the
+  selection, so the mode label always takes you to the class you are reading and
+  shift or ctrl-clicking a dot picks more out from there.
+- **Off:** the set you picked is kept while the panel tracks the active note, so
+  the mode label returns you to exactly what you had — the behaviour his note
+  first described.
+
+Either way, what hands the panel back is **a note becoming the thing you are
+looking at** — opening a different one, or clicking back into the one you already
+have open. That second one fires no `file-open` at all, so it is watched through
+the leaf becoming active instead, guarded by two tests a click in the panel cannot
+pass: the leaf must carry a file, and it must be in the main area rather than a
+sidebar. Without that guard, clicking a dot would undo the very selection it just
+made.
+
+The selection is never written to disk — it is where you are in a piece of work,
+not a preference, and opening the vault tomorrow to three classes you picked on
+Tuesday would be a state you have to notice and undo.
+
+Selecting is a **toolbar-mode** feature. The dots exist to feed one row of
+buttons; with an identical row on every card there is nothing for a selection to
+drive.
+
+#### The dots
+
+The tree and graph layouts already draw a node beside every class, and that node
+*is* the button. The plain list has no rail to hang one in, so each card grows a
+dot of its own — connected to nothing, exactly as his note says it would have to
+be.
+
+A selected dot is filled in the accent. A ring means something else and always
+has: *this class is on the line you are looking at*.
+
+#### What the buttons do with several classes
+
+| | with several selected |
+|---|---|
+| **☑** apply | the open note becomes **all** of them — one `is a` naming each |
+| **＋** new note | one note that is all of them, made from the **first** one's template |
+| **▤** template | greyed out — a template belongs to one class |
+| **▦** base | see below |
+
+The first class you select is the primary one: a note is created from one file,
+so its template is the only place the body can come from, and the others arrive
+as `is a` entries and as their characteristics, added empty. Selecting `Person`
+then `Teacher` is therefore not quite the same as the other order — the note is
+`is a` both either way, but its body comes from the one you clicked first.
+
+A greyed button is drawn rather than dropped, and pressing it says why. A row
+whose buttons come and go as the selection grows is a row you have to re-read
+every time.
+
+#### Two bases cannot be opened at once
+
+Which is his problem with the base button, and **Several classes at once** is the
+answer to it:
+
+- **Grey the base button out** — the default. Nothing is written, and with one
+  class selected everything works as it always did.
+- **Open one dynamic base, rewritten each time** — there is exactly one dynamic
+  base, `<Bases>/Dynamic Base.base`, and pressing the button rewrites it to show
+  every instance of whichever classes are selected, then opens it. Its columns
+  are the union of what each class would show.
+
+That file is **the one thing this plugin rewrites without showing you a plan
+first**, and it earns the exception by holding nothing that is not derived from
+the selection — there is no work of yours in it to lose. The protection it does
+carry is ownership: a file of that name that this plugin did not create is never
+overwritten, and it says so instead.
 
 ### Renaming a class
 
@@ -1060,8 +1351,8 @@ because it is not destructive and a rename left pending would leave the panel
 showing a name your vault does not have. The confirmation lists exactly which
 files move.
 
-Any unapplied edits and a queued base refresh travel with the class, so a rename
-never quietly discards work.
+Any unapplied edits travel with the class, so a rename never quietly discards
+work.
 
 ## Generated bases
 
@@ -1103,30 +1394,90 @@ edit: adding views, sorts, group-bys, extra filters. Rewriting it would throw
 that work away.
 
 So an existing base is left alone however far it drifts from what the plugin
-would generate today, and Update never lists it.
+would generate today, and Update never lists it. There is no exception to this:
+rebuilding one is done from [its own toolbar](#the-class-base-button), on the
+file, with the diff in front of you.
 
-### …unless you ask for it back
+## The Class base button
 
-Each class with a base has a **⟳ reset** icon on its row. It is the one control
-in the panel that destroys work nothing else holds a copy of — the views, sorts,
-group-bys and filters you built on a base by hand.
+A base this plugin generated carries a **Class base** button in its own toolbar,
+beside Filter, Properties and Sort. It is the base's own account of itself, and
+it is where the base is reset.
 
-**It asks for a typed code.** A five-character code is shown; the confirm button
-stays dead until you type it. The code is random rather than the class's own name
-on purpose: you have typed "Artist" a hundred times and would type it again
-without reading, while five characters you have never seen cannot be entered
-without reading the sentence above them. No `0`/`O` or `1`/`I`/`L` appear in it.
+It opens onto:
 
-Cancelling a queued reset needs no code — that is the safe direction, and a gate
-in front of the way out would be safety theatre.
+- **What a class base is** — which class it was generated for, that it lists one
+  row per note that is one, one column per characteristic that class carries,
+  which notes it is currently showing, and which columns those are.
+- **Exact matches only** — the switch below.
+- **Open `<Class>`** — the class note behind it.
+- **Reset from the class** — rebuild it, shown in red.
 
-Clicking it queues that base to be regenerated: it appears in the next Update plan as *"Rewrite base for
-X — replaces your edits"*, and nothing happens until you apply that plan. Click
-again to cancel, or press **Discard** to drop every queued request.
+Only a base at the exact path the plugin would generate gets one: a base of your
+own that happens to end in " Base" does not, and neither does the dynamic base,
+which belongs to a selection rather than to a class. A base embedded in a note
+has a toolbar too and does not get one — that toolbar's leaf is about the note,
+and a button that rebuilds a file you are not looking at is the thing this
+placement exists to avoid.
 
-A queued refresh is pending work like any other, so it marks the panel *unsaved*
-and survives a restart. Applying it spends the request — the base goes back to
-being yours.
+Turn the whole thing off with *A "Class base" button on the base's toolbar*.
+
+### Exact matches only
+
+A generated base filters on `file.isA("Person")`, which follows inheritance: an
+Artist is a Person, so the Person base holds every artist too. **Exact matches
+only** narrows it to notes whose own `is a` names Person, with subclasses left
+out:
+
+```yaml
+# off                            # on
+- file.isA("Person")             - file.isADistance("Person") == 1
+```
+
+There is no setting behind it and nothing is remembered anywhere: **that line in
+the file is the switch**, so what the menu shows and what the base does cannot
+drift apart. Distance 1 is exactly "named in its own `is a`" — `file.isADistance`
+counts one hop for the class a note names and one more for each step above it —
+so no new function was needed for this.
+
+Flipping it changes **that one line** and nothing else. Your views, sorts,
+group-bys and other filter clauses come out byte-identical.
+
+If the line is not there — because you rewrote the filter yourself — the switch
+says so and changes nothing, rather than guessing at which of your clauses it
+meant.
+
+### Reset from the class
+
+Rebuilds the base exactly as the plugin would generate it today. It is the one
+control in the plugin that destroys work nothing else holds a copy of — the
+views, sorts, group-bys and filters you built on it by hand.
+
+**The diff is shown first**, the real one, line by line: what goes and what
+arrives. Below it, **a typed code**. A five-character code is shown and the
+confirm button stays dead until you type it. The code is random rather than the
+class's own name on purpose — you have typed "Artist" a hundred times and would
+type it again without reading, while five characters you have never seen cannot
+be entered without reading the sentence above them. No `0`/`O` or `1`/`I`/`L`
+appear in it.
+
+Two things survive the reset, and both are said in the modal:
+
+- **Exact matches only stays as it was.** Which notes the base is about is the
+  one thing a reset is not being asked to change.
+- **Unapplied panel edits count.** If the class has drafts Update has not
+  written yet, the base is built from those — so it shows what the class is
+  about to become. The modal says so before you confirm.
+
+It writes when you confirm. There is no queue and no plan behind it: you are
+standing on the file, and the diff you just read *is* the plan.
+
+> This used to be a **⟳** icon on the class card, queued into the next Update.
+> It moved to the base itself on 2026-08-28. Three layers of deferral — code,
+> queue, plan — were what it took to aim a destructive button at a file you
+> could not see; on the file, one confirmation with the diff under it is more
+> honest and less ceremony. Nothing in the Update plan overwrites a base any
+> more, at all.
 
 ## The `∘` on characteristic notes
 
@@ -1237,22 +1588,24 @@ caused the drift.
 | a class that is its own ancestor | listed — nothing can be inherited safely around a cycle |
 | two classes differing only by case | listed — Obsidian cannot tell them apart |
 | a value outside `possible values`, or of the wrong shape | listed — a value you typed is yours |
-| a value that disagrees with a **strict default** | listed, unless *Strict defaults also override differing values* is on |
-| a defaults row giving both a default and a different strict default | listed — the strict one would be written and the other never used |
+| a value that a defaults row says must **contain** something, where the property is not a list | listed — there is nothing to add to, and replacing is a different claim |
+| a defaults row giving **Value must be** and a different starting value or none replacement | listed — what the value must be is what gets written, so the other would never be used |
 
 A class you create **in the panel** has no note yet either, and that is different:
 you asked for it, so Update makes it.
 
-## `default value`
+## Defaults, and the *All notes* row
 
-What a generated template should put in this property, written **verbatim** — so a
-Templater expression reaches the template intact and renders when a note is made
-from it:
+What a generated template should put in a property is written in the
+characteristic's own [defaults table](#the-defaults-table), in the **All notes**
+row — **verbatim**, so a Templater expression reaches the template intact and
+renders when a note is made from it:
 
-```yaml
-# ∘ created.md
-property type: datetime
-default value: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+```markdown
+<!-- ∘ created.md, under property type: datetime -->
+| Location  | Starting value                        | None replacement |
+| --------- | ------------------------------------- | ---------------- |
+| All notes | <% tp.date.now("YYYY-MM-DD HH:mm") %> |                  |
 ```
 
 Every template that carries `created` then gets that line, and every note made
@@ -1269,33 +1622,51 @@ from one gets a real timestamp.
   characteristics only, and only where the default is a Templater expression.
 - **Checked, not just written.** A template whose value has drifted from the
   characteristic is brought back into line on Update, the same as a missing key.
-- Leave it empty and the template gets an empty key, as before.
-- **Per class, use the [defaults table](#the-defaults-table) below.** This key is
-  the same claim about every note that carries the characteristic, and it is read
-  last — the table's *All notes* row is what replaces it.
+- Leave the row empty and the template gets an empty key.
+- **Per class, add a row.** All notes is the weakest one — any row naming the
+  class, or a class it descends from, answers first.
 
 > This is also the answer to a subtler problem. A property with **no**
 > characteristic note is left alone in templates — that is what protected a
 > hand-written `created: <% … %>` line. The moment `created` became a
 > characteristic it turned into a *managed* key, and managed keys are cleared and
-> rewritten. `default value` is where that expression belongs once the system
+> rewritten. The All notes row is where that expression belongs once the system
 > knows about the property.
+
+### `default value:` in the frontmatter is retired
+
+There was a `default value:` property on the characteristic note, beside
+`possible values`, saying exactly what the All notes row says. Two spellings of
+one claim is two things that can disagree, and the table is the one that can
+*also* say it per class — so as of v2.79 the key goes and the row stays.
+
+Update does the move, note by note, in the ordinary plan:
+
+- the value lands in the **All notes row** — filling its empty cell, or inserting
+  the row where the table has none — and only then is the key removed
+- an **empty** key is simply removed
+- a table with no All notes row **gets one back**, empty, under the header: it is
+  where a default for every note lives, so a table without one has nowhere to say
+  it. Same setting as the table itself
+- a value that **disagrees** with what the row already says is reported, not
+  written over — that is the state this removal exists to end
 
 ## The defaults table
 
-`default value` says one thing for every note that carries the characteristic.
-The **defaults table** says it per class — *every visual artist has
-`domain: visual`* — and it lives in the body of the characteristic's own note:
+The **defaults table** says what a characteristic's value should be, and where —
+*every note gets `status: draft`*, *every visual artist has `domain: visual`* —
+and it lives in the body of the characteristic's own note:
 
 ```markdown
-| Default location  | Default value | Strict default value |
-| ----------------- | ------------- | -------------------- |
-| All notes         |               |                      |
-| [[Artist]]        | art           |                      |
-| [[Visual Artist]] |               | visual               |
+| Location          | Starting value | None replacement | Value must contain | Value must be |
+| ----------------- | -------------- | ---------------- | ------------------ | ------------- |
+| All notes         |                |                  |                    |               |
+| [[Artist]]        | art            |                  |                    |               |
+| [[Visual Artist]] |                |                  |                    | visual        |
 ```
 
-A row per class, plus *All notes*. Add as many as you like.
+A row per class, plus **All notes** — every note carrying the characteristic,
+whatever its class. Add as many as you like.
 
 **Why here and not in the template.** A template is the *flattening* — `Artist
 Template.md` and `Visual Artist Template.md` both carry `domain:`, so a value in
@@ -1307,30 +1678,58 @@ animal` had in `OOF 0.1`. A row exists or it does not.
 The class note still tells you: the location is a **link**, so `Visual Artist`'s
 backlinks show the row that names it, value and all.
 
-### The two columns are not the same claim
+### The four value columns are four different claims
 
 | | |
 |---|---|
-| **Default value** | what a note is **created** with. The template carries it; from then on the value is the note's own, and nothing here ever touches it again |
-| **Strict default value** | a standing claim about every instance. An empty value is **never accepted** while one stands — Update fills it, retroactively, for ever |
+| **Starting value** | what a note is **created** with. The template carries it; from then on the value is the note's own, and nothing here ever touches it again |
+| **None replacement** | an empty value is replaced with this, retroactively and for ever — and **only** an empty one. A value that is there is left alone |
+| **Value must contain** | the value must include this. On a list the entry is added and everything else kept; on a single value it is reported, because there is nothing to add to |
+| **Value must be** | the value must be this. Anything else, empty included, is replaced |
 
-That is the whole difference, and it is what *"if a characteristic has a default
-value, then NONE is never accepted"* means once it is written down: it is the
-strict column that is total.
+Only the first is about creation. The other three are standing claims about every
+instance, and they differ in exactly what they do to a value that is **already
+there** — none replacement leaves it, must-contain adds to it, must-be replaces
+it.
 
-A value that is neither empty nor the strict one is a third case, and it is a
-setting. **Off** — the default — it is *reported*, because a value you typed is
-yours everywhere else in this plugin:
+*"If a characteristic has a default value, then NONE is never accepted, and NONE
+will always be replaced with the default value"* is the **None replacement**
+column, written down.
+
+> **This replaced one *Strict default value* column, and a setting.** Strict meant
+> "fill an empty one", and — behind *Strict defaults also override differing
+> values* — optionally "and overwrite one that differs". Those are the two columns
+> above, so the setting is gone: which one a row means is written in the row,
+> which is the same answer given per characteristic and per class instead of once
+> for the whole vault.
+>
+> A table written with the old columns still **reads** correctly — every column is
+> found by name, and `Strict default value` is read as a none replacement, which
+> is what it did on its own. Update offers to bring it up to date, moving each
+> value across by name.
+
+What a differing value looks like when the plugin will not resolve it:
 
 ```
 Otto Vance · domain
-The defaults table for domain gives an instance of Visual Artist the strict
-value visual, and this holds sculpture. Left untouched — change it, change the
-row, or turn on Strict defaults also override differing values.
+The defaults table for domain says an instance of Visual Artist must contain
+sculpture, and this holds nothing. domain is not a list, so there is nothing to
+add to — write it yourself, or say Value must be instead.
 ```
 
-**On**, it is replaced, and the plan shows `sculpture → visual` before anything
-is written.
+And what it looks like when it will:
+
+```
+Replace domain on "Otto Vance" — sculpture → visual
+  │ The defaults table for domain says an instance of Visual Artist must be
+  │ visual, and this holds sculpture.
+  │ Value must be is total: anything else is replaced. Empty the cell, or use
+  │ None replacement instead, if what you meant was only to fill an empty one.
+```
+
+A row that gives **Value must be** and one of the other two, differing, is
+reported rather than guessed at: what the value must be is what gets written, so
+the other would never be used.
 
 ### Inheritance
 
@@ -1339,19 +1738,17 @@ ancestors nearest first**. A class with no row of its own uses its parent's; a
 child that declares one wins over everything above it. Two parents at the same
 distance are met in the order the class names them.
 
-*All notes* is the weakest row, and the `default value:` in frontmatter is behind
-even that — it is what the *All notes* row replaces, kept working so nothing has
-to be migrated. Three of the characteristics in this vault use it today and go on
-behaving exactly as they did.
+*All notes* is the weakest row, and there is nothing behind it: it is the answer
+when no class has one, and the only vault-wide default there is.
 
 Only the classes that **carry** the characteristic are reached. A row naming a
 class that never declares `domain` does nothing.
 
 ### What is written
 
-The strict value if there is one, otherwise the default. A row that gives **both**,
-differing, is reported rather than guessed at: the strict one would be written and
-the other would be visibly ignored for ever.
+Into a **template**: what the value must be if the row says so, otherwise the
+starting value. Into an **instance**: whichever of the three standing columns
+applies, in that order — must-be first, since it is total.
 
 Cells are text, and the value is coerced to the characteristic's `property type` on
 the way out — `12` into a number property is the number, `a, b` into a list is two
@@ -1364,19 +1761,23 @@ those from the file's own creation time.
 ### The table is an input
 
 It is read, never rewritten. Editing a row is editing a note, the same as
-`property type` and `possible values` above it.
+`property type` and `possible values` above it. Three deliberate exceptions, each
+a change you asked for: renaming a value follows it into the cells that hold it,
+a retired `default value:` moves into the All notes row, and a table written with
+the old column names is brought up to date. All three are located at write time,
+so every line outside the table comes out identical.
 
 **Every characteristic note carries one.** A note created by Update is created
 with it; a note that has none gets one appended, listed in the plan like anything
-else. That is the only thing in this plugin that writes into a body at all, and it
-is narrowed until it cannot lose anything:
+else. The append is narrowed until it cannot lose anything:
 
 - **appended, never merged.** The whole write is *what is there* + *the table*.
   Nothing already written is read, moved or removed
 - **once.** A note that already has a table is left alone, whatever is in it
 - **switchable.** Turn **Settings → Every characteristic note carries the table**
-  off and existing notes are left as they are; only the ones Update creates carry
-  one
+  off and existing notes are left as they are — no table appended, no missing
+  All notes row put back, no columns brought up to date; only the ones Update
+  creates carry one
 
 ## `possible values`
 
@@ -1442,6 +1843,256 @@ Techno (no such note) — not permitted by the possible values for genre (instan
 An empty `possible values` means "any value of the right shape", not "no values".
 Shape is the separate `property type` check.
 
+### What a property field offers
+
+Click into `category` on a note and Obsidian suggests what to put there. Its
+answer is every value the vault already holds under that key, sorted
+alphabetically — which, once a characteristic has said what its values are, is
+wrong twice over. A word nothing carries yet is not offered at all, and the order
+is the alphabet's rather than yours:
+
+```
+# Obsidian's answer                # this plugin's
+feature                            feature
+fix problem                        improvement
+improvement                        fix problem
+                                   rework
+```
+
+`rework` is in the second column because `∘ category.md` lists it, not because a
+note somewhere already says it. That is the point: the first note to be a rework
+can be made without typing the word from memory.
+
+It **replaces** Obsidian's list rather than joining it, and that is deliberate.
+`possible values` is an allowlist — every note holding a value it does not admit
+is [already reported as a conflict](#possible-values), so offering those values
+in the field would be offering to make one more.
+
+**A class is a type, not a list, so the field is left alone.** `possible values:
+"[[Place]]"` names a *shape* the value has to fit, not a set to pick from, and
+enumerating the instances of a class went badly: `∘ project.md` names
+`[[Project]]`, and because `Improvement` is a type of `Project` the field offered
+**84** notes where the vault holds **8** values under `project`. None of the 8
+were lost — they were buried, which for a list you pick from is the same thing.
+Neither reason for speaking survives here either: instances come out of a vault
+walk alphabetically, exactly as Obsidian sorts, so there is no declared order to
+restore; and nothing is missing for want of a note using it yet, because typing
+`[[` in the field hands over to Obsidian's own link search, which reaches every
+note in the vault rather than only the instances.
+
+*Offer a class's instances too* turns the enumeration back on, and it is **off**.
+It earns itself on a class with few instances: `∘ location.md` names `[[Place]]`,
+and where Obsidian offers nothing at all — no note carries a `location` yet — the
+switch offers the one Place in the vault. On the same vault it takes `project`
+from 9 entries to 85, so it is one answer for all classes and you are the one who
+knows which way your vault leans.
+
+**Where the characteristic does not list its values, Obsidian keeps the field.**
+No `possible values`, an interval — a shape, not a list — or, unless that switch
+is on, a class, and its own suggestions come back untouched. The plugin speaks
+only where it has something to say.
+
+Two smaller rules. A word is offered exactly as the characteristic note spells
+it, even when a note in the vault happens to share its spelling with a different
+capital. And with the field empty the declared order is what you see; once you
+start typing, Obsidian ranks by how well each value matches what you have typed,
+which is what typing is for.
+
+*Offer the possible values in a property field* turns the whole thing off, and
+*Offer a class's instances too* is the second half of it.
+
+### Sorting and grouping a base by it
+
+A list of words is usually a list *in an order*. `status` reads seen, mapped,
+started, attained, in progress, diverted, abandoned — a sequence — and sorting a
+base by it alphabetically throws that meaning away.
+
+So a base gets a third direction, **As listed**, beside A → Z and Z → A. It is
+in every place a base is ordered from: the direction dropdown beside a **Sort by**
+row, the one beside **Group by**, and the right-click menu on a table column,
+where it reads *Sort as listed*.
+
+Grouping matters as much as sorting here. A base grouped by `status` with its
+groups running abandoned, attained, diverted is a list of stages in no
+particular order; the same base grouped as listed reads as the sequence it is.
+
+It is offered only where it means something — a `note.` property whose
+characteristic gives **words**. An interval and a class have no order to be in,
+and `file.` and `formula.` properties are not characteristics at all, so for
+those the dropdown still has its usual two entries.
+
+Three tiers, in this order:
+
+1. the values the characteristic names, in the order it names them;
+2. everything else, A → Z among itself — there is no declared order to put it in;
+3. empty, last, which is where a missing value goes for any other sort too.
+
+The groups of a grouped base fall into exactly the same three. A note holding
+several values stands where its **first** named one does. Case is ignored, the
+same way `possible values` already ignores it.
+
+#### What the base file says
+
+```yaml
+groupBy:
+  property: status
+  direction: ASC
+sort:
+  - property: status
+    direction: ASC
+declaredOrder:
+  - status
+declaredGroupOrder: status
+```
+
+`declaredOrder` is a list, because a base may sort on several properties;
+`declaredGroupOrder` is one name, because it groups by one. They are **separate
+keys on purpose**: a base may perfectly well sort by `status` as listed while
+grouping by it A → Z, and one list could not tell those two apart.
+
+**The direction cannot say so itself.** Obsidian's own reader accepts `ASC` and
+`DESC` in a sort row — and in `groupBy` — and silently drops anything that says
+anything else, so a base claiming a third direction would lose that row the next
+time it was opened. The row therefore stays a real, valid sort, and separate
+lines on the view say which of them are in declared order.
+
+Two things follow, both good. `direction: ASC` beside the marker reads as what it
+is — ascending, in the order declared. And with this plugin disabled, or with the
+setting below turned off, the base **still sorts and still groups** — by A → Z,
+the thing the file actually says — rather than losing either altogether.
+
+*Order by the way values are listed* turns the whole thing off. Nothing is
+written by turning it off; a base already carrying either marker keeps it.
+
+## Renaming a value
+
+`status: implemented` should say `completed`. Twenty-one notes carry it, the
+word `implemented` also appears under `category` on a few others, and it is
+written in a dozen sentences.
+
+A search and replace changes all of that. This changes the twenty-one.
+
+**Right-click the value.** `status: implemented` in a note's properties offers
+`Rename "implemented" everywhere…`, which is where you are standing when you
+notice it needs renaming.
+
+**And in `possible values` on the characteristic note** — the list you edit when
+you change your mind about a value. The key there is `possible values`, not
+`status`, but the note *is* the characteristic, so the same item appears.
+
+The same thing is on a characteristic chip in the panel — right-click it for
+`Rename a value of status…` — and in the command palette as **Rename a value of a
+characteristic**.
+
+Whichever way in, you say what it becomes and are told the extent before anything
+happens:
+
+```
+"implemented" becomes "completed" on 21 notes, possible values
+and 2 defaults cells, on the next Update.
+```
+
+Nothing is written there. The rename becomes part of the ordinary Update plan,
+with a line per note and a diff behind each one.
+
+### From the note
+
+**The item joins Obsidian's menu, it does not replace it.** *Edit*, *Copy* and
+*Remove from list* are still there, with the rename in the section below them.
+Obsidian hands out one menu per right-click and everyone adds to the same one, so
+there is never a second menu.
+
+Only values of a property some characteristic declares, and never the property
+**name** — that menu is Obsidian's too, and it is a good one.
+
+**Select the text first and the right-click is Electron's**, so copy and paste
+still work. That is the whole of the deference, and it is enough: an empty value
+has nothing to rename and falls through on its own, which leaves the case you
+asked for — right-clicking a value that is simply sitting there. Ctrl+V still
+pastes, and the setting turns the whole thing off.
+
+A list offers the entry you clicked. If the click cannot be pinned to one entry,
+every value on that property is offered instead — one more line to read, and it
+cannot be wrong. A value written as a link offers nothing, because Obsidian's own
+menu is the right one for a note; nor does an interval like `[0, 10]`, which is a
+range rather than a word.
+
+The values come from the note's frontmatter, not from the markup around it. That
+is the whole reason it is robust: Obsidian's value markup differs per property
+type and changes between versions, so the DOM is asked the one question it has
+answered reliably since 1.13.7 — *which property row is this* — and the note
+answers the rest.
+
+*Right-click a property value to rename it* in the settings gives the gesture
+back to Obsidian.
+
+### What moves
+
+Three things, and they are one rename:
+
+| | |
+|---|---|
+| the notes | `status: implemented` becomes `status: completed`, on every note, class note and template that holds it |
+| the characteristic | the entry in its `possible values` |
+| its defaults table | any of its four value cells holding it |
+
+The characteristic note is not an afterthought. Leaving `possible values` saying
+`implemented` would turn every note the rename just moved into a
+[conflict](#possible-values) — the rename would have created twenty-one problems
+by fixing one.
+
+### What does not
+
+**A value under another characteristic.** The rename is scoped to one property
+key. `category: implemented` is a different value that happens to be spelled the
+same, and it is not touched.
+
+**A word in a sentence.** Only frontmatter is read.
+
+**A link.** `status: "[[implemented]]"` names a note, and renaming a note is
+Obsidian's job — it rewrites every link pointing at it, which is the one thing
+this cannot do. Asked to rename a link, the modal says so and sends you there.
+
+Case is ignored when matching and taken from what you typed when writing, so a
+note saying `Implemented` moves with the rest, and renaming `idea` to `Idea` is a
+real rename that works.
+
+### What it says instead
+
+The old word may also be written inside a base filter, or in the prose of a note.
+Neither is rewritten: a base filter is an expression and a sentence is prose, and
+replacing text inside either is exactly the fuzzy edit this feature exists to
+avoid. They are **named** instead, as an insolvable discrepancy, and what to do
+about them is yours.
+
+**This is only ever about the text.** A note carrying the old value as a property
+is renamed like any other — the same note can be renamed *and* reported, because
+its `status:` moves and the word in its second paragraph does not. Opening the
+report shows the lines still carrying the word, with their numbers, so the two
+are never confused.
+
+The note where you worked out the name is the clearest case: it is full of the
+old word on purpose, and rewriting it would destroy the record of the decision.
+
+### A rename you made yourself
+
+Editing `possible values` by hand is the natural way to change what a
+characteristic allows — and it strands every note still holding the old word.
+Each of them would be reported as a value that fits nothing.
+
+So they are gathered instead. A value carried by **two or more** notes that the
+characteristic no longer allows is reported as **one** discrepancy —
+`"implemented" — on 21 notes, no longer a possible value for status` — with the
+same button on it. Answering records the same rename, and Update carries every
+note across.
+
+Where the list gives it away, the answer is suggested: a word the characteristic
+now allows that **no note anywhere** uses is what a rename looks like from the
+outside. One such word is evidence; two is a guess, and no suggestion is offered.
+
+**One note carrying a disallowed value is a typo, not a rename**, and stays
+reported as itself, naming the note. Two or more is a shape.
+
 ## In base queries
 
 The same hierarchy answers questions inside any base. Four functions are added
@@ -1464,7 +2115,9 @@ formulas:
 ```
 
 `ancestors()` is a list, so it groups the way tags do; `isADistance()` is a
-number, so it sorts.
+number, so it sorts — and `file.isADistance("Person") == 1` is "names Person in
+its own `is a`", which is what [Exact matches only](#exact-matches-only) writes
+into a class base.
 
 **A note names only its direct parent.** `Sheng Lam` says `is a: "[[Artist]]"`
 and nothing more; `file.isA("Person")` still finds it, because `Artist` is a
@@ -1528,14 +2181,21 @@ Create base for "Artist"
 Obsidian/Bases/Artist Base.base
   │ Table of everything that is a Artist, templates excluded.
   │ Columns: file.name, domain, medium, children
-  │ Created once — from then on it is yours, and Update leaves it alone.
+  │ Created once — from then on it is yours. Update leaves it alone;
+  │ Class base › Reset from the class is what rebuilds it.
 ```
 
-An object property shows **before → after**; a property the note was missing
-says so; a base refresh says in words that your edits will be lost.
+An object property shows **before → after**, and a property the note was missing
+says so. A base only ever appears here as one being **created**: the plan has no
+way to overwrite an existing base at all.
 
-Writes go through Obsidian's `processFrontMatter`, so **note bodies are never
-touched** — only frontmatter.
+Writes go through Obsidian's `processFrontMatter`, so **a note's body is not
+touched** — with four named exceptions, each of them a line located at write time
+so everything around it comes out byte-identical: the defaults table appended to
+a characteristic note that has none, the Templater block that names a new note,
+a [renamed value](#renaming-a-value) inside a defaults table cell, a retired
+`default value:` moving into the *All notes* row, and a table's columns being
+brought up to date.
 
 ### Data is never destroyed
 
@@ -1599,7 +2259,7 @@ add it to **Native attributes**, which is what `cover image` is doing there.
 ## The "Add property" button
 
 **Settings → Hide the "Add property" button** takes it out of the properties
-panel. What replaces it is a command — **OOF Classes: Add a property to the open
+panel. What replaces it is a command — **OOF Class Manager: Add a property to the open
 note** — which you bind to whatever key you like in Settings → Hotkeys.
 
 The command **presses Obsidian's own button** rather than reimplementing what it
@@ -1623,18 +2283,29 @@ the base functions.
 
 **Symbol property** for the mark before a class name; **Rate each class by what it adds** for the `+N` after it.
 
-Two for the [defaults table](#the-defaults-table): **Strict defaults also override
-differing values**, and **Every characteristic note carries the table** — the only
-setting in the plugin that leads to a note's body being written, and the only
-reason to turn it off.
+**Where a class's actions live** moves the icons off the cards into [one row above them](#or-in-one-row-above-all-of-them).
+
+**A "Class base" button on the base's toolbar** draws [the Class base menu](#the-class-base-button) on a generated base.
+
+**Offer the possible values in a property field** decides [what a value field suggests](#what-a-property-field-offers), and **Offer a class's instances too** — off — decides whether a
+characteristic naming a class enumerates that class as well.
+
+**Opening a note resets the selection** and **Several classes at once** both belong to [selecting classes](#selecting-classes-yourself).
+
+One for the [defaults table](#the-defaults-table): **Every characteristic note
+carries the table** — the one setting that has Update write into a note's body,
+and the only reason to turn it off. *Strict defaults also override differing
+values* was beside it until v2.79, when the **Value must be** column took over
+what it said.
 
 ## Not yet
 
 - **`property type` and `possible values` are checked, never enforced** — a value
   that contradicts either is reported as a conflict and left alone, because a
-  value you typed is yours. A **strict default** is the one thing that does get
-  written, and only into an empty value unless you turn the setting on. Generated properties are created empty; Obsidian's own
-  `types.json` governs how they are displayed.
+  value you typed is yours. The defaults table's three standing columns are the
+  one thing that does get written, and you say in the row how far each one goes.
+  Generated properties are created empty; Obsidian's own `types.json` governs how
+  they are displayed.
 - **One argument per call.** `file.isA("Artist")`, not
   `file.isA("Artist", "Writer")`; `file.isA("a") or file.isA("b")` says the same
   thing.

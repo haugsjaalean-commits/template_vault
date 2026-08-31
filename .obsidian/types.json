@@ -22,7 +22,6 @@
     "payoff": "number",
     "medium": "multitext",
     "done": "checkbox",
-    "status": "text",
     "art domain": "multitext",
     "map link": "text",
     "death day": "date",
@@ -57,6 +56,15 @@
     "class number": "number",
     "level": "text",
     "maturité": "text",
-    "category": "multitext"
+    "category": "multitext",
+    "priority": "number",
+    "active priority": "number",
+    "evolution": "text",
+    "journey": "text",
+    "checkpoint": "text",
+    "value": "number",
+    "difficulty": "number",
+    "originator": "multitext",
+    "test bool": "checkbox"
   }
 }

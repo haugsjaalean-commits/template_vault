@@ -1,7 +1,7 @@
 ---
 tags:
   - class
-symbol: lucide:a-large-small
+symbol: 水
 is a:
 characteristics:
   - "[[∘ meaning]]"
@@ -15,8 +15,8 @@ created: 2026-08-24 09:20
 ext links:
 related:
 note rating:
-rating:
+rating: 5
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 ---

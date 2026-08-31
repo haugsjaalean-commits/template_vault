@@ -9,8 +9,8 @@ created: 2026-08-24 09:45
 ext links:
 related:
 note rating:
-rating:
+rating: 0
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 ---

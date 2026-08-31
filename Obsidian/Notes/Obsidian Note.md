@@ -1,7 +1,8 @@
 ---
 tags:
   - class
-symbol:
+  - root
+symbol: lucide:code-2
 is a:
 characteristics:
   - "[[∘ related]]"
@@ -11,6 +12,6 @@ characteristics:
   - "[[∘ garden]]"
   - "[[∘ life stage]]"
   - "[[∘ ext links]]"
-  - "[[∘ maturity]]"
+  - "[[∘ evolution]]"
 type of:
 ---

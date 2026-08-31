@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
-importance:
-activity: active
-status: idea
+active priority: 5
+difficulty: 2
+payoff: 4
+activity: simmering
+checkpoint: mapped
+journey: progressing
 category:
   - improvement
 project:

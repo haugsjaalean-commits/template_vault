@@ -8,17 +8,20 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
-importance:
+active priority:
+difficulty:
+payoff:
 activity: active
-status: effort
+checkpoint:
+journey:
 ---
 
 
 [[Moving options for classes]]
 [[Class bases]]
 [[Bases Sharing]]
-
+[[Sorting in bases with custom order]]
 

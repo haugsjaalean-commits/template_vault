@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Bases Shared
+ * Bases Sharing
  * ------------
  * Two right-sidebar tabs over what every base in the vault has in common, and
  * one Sync behind both:
@@ -1572,7 +1572,7 @@ class BasesFormulasPlugin extends Plugin {
 		if (plan.files.length) {
 			parts.push('updated ' + plan.files.length + ' base' + (plan.files.length === 1 ? '' : 's'));
 		}
-		if (parts.length) new Notice('Bases Shared: ' + parts.join(', ') + '.');
+		if (parts.length) new Notice('Bases Sharing: ' + parts.join(', ') + '.');
 	}
 
 	async openPlan() {
@@ -1921,7 +1921,7 @@ class FormulasView extends PanelView {
 			onAdd: () => {
 				new NameModal(this.app, 'New formula', '', async (name) => {
 					if (plugin.formulaNamed(name)) {
-						new Notice('Bases Shared: "' + name + '" already exists.');
+						new Notice('Bases Sharing: "' + name + '" already exists.');
 						return;
 					}
 					await plugin.addFormula(name, '');
@@ -1962,7 +1962,7 @@ class FormulasView extends PanelView {
 		name.onclick = () => {
 			new NameModal(this.app, 'Rename formula', formula.name, async (to) => {
 				if (to !== formula.name && plugin.formulaNamed(to)) {
-					new Notice('Bases Shared: "' + to + '" already exists.');
+					new Notice('Bases Sharing: "' + to + '" already exists.');
 					return;
 				}
 				await plugin.renameFormula(formula, to);
@@ -2092,7 +2092,7 @@ class SharedViewsView extends PanelView {
 			.filter((c) => !plugin.viewNamed(c.name));
 
 		if (!candidates.length) {
-			new Notice('Bases Shared: every view in every base is already shared.');
+			new Notice('Bases Sharing: every view in every base is already shared.');
 			return;
 		}
 		new PickViewModal(this.app, candidates, async (candidate) => {
@@ -2113,7 +2113,7 @@ class SharedViewsView extends PanelView {
 		name.onclick = () => {
 			new NameModal(this.app, 'Rename view', view.name, async (to) => {
 				if (to !== view.name && plugin.viewNamed(to)) {
-					new Notice('Bases Shared: "' + to + '" already exists.');
+					new Notice('Bases Sharing: "' + to + '" already exists.');
 					return;
 				}
 				await plugin.renameView(view, to);
@@ -2155,7 +2155,7 @@ class SharedViewsView extends PanelView {
 			try {
 				parseYaml(lines.join('\n'));
 			} catch (error) {
-				new Notice('Bases Shared: that is not valid YAML, so it was not kept.');
+				new Notice('Bases Sharing: that is not valid YAML, so it was not kept.');
 				this.render();
 				return;
 			}
@@ -2443,7 +2443,7 @@ class SyncModal extends Modal {
 		write.onclick = async () => {
 			this.close();
 			await this.plugin.applyPlan(plan);
-			new Notice('Bases Shared: ' + plan.files.length + ' base'
+			new Notice('Bases Sharing: ' + plan.files.length + ' base'
 				+ (plan.files.length === 1 ? '' : 's') + ' updated.');
 		};
 	}

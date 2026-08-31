@@ -6,9 +6,8 @@ possible values:
   - current
   - dated
   - legacy
-default value: current
 ---
 
-| Default location | Default value | Strict default value |
-| ---------------- | ------------- | -------------------- |
-| All notes        | current       |                      |
+| Location  | Starting value | None replacement | Value must contain | Value must be |
+| --------- | -------------- | ---------------- | ------------------ | ------------- |
+| All notes | current        |                  |                    |               |

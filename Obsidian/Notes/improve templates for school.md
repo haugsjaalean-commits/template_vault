@@ -8,12 +8,12 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 done: true
 duedate:
-importance:
+active priority:
 urgency:
 what to do:
 ---

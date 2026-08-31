@@ -1,4 +1,4 @@
-# Bases Shared
+# Bases Sharing
 
 Two right-sidebar panels over what every base in the vault has in common, and one
 Sync behind both:

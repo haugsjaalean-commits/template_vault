@@ -7,14 +7,14 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage:
-maturity:
 ---
 
 
 [[Handling properties]]
-[[Root Note]]
+[[Add Root Note]]
 
 
 ---

@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Bases Graph View
+ * Graphs for Bases
  * ----------------
  * Adds a "Graph" view type to Bases. Instead of drawing a graph from scratch,
  * it builds Obsidian's own graph view (renderer + data engine) inside the Bases
@@ -3609,7 +3609,7 @@ class BasesGraphSettingTab extends obsidian.PluginSettingTab {
 module.exports = class BasesGraphPlugin extends obsidian.Plugin {
 	async onload() {
 		if (typeof obsidian.BasesView !== 'function') {
-			new obsidian.Notice('Bases Graph View needs Obsidian 1.10 or later.');
+			new obsidian.Notice('Graphs for Bases needs Obsidian 1.10 or later.');
 			return;
 		}
 
@@ -3731,7 +3731,7 @@ module.exports = class BasesGraphPlugin extends obsidian.Plugin {
 		});
 
 		if (!registered) {
-			new obsidian.Notice('Bases Graph View needs the core Bases plugin to be enabled.');
+			new obsidian.Notice('Graphs for Bases needs the core Bases plugin to be enabled.');
 			return;
 		}
 
@@ -3855,10 +3855,10 @@ module.exports = class BasesGraphPlugin extends obsidian.Plugin {
 
 		try {
 			await navigator.clipboard.writeText(text);
-			new obsidian.Notice('Bases Graph View: diagnostics copied to the clipboard');
+			new obsidian.Notice('Graphs for Bases: diagnostics copied to the clipboard');
 		} catch (e) {
 			console.log(text);
-			new obsidian.Notice('Bases Graph View: could not copy — the report is in the console');
+			new obsidian.Notice('Graphs for Bases: could not copy — the report is in the console');
 		}
 	}
 

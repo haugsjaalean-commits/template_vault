@@ -1,9 +1,9 @@
 {
-	"id": "bases-formulas",
-	"name": "Bases Shared",
-	"version": "1.1.0",
-	"minAppVersion": "1.10.0",
-	"description": "Two panels over what every base has in common: one shared list of formulas, and one shared list of views. Either can be limited to chosen bases.",
-	"author": "Claude",
-	"isDesktopOnly": false
+  "id": "bases-formulas",
+  "name": "Bases Sharing",
+  "version": "1.1.0",
+  "minAppVersion": "1.10.0",
+  "description": "Two panels over what every base has in common: one shared list of formulas, and one shared list of views. Either can be limited to chosen bases.",
+  "author": "Claude",
+  "isDesktopOnly": false
 }

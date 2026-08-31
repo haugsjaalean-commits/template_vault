@@ -2,16 +2,17 @@
 tags:
   - origin
 ---
+## Branches
 
+[[Structure Base.base#Base Classes]]
 [[My Obsidian workflow]]
-[[Base Base.base]]
 [[README]]
 [[How to organize with the system]]
 [[Thoughts]]
 [[Notes]]
 
 
-## Bookmarks
+### Bookmarks
 
 - [[Obsidian Plugin Base.base]]
 	- [[Class Manager]]

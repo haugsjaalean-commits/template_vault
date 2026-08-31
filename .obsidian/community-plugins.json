@@ -10,5 +10,7 @@
   "bases-word-count",
   "graph-rotator",
   "obsidian-style-settings",
-  "oof-objects"
+  "oof-objects",
+  "bases-drag-drop",
+  "bases-declared-order"
 ]

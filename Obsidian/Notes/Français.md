@@ -8,9 +8,9 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 session: "[[Session automne 26]]"
 teacher: "[[Anne-Elise Mamprin]]"
 ---

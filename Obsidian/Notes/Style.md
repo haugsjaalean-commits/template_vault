@@ -9,10 +9,10 @@ created: 2026-08-23 17:03
 ext links:
 related:
 note rating: 6
-rating:
+rating: 6
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
 ---
 
 A style is something defined by 

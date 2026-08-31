@@ -5,7 +5,6 @@ symbol: lucide:person-standing
 is a:
 characteristics:
   - "[[∘ children]]"
-  - "[[∘ relation to me]]"
   - "[[∘ location]]"
   - "[[∘ birth day]]"
   - "[[∘ death day]]"
@@ -15,8 +14,8 @@ created: 2026-08-15 12:42
 ext links:
 related:
 note rating:
-rating:
+rating: 8
+evolution:
 garden:
 life stage:
-maturity:
 ---

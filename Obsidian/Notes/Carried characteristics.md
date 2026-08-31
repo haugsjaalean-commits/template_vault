@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
-importance:
-activity: simmering
-status: effort
+active priority: 0
+difficulty: 1
+payoff: 1
+activity: sleeping
+checkpoint: seen
+journey: progressing
 category:
 project:
   - "[[Class Manager]]"

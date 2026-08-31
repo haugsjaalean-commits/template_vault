@@ -9,12 +9,15 @@ related:
   - "[[formulas tab]]"
 note rating:
 rating:
+evolution:
 garden:
 life stage: legacy
-maturity:
-importance:
+active priority:
+difficulty:
+payoff:
 activity: sleeping
-status: implemented
+checkpoint:
+journey:
 ---
 
 ## Improvements 

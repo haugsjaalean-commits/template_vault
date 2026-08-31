@@ -1,0 +1,24 @@
+filters:
+  and:
+    - file.isA("Todo")
+    - '!file.inFolder("Obsidian/Templates")'
+formulas:
+  word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
+properties:
+  formula.word count:
+    displayName: word count
+  formula.link distance:
+    displayName: link distance
+views:
+  - type: table
+    name: Table
+    groupBy:
+      property: done
+      direction: ASC
+    order:
+      - done
+      - file.name
+      - urgency
+      - payoff

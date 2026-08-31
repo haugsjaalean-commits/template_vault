@@ -1,6 +1,6 @@
 {
   "id": "bases-graph",
-  "name": "Bases Graph View",
+  "name": "Graphs for Bases",
   "version": "1.46.0",
   "minAppVersion": "1.10.0",
   "description": "Adds a graph view to Bases, using Obsidian's own graph renderer scoped to the notes your base returns, and file.linkDistance() for filtering by link hops.",

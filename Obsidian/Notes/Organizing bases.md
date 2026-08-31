@@ -8,15 +8,18 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
-importance:
+active priority:
+difficulty:
+payoff:
 activity: active
-status: effort
+checkpoint:
+journey:
 category:
 project:
-  - "[[Global graph views]]"
+  - "[[Global Graph Views]]"
 subject:
 ---
 

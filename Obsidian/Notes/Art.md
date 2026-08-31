@@ -1,7 +1,7 @@
 ---
 tags:
   - class
-symbol: lucide:palette
+symbol: lucide:brush
 is a:
 characteristics:
   - "[[∘ creator]]"
@@ -11,8 +11,8 @@ created: 2026-08-21 17:55
 ext links:
 related:
 note rating:
-rating:
+rating: 9
+evolution:
 garden:
 life stage: current
-maturity:
 ---

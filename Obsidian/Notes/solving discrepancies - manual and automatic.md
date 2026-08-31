@@ -6,14 +6,18 @@ type of:
 created: 2026-08-21 16:06
 ext links:
 related:
+  - "[[Automatically dealing with unsolvable discrepancies]]"
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
-importance:
+active priority:
+difficulty:
+payoff:
 activity: sleeping
-status: effort
+checkpoint: mapped
+journey: rerouted
 category:
 project:
   - "[[Class Manager]]"

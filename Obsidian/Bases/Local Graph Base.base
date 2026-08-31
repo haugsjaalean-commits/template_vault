@@ -4,9 +4,13 @@ filters:
     - '!file.inFolder("Obsidian/Templates")'
 formulas:
   word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
 properties:
   formula.word count:
     displayName: word count
+  formula.link distance:
+    displayName: link distance
 views:
   - type: graph
     name: Graph
@@ -44,6 +48,9 @@ views:
     ringRank: proportional
   - type: table
     name: Table
+    groupBy:
+      property: formula.link distance
+      direction: ASC
     order:
       - file.name
       - formula.word count

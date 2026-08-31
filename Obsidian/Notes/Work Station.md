@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
-importance:
-activity: simmering
-status:
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+checkpoint:
+journey:
 ---
 
 This is my idea for an Obsidian theme. I want it to be awesome. 

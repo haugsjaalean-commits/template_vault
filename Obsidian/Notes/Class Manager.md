@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage:
-maturity:
-importance:
+active priority:
+difficulty:
+payoff:
 activity: active
-status: implemented
+checkpoint:
+journey:
 ---
 ## Issues
 ### Complexe issues

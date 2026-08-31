@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage:
-maturity:
-importance:
-activity: simmering
-status: implemented
+active priority:
+difficulty:
+payoff:
+activity: sleeping
+checkpoint:
+journey:
 ---
 
 

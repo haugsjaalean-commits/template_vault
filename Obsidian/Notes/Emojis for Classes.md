@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
-importance:
+active priority: 3
+difficulty:
+payoff:
 activity: sleeping
-status: implemented
+checkpoint: reached
+journey: finished
 category:
 project:
   - "[[Class Manager]]"
@@ -36,8 +39,9 @@ I don't want the emojis being turned into icons. I just want more icons.
 
 ## The symbols I want
 
-
-I would like to have more symbols like kanji.
+More Class Manager symbols (icons):
+- [ ] I would like to have more symbols like kanji.
+- [ ] I want a carrot symbol (like the thing that appears on screen to indicate the editing place.)
 
 
 

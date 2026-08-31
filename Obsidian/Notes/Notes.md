@@ -7,9 +7,9 @@ ext links:
 related:
 note rating:
 rating:
+evolution:
 garden:
 life stage: current
-maturity:
 ---
 
 [[Computer Power and Human Reason - from judgment to calculation]]

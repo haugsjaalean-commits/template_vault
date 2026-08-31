@@ -3,9 +3,8 @@ characteristic meaning:
 property type: text
 is base characteristic: false
 possible values:
-default value:
 ---
 
-| Default location | Default value | Strict default value |
-| ---------------- | ------------- | -------------------- |
-| All notes        |               |                      |
+| Location  | Starting value | None replacement | Value must contain | Value must be |
+| --------- | -------------- | ---------------- | ------------------ | ------------- |
+| All notes |                |                  |                    |               |

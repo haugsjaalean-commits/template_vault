@@ -8,12 +8,15 @@ ext links:
 related:
 note rating:
 rating:
+evolution: Charmander
 garden:
 life stage: current
-maturity: Charmander
-importance:
+active priority: 0
+difficulty: 10
+payoff: 8
 activity: sleeping
-status: idea
+checkpoint: seen
+journey: progressing
 category:
 project:
   - "[[Class Manager]]"

@@ -4,9 +4,13 @@ filters:
     - '!file.inFolder("Obsidian/Characteristics")'
 formulas:
   word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
 properties:
   formula.word count:
     displayName: word count
+  formula.link distance:
+    displayName: link distance
 views:
   - type: graph
     name: Graph

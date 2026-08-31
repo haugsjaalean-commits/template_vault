@@ -1,0 +1,34 @@
+filters:
+  and:
+    - file.isA("Obsidian Plugin")
+    - '!file.inFolder("Obsidian/Templates")'
+formulas:
+  word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
+properties:
+  formula.word count:
+    displayName: word count
+  formula.link distance:
+    displayName: link distance
+views:
+  - type: table
+    name: Table
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - active priority
+      - file.name
+      - activity
+      - lifespan
+      - importance
+    sort:
+      - property: activity
+        direction: ASC
+      - property: active priority
+        direction: DESC
+    columnSize:
+      note.activity: 117
+      note.status: 106
+    declaredGroupOrder: status

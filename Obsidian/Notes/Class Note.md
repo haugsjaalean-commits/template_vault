@@ -12,8 +12,8 @@ created: 2026-08-24 12:20
 ext links:
 related:
 note rating:
-rating:
+rating: 4
+evolution:
 garden:
 life stage:
-maturity:
 ---

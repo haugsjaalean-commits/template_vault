@@ -5,14 +5,13 @@ symbol: lucide:layout-grid
 is a:
 characteristics:
   - "[[∘ school]]"
-  - "[[∘ visual domain]]"
 type of:
 created: 2026-08-24 12:20
 ext links:
 related:
 note rating:
-rating:
+rating: 1
+evolution:
 garden:
 life stage:
-maturity:
 ---
