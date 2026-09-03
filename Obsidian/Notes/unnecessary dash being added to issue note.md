@@ -3,6 +3,7 @@ is a:
   - "[[Bug Fix]]"
 characteristics:
 type of:
+views:
 created: 2026-08-23 09:45
 ext links:
 related:
@@ -11,19 +12,18 @@ rating:
 evolution:
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
   - fix problem
 project:
   - "[[Class Manager]]"
 subject:
   - bug
-active priority: 0
+active priority: 1
 difficulty: 8
 payoff: 1
 activity: sleeping
 done: false
-duedate:
 urgency:
 what to do:
 checkpoint: mapped

@@ -11,9 +11,10 @@ characteristics:
   - "[[∘ difficulty]]"
   - "[[∘ payoff]]"
   - "[[∘ active priority]]"
-  - "[[∘ abandoned]]"
+  - "[[∘ dead]]"
 type of:
   - "[[ABC]]"
+views:
 created: 2026-08-21 07:51
 ext links:
 related:

@@ -1,0 +1,62 @@
+.theme-dark .sticky-note {
+    --background-primary: var(--note-dark-color);
+}
+
+.theme-light .sticky-note {
+    --background-primary: var(--note-light-color);
+}
+
+
+.sticky-note-button {
+    --icon-color: var(--color-base-100);
+    --icon-color-hover: var(--color-base-100);
+}
+
+.color-menu {
+    row-gap: 4px;
+}
+
+.color-menu-item:hover {
+    font-weight: 500;
+}
+
+/* Settings */
+
+.disabled-setting {
+    opacity: 50%;
+}
+
+.bg-color-settings {
+    flex-direction: column;
+    align-items: start;
+    gap: 6px;
+    padding: 0px;
+    border-top: none;
+}
+
+.bg-color-settings>* {
+    width: 100%;
+}
+
+.single-color-setting .setting-item-control {
+    justify-content: stretch;
+    gap: 16px;
+}
+
+.single-color-setting .setting-item-info {
+    display: none;
+}
+
+.sticky-note .view-header-title-container {
+    app-region: drag;		
+    -webkit-app-region: drag;
+}
+
+/* Conflicts with other Plugins */
+.sticky-note .daily-note-navbar {
+	display: none;
+}
+
+.sticky-note .view-header-title {
+	display: flex;
+} 

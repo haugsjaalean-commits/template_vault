@@ -1352,6 +1352,30 @@ button.oof-new-class .svg-icon {
 }
 
 /*
+ * The picked variant: a `views` row is chosen from a modal rather than typed
+ * into, so its `+` is a button. It keeps the dashed outline the typed one has,
+ * because it is the same affordance in the same place and should read as one -
+ * only what happens on the click differs.
+ */
+.oof-add-pick {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 3.5em;
+	padding: 1px 6px;
+	cursor: pointer;
+	color: var(--text-faint);
+	line-height: 1.4;
+}
+
+.oof-add-pick:hover {
+	border-style: solid;
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+}
+
+/*
  * The native arrow is a button: clicking it opens the list rather than putting
  * the caret in, so a click meant to start typing was swallowed. Gone, and drawn
  * again below as something that cannot be clicked.

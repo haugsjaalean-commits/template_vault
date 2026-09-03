@@ -5,7 +5,8 @@ symbol: lucide:puzzle
 is a:
 characteristics:
 type of:
-  - "[[Project]]"
+  - "[[Coding Project]]"
+views:
 created: 2026-08-19 17:36
 ext links:
 related:

@@ -3,6 +3,7 @@ is a:
   - "[[Project]]"
 characteristics:
 type of:
+views:
 created: 2026-08-24 08:45
 ext links:
 related:
@@ -13,7 +14,7 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
   - "[[Class Manager]]"
@@ -21,9 +22,8 @@ subject:
 active priority: 8
 difficulty: 2
 payoff: 6
-activity: active
-done: false
-duedate:
+activity: sleeping
+done: true
 urgency:
 what to do:
 checkpoint: reached

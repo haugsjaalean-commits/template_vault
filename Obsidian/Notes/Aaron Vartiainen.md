@@ -3,6 +3,7 @@ is a:
   - "[[Creator]]"
 characteristics:
 type of:
+views:
 created: 2026-08-24 09:58
 ext links:
 related:

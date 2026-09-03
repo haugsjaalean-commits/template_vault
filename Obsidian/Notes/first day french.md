@@ -3,6 +3,7 @@ is a:
   - "[[Class Note]]"
 characteristics:
 type of:
+views:
 created: 2026-08-24 13:29
 ext links:
 related:
@@ -13,7 +14,7 @@ garden:
 life stage: current
 class date:
 class number: "1"
-cours: "[[Français]]"
+cours: "[[Littérature et imaginaire]]"
 ---
 
 

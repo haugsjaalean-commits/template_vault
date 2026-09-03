@@ -1,0 +1,1427 @@
+/* ==========================================================
+   Side-Notes Plugin — styles.css
+   All settings-dependent values use --sn-* custom properties
+   set by the plugin via JavaScript on document.documentElement.
+   ========================================================== */
+
+/* ==========================================================
+   Print / PDF Export
+   ========================================================== */
+
+/* Wraps each footnote's anchor (p/li/heading) — NOT a `<table>`. An earlier
+   version of this file used a `<table>` here with the sidenote as a
+   `position: absolute` `<td>`: that rendered correctly on-screen but was
+   confirmed (against a real headless-Chrome print-to-PDF run, the same
+   engine Obsidian's exporter uses) to make the absolutely-positioned cell
+   either collapse the row's height or not render at all — a Chromium
+   print-pipeline quirk specific to absolutely-positioned table cells that
+   a plain `<div>` here does not have. */
+.sidenote-print-wrap {
+	display: block !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	/* Containing block for .sidenote-print-sidenote-group below — scoped to
+	   this one anchor's own (small, single-page-height) wrapper, not the
+	   whole multi-page document, so it doesn't have the pagination problems
+	   absolute positioning has against a page-spanning ancestor. */
+	position: relative !important;
+}
+
+/* Added (in print-export.ts) only to an anchor that was a direct `<li>`
+   child of a `<ul>`/`<ol>` before being wrapped here — being moved into
+   this `<div>` costs it the one indent level Obsidian's own
+   `ul > li { margin-inline-start: var(--list-indent) }` rule would
+   otherwise still be giving it, since that rule only matches a direct list
+   child. Restoring it here, rather than moving the wrapper itself, leaves
+   .sidenote-print-sidenote-group's position (independent of the anchor's
+   own width) untouched either way. */
+.sidenote-print-wrap--lost-indent {
+	padding-left: var(--list-indent, 2.25em) !important;
+}
+
+/* Positioned out of the anchor's own flow entirely rather than sized as a
+   fraction of it — the anchor keeps its full natural width, so this never
+   pushes it over the way a shared-row sidenote column used to (see
+   .sidenote-print-wrap's comment for the table version of that bug).
+   `left: 100%` / `right: 100%` (in .is-left below) pin this group just
+   outside the wrap's left/right edge, sized to a fixed physical width.
+
+   --sn-print-gutter (defined on .sidenote-print-page) is the gap between
+   the body text and the sidenote column, on the group's body-facing side.
+   The fallbacks below keep sizing intact if this ever renders outside a
+   .sidenote-print-page container. */
+.sidenote-print-sidenote-group {
+	position: absolute !important;
+	top: 0 !important;
+	/* --sn-callout-offset (set per anchor in print-export.ts, see its own
+	   comment) compensates for the anchor sitting inside a `.callout`,
+	   which has its own inset padding a list item doesn't — measured in JS
+	   rather than counted-and-multiplied like --sn-nesting-depth below,
+	   since a callout's padding is a real CSS length (themeable, not a
+	   fixed per-level constant like --list-indent) and only ever needs
+	   adding once, not once per nesting level. Already an absolute px
+	   value by the time it's set, so — unlike --sn-nesting-depth's
+	   em-based term — it does not need this element's own 0.75 font-size
+	   scale factored out. */
+	left: calc(100% + var(--sn-callout-offset, 0px)) !important;
+	right: auto !important;
+	margin: 0 !important;
+	/* 0.2em, not 0 flat: the group's own text is smaller (0.75em below) than
+	   the anchor's, so a smaller font's shorter ascent needs a small nudge
+	   down to align baselines with the anchor's first line rather than
+	   sitting visibly high above it. This used to be 2.5em, a leftover from
+	   the old table-row layout (where the row's own vertical-align needed
+	   compensating) that never got recalibrated after the group switched to
+	   `position: absolute; top: 0` directly against the wrap — at 2.5em and
+	   this element's own 0.75em font-size, that was a full 30px push down
+	   the anchor's own top with nothing else offsetting it, landing the
+	   sidenote text visibly a line below the line it was actually attached
+	   to. */
+	padding: 0.4em 0 0 var(--sn-print-gutter, 1cm) !important;
+	width: var(--sn-print-sidenote-width, 5.2cm) !important;
+	font-size: 0.75em !important;
+	line-height: 1.35 !important;
+	color: #11111b !important;
+	/* --sn-text-align-right is the same "Text alignment" setting the on-screen
+	   right-margin sidenotes use — keyed by the group's physical side (this
+	   rule is used whenever a sidenote lands in the right margin), not by
+	   whether that's the document's default side or an override. Fallback
+	   matches this rule's old hardcoded behaviour, for the (unlikely) case
+	   export runs somewhere the variable was never set. */
+	text-align: var(--sn-text-align-right, left) !important;
+}
+
+.sidenote-print-sidenote-group.is-left {
+	left: auto !important;
+	/* Plain `right: 100%` pins this group's right edge to the WRAP's own
+	   left edge — which, unlike the wrap's right edge, shifts rightward
+	   with every list level the anchor is nested under (each ancestor
+	   `<li>`'s own `margin-inline-start` moves its left edge in without
+	   moving its right edge, since its width is auto and stays anchored to
+	   its parent's right edge — so nesting only ever drifts the LEFT side).
+	   A sidenote several levels deep inherited that same rightward drift
+	   from its wrap, landing further from the page margin than a sidenote
+	   on a top-level anchor. --sn-nesting-depth (set per anchor in
+	   print-export.ts) is exactly that drift, in list-indent units, so
+	   adding it here cancels it back out — this is why only .is-left needs
+	   it and the default (right-margin) rule above doesn't: that one
+	   references the wrap's RIGHT edge via `left: 100%`, which nesting
+	   never moves. */
+	/* / 0.75, not just * depth * list-indent: --list-indent is an em value,
+	   and a custom property's relative units resolve against whatever
+	   element var() is actually used in — this element, not wherever
+	   --sn-nesting-depth or --list-indent themselves were set. This
+	   element's own font-size is 0.75em (below), so plain em math here
+	   would only apply the compensation at 75% strength, leaving a
+	   residual drift proportional to nesting depth. Dividing by the exact
+	   0.75 this rule itself uses corrects for that scale factor. */
+	right: calc(
+		100% +
+			(var(--sn-nesting-depth, 0) * var(--list-indent, 2.25em) / 0.75) +
+			var(--sn-callout-offset, 0px)
+	) !important;
+	/* 0.2em top, not the old 2.5em — see the default rule's own comment,
+	   same fix, same reasoning, just the mirrored padding shorthand. */
+	padding: 0.2em var(--sn-print-gutter, 1cm) 0 0 !important;
+	/* Previously hardcoded to right regardless of the "Text alignment"
+	   setting — on-screen left-margin sidenotes honoured a "left" choice,
+	   PDF export silently overrode it back to right. */
+	text-align: var(--sn-text-align-left, right) !important;
+}
+
+/* A footnote inside a callout has its sidenote group escape far outside
+   the callout's own box (same as reading/editing mode's .sidenote-margin
+   does) — but unlike those two, nothing here previously overrode Obsidian's
+   native `.callout { overflow: hidden }` (rounded-corner clipping) or
+   `.callout-content { overflow-x: auto }` (its own separate scroll/clip
+   layer) for the print/export DOM, so an escaping print sidenote was
+   clipped away exactly like the live-view ones were before those got
+   fixed. Scoped to callouts that actually contain a sidenote wrap, so an
+   ordinary callout keeps its corner clipping untouched. */
+.sidenote-print-page .callout:has(.sidenote-print-wrap),
+.sidenote-print-page .callout:has(.sidenote-print-wrap) .callout-content {
+	overflow: visible !important;
+}
+
+.sidenote-print-spacer {
+	height: 0.4em !important;
+}
+
+.sidenote-print {
+	display: block !important;
+	margin: 0 !important;
+	padding: 0 !important;
+}
+
+.sidenote-print-number {
+	font-weight: bold !important;
+	margin-right: 0.3em !important;
+	color: #11111b !important;
+}
+
+.sidenote-print-refnum-html {
+	font-size: 0.75em !important;
+	font-weight: bold !important;
+	color: #000 !important;
+}
+
+.sidenote-print-refnum-footnote {
+	font-size: 0.75em !important;
+	font-weight: bold !important;
+	color: #11111b !important;
+}
+
+/* Outer gap tuning for the export container.
+
+   The @page margin below is the gap beside the SIDENOTE column, kept small
+   so the notes sit properly out in the margin. The body needs a wider gap
+   on its own outer side, so add the difference back here as padding — on
+   the side away from the notes, flipped by the --left modifier.
+
+   Body outer gap  = @page side margin + --sn-print-body-inset
+   Notes outer gap = @page side margin
+
+   Zeroing the notes-side padding matters: any theme padding left there
+   would pull the column back in off the margin. */
+.sidenote-print-page {
+	--sn-print-body-inset: 0.9cm;
+
+	/* Gap between the body text and the sidenote column. Defined here so both
+	   print layout knobs live together, but it is consumed on
+	   .sidenote-print-sidenote-group — and an em in a custom property resolves
+	   against the element that USES it, so this is 3 x that group's 0.75em
+	   note text, not 3 x the body text. */
+	--sn-print-gutter: 3em;
+
+	/* Physical width of the sidenote column itself — matched by
+	   .sidenote-print-sidenote-group's own `width`. Fixed rather than a
+	   percentage so it's the same physical size for a top-level paragraph
+	   and a bullet three lists deep; kept here too (not just as that rule's
+	   fallback) so the document-wide reservation just below can size itself
+	   off the same number instead of a separately-tuned percentage that
+	   could quietly drift out of sync with it. */
+	--sn-print-sidenote-width: 5.2cm;
+
+	/* What every paragraph in the document — not just ones with a footnote
+	   — needs to leave clear so the sidenote column never overlaps ordinary
+	   body text. Sidenote width + gutter, not sidenote width alone: the
+	   gutter is padding INSIDE the sidenote cell (see .sidenote-print-sidenote-group),
+	   so without adding it here the reserved margin would land exactly on
+	   the sidenote's own text with no breathing room before the body. */
+	--sn-print-reserved: calc(
+		var(--sn-print-sidenote-width) + var(--sn-print-gutter)
+	);
+
+	padding-left: var(--sn-print-body-inset) !important;
+	padding-right: 0 !important;
+}
+
+.sidenote-print-page--left {
+	padding-left: 0 !important;
+	padding-right: var(--sn-print-body-inset) !important;
+}
+
+/* Width constraint for the export container — the anchor paragraphs need
+   to make room for the sidenote column beside them.
+
+   .sidenote-print-wrap is in this type list for exactly the same reason as
+   the rest of it: a footnote's anchor is wrapped in one (see that class's
+   own comment), and once it is, IT is the thing that needs the width
+   reservation applied — not the p/li inside it, which should stay at its
+   wrap's full width. Leaving .sidenote-print-wrap out of this list used to
+   mean the anchor still matched (nothing excluded it) and picked up a
+   reservation of its own, which a separate rule then reset back to zero —
+   and with it, the reservation this whole selector exists to apply. That
+   reservation is what keeps the sidenote group's escape distance (a
+   fixed length from the WRAP's own edge — see .sidenote-print-sidenote-group)
+   from landing at a negative, off-page coordinate: with no reserved gap the
+   wrap sits flush with the page edge, and the sidenote — positioned further
+   out from there — renders outside the printable area entirely. Confirmed
+   against a real headless-Chrome print-to-PDF run: on-screen a negative
+   x-coordinate is just off in the (scrollable) void and looks harmless, but
+   Chromium's print pipeline doesn't render it at all.
+
+   The `:not(:is(...) *)` clause excludes any of these elements that is
+   ALREADY a descendant of another one of them — a bullet inside a list, a
+   nested list inside that list item, a paragraph inside a blockquote or
+   callout, or (per the above) an anchor inside its own wrap. Without it,
+   every one of these tags matches this same selector at every nesting
+   level, so each level narrowed (and, in --left mode below, shifted) on top
+   of its parent's — a second-level nested bullet ended up two thirds of the
+   way across the page.
+
+   This must exclude the match at the SOURCE rather than apply it everywhere
+   and try to cancel it back out on nested elements: a downstream reset has
+   to force a value (e.g. margin-left: 0), and there is no way for that reset
+   to distinguish "the reservation this plugin added" from "the indent a
+   theme's own CSS uses for nested lists" once both are on the same property
+   — a reset was tried here and it flattened all list nesting to one level
+   (and, later, broke the wrap's own reservation the way described above).
+   Preventing the match in the first place leaves nested elements completely
+   untouched: they inherit the narrowed width through the box model, and
+   whatever property the theme uses for its own nested-list indentation is
+   never touched at all. */
+.sidenote-print-page
+	:is(
+		p,
+		li,
+		h1,
+		h2,
+		h3,
+		h4,
+		h5,
+		h6,
+		blockquote,
+		.callout,
+		ul,
+		ol,
+		hr,
+		.math,
+		.MathJax,
+		pre,
+		.contains-task-list,
+		.sidenote-print-wrap
+	):not(
+		:is(
+				p,
+				li,
+				h1,
+				h2,
+				h3,
+				h4,
+				h5,
+				h6,
+				blockquote,
+				.callout,
+				ul,
+				ol,
+				hr,
+				.math,
+				.MathJax,
+				pre,
+				.contains-task-list,
+				.sidenote-print-wrap,
+				section.footnotes
+			)
+			*
+	),
+.sidenote-print-page section.footnotes {
+	/* Matches --sn-print-sidenote-width + --sn-print-gutter (defined on
+	   .sidenote-print-page) — the sidenote group's own physical size, not a
+	   percentage, now that it's positioned rather than laid out as a table
+	   column. See that variable's comment.
+
+	   section.footnotes is ALSO in the exclusion list above (not just this
+	   rule's own selector) for the same reason .sidenote-print-wrap is: its
+	   own `ol`/`li`/`p` are of types this same general selector matches, and
+	   without the exclusion each one ALSO picked up its own reservation on
+	   top of the one this rule already applies to the section as a whole —
+	   the endnote list ended up shifted twice as far right as the body
+	   text above it. */
+	max-width: calc(100% - var(--sn-print-reserved, 6.2cm)) !important;
+}
+
+/* Left-margin layout additionally needs the body nudged right. Same
+   not-already-nested exclusion as the max-width rule above, and for the same
+   reason — see that rule's comment. */
+.sidenote-print-page--left
+	:is(
+		p,
+		li,
+		h1,
+		h2,
+		h3,
+		h4,
+		h5,
+		h6,
+		blockquote,
+		.callout,
+		ul,
+		ol,
+		hr,
+		.math,
+		.MathJax,
+		pre,
+		.contains-task-list,
+		.sidenote-print-wrap
+	):not(
+		:is(
+				p,
+				li,
+				h1,
+				h2,
+				h3,
+				h4,
+				h5,
+				h6,
+				blockquote,
+				.callout,
+				ul,
+				ol,
+				hr,
+				.math,
+				.MathJax,
+				pre,
+				.contains-task-list,
+				.sidenote-print-wrap,
+				section.footnotes
+			)
+			*
+	),
+.sidenote-print-page--left section.footnotes {
+	/* Matches --sn-print-reserved on .sidenote-print-page — see the
+	   max-width rule above's comment. */
+	margin-left: var(--sn-print-reserved, 6.2cm) !important;
+}
+
+/* Inline spans moved into the print margin column — the text lives in
+   .sidenote-print now, so the original must not render in the body */
+.sidenote-print-hidden {
+	display: none !important;
+}
+
+/* Footnote list entries whose text already appears as a margin note in
+   reading mode, so the endnote list shouldn't repeat them */
+.sidenote-footnote-item-hidden {
+	display: none;
+}
+
+/* Horizontal page margins are deliberately symmetric, and set to the
+   SMALLER of the two outer gaps — the one beside the sidenote column, which
+   sits well into the margin. The body's larger outer gap is added back as
+   padding on the export container (see --sn-print-body-inset), because that
+   is a normal element and can therefore be flipped per sidenote position.
+
+   The margins can't be mirrored here directly: they used to be, via
+   var(--sn-print-margin-*), but custom properties do not resolve inside
+   @page in Chromium (Obsidian's renderer), so every export silently fell
+   back to the right-sidenote values and left-margin exports ran the body to
+   within 0.1cm of the right paper edge. Keeping @page symmetric and doing
+   the asymmetry on an element avoids that trap entirely. */
+@page {
+	margin: 1.5cm 0.6cm;
+}
+
+/* LAYOUT */
+
+/* Off-screen probe used to measure a CSS length expression in pixels */
+.sidenote-measure-probe {
+	position: absolute;
+	visibility: hidden;
+	pointer-events: none;
+	height: 0;
+}
+
+/* === Layout variables === */
+.markdown-source-view.mod-cm6,
+.markdown-reading-view {
+	--sidenote-base-width: var(--sn-base-width, 10rem);
+	--sidenote-max-extra: var(--sn-max-extra, 8rem);
+	--sidenote-width: calc(
+		var(--sidenote-base-width) +
+			(var(--sidenote-max-extra) * var(--sidenote-scale, 0.5))
+	);
+	--sidenote-gap: var(--sn-gap, 2rem);
+	--sidenote-gap2: var(--sn-gap2, 1rem);
+	/* Space reserved beside the text for the sidenote column.
+
+	   Uses --sidenote-gap-effective, which the positioning code publishes: it
+	   is the base gap PLUS the width-driven growth from the "gap drift"
+	   setting. Reading the base --sidenote-gap here instead under-reserved
+	   whenever drift was above 0, by a margin that widened with the pane, and
+	   clipped the outer edge of the sidenotes in text-anchor mode. Falls back
+	   to the base gap for the frame before JS has measured. */
+	--page-offset: calc(
+		(
+				var(--sidenote-width) +
+					var(--sidenote-gap-effective, var(--sidenote-gap))
+			) *
+			var(--sn-page-offset-factor, 0)
+	);
+	--sidenote-edge-offset: var(--sidenote-gap);
+}
+
+/* --- Compact mode overrides --- */
+.markdown-source-view.mod-cm6[data-sidenote-mode="compact"],
+.markdown-reading-view[data-sidenote-mode="compact"] {
+	--sidenote-base-width: var(--sn-base-width-compact, 8rem);
+	--sidenote-max-extra: var(--sn-max-extra-compact, 4rem);
+	--sidenote-gap: var(--sn-gap-compact, 1rem);
+	--sidenote-gap2: var(--sn-gap2-compact, 0.5rem);
+}
+
+/* --- Full mode overrides --- */
+.markdown-source-view.mod-cm6[data-sidenote-mode="full"],
+.markdown-reading-view[data-sidenote-mode="full"] {
+	--sidenote-base-width: var(--sn-base-width-full, 18rem);
+	--sidenote-max-extra: 2rem;
+	--sidenote-gap: var(--sn-gap-full, 3rem);
+	--sidenote-gap2: var(--sn-gap2-full, 1.5rem);
+}
+
+/* === Scroller overflow ===
+   !important here and below on .cm-* selectors: these override CodeMirror's
+   own baseline styles (not just a theme's), which reassert themselves with
+   comparable specificity — plain classes lose that fight silently. */
+.markdown-source-view.mod-cm6 .cm-scroller {
+	overflow-y: auto !important;
+	overflow-x: visible !important;
+}
+
+/* === Page offset — LEFT position === */
+.markdown-source-view.mod-cm6[data-sidenote-position="left"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="left"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="left"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.cm-scroller {
+	padding-left: var(--page-offset) !important;
+	padding-right: 0 !important;
+}
+
+.markdown-reading-view[data-sidenote-position="left"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="left"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="left"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.markdown-preview-sizer {
+	padding-left: var(--page-offset) !important;
+	padding-right: 0 !important;
+}
+
+/* === Page offset — RIGHT position === */
+.markdown-source-view.mod-cm6[data-sidenote-position="right"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="right"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="right"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.cm-scroller {
+	padding-right: var(--page-offset) !important;
+	padding-left: 0 !important;
+}
+
+.markdown-reading-view[data-sidenote-position="right"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="right"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="right"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.markdown-preview-sizer {
+	padding-right: var(--page-offset) !important;
+	padding-left: 0 !important;
+}
+
+/* === Page offset — mirrored margin for per-sidenote overrides ===
+   When a -r/-l (or right/left class) override actually places a sidenote
+   in the non-default margin, reserve page-offset space there too. Without
+   it that side has no room at all, so edge-anchored overrides collapse
+   against — or past — the pane's real edge instead of respecting
+   sidenoteGap / sidenoteGap2 / sidenoteGapDrift like normal sidenotes do. */
+.markdown-source-view.mod-cm6[data-sidenote-position="left"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="left"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="left"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.cm-scroller {
+	padding-right: var(--page-offset) !important;
+}
+
+.markdown-reading-view[data-sidenote-position="left"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="left"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="left"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.markdown-preview-sizer {
+	padding-right: var(--page-offset) !important;
+}
+
+.markdown-source-view.mod-cm6[data-sidenote-position="right"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="right"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.cm-scroller,
+.markdown-source-view.mod-cm6[data-sidenote-position="right"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.cm-scroller {
+	padding-left: var(--page-offset) !important;
+}
+
+.markdown-reading-view[data-sidenote-position="right"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="right"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.markdown-preview-sizer,
+.markdown-reading-view[data-sidenote-position="right"][data-sidenote-has-opposite="true"][data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.markdown-preview-sizer {
+	padding-left: var(--page-offset) !important;
+}
+
+/* === Sidenote positioning (uses --sidenote-offset set by JS) === */
+
+/* LEFT */
+.markdown-source-view.mod-cm6[data-sidenote-position="left"]
+	.sidenote-margin,
+.markdown-reading-view[data-sidenote-position="left"] .sidenote-margin,
+.markdown-source-view.mod-cm6[data-sidenote-position="left"]
+	.cm-line
+	.sidenote-number[data-footnote-id]
+	.sidenote-margin {
+	left: calc(
+		var(
+				--sidenote-offset,
+				calc(-1 * (var(--sidenote-width) + var(--sidenote-gap)))
+			) -
+			var(--sidenote-indent-adjust, 0px)
+	);
+	right: auto;
+	text-align: var(--sn-text-align, right) !important;
+}
+
+/* RIGHT */
+.markdown-source-view.mod-cm6[data-sidenote-position="right"]
+	.sidenote-margin,
+.markdown-reading-view[data-sidenote-position="right"] .sidenote-margin,
+.markdown-source-view.mod-cm6[data-sidenote-position="right"]
+	.cm-line
+	.sidenote-number[data-footnote-id]
+	.sidenote-margin {
+	right: calc(
+		var(
+				--sidenote-offset,
+				calc(-1 * (var(--sidenote-width) + var(--sidenote-gap)))
+			) +
+			var(--sidenote-indent-adjust, 0px)
+	);
+	left: auto;
+	text-align: var(--sn-text-align, left) !important;
+}
+
+/* === Per-sidenote margin override (data-sidenote-side, set by JS) ===
+   Lets an individual sidenote sit in the margin opposite the document-wide
+   "Sidenote position" setting. Selectors are shaped to match the specificity
+   of the base LEFT/RIGHT rules above (including the .cm-line variant) so
+   this reliably wins regardless of source order. */
+.markdown-source-view.mod-cm6 .sidenote-margin[data-sidenote-side="left"],
+.markdown-reading-view .sidenote-margin[data-sidenote-side="left"],
+.markdown-source-view.mod-cm6
+	.cm-line
+	.sidenote-number[data-footnote-id]
+	.sidenote-margin[data-sidenote-side="left"] {
+	left: calc(
+		var(
+				--sidenote-offset-left,
+				calc(-1 * (var(--sidenote-width) + var(--sidenote-gap)))
+			) -
+			var(--sidenote-indent-adjust, 0px)
+	);
+	right: auto;
+	text-align: var(--sn-text-align-opposite, right) !important;
+}
+
+.markdown-source-view.mod-cm6 .sidenote-margin[data-sidenote-side="right"],
+.markdown-reading-view .sidenote-margin[data-sidenote-side="right"],
+.markdown-source-view.mod-cm6
+	.cm-line
+	.sidenote-number[data-footnote-id]
+	.sidenote-margin[data-sidenote-side="right"] {
+	right: calc(
+		var(
+				--sidenote-offset-right,
+				calc(-1 * (var(--sidenote-width) + var(--sidenote-gap)))
+			) +
+			var(--sidenote-indent-adjust, 0px)
+	);
+	left: auto;
+	text-align: var(--sn-text-align-opposite, left) !important;
+}
+
+/* === Prevent clipping by CM layers === */
+.markdown-source-view.mod-cm6 .cm-editor,
+.markdown-source-view.mod-cm6 .cm-content,
+.markdown-source-view.mod-cm6 .cm-sizer,
+.markdown-source-view.mod-cm6 .cm-contentContainer {
+	overflow: visible !important;
+}
+
+/* Line = positioning context */
+.markdown-source-view.mod-cm6 .cm-line {
+	position: relative;
+}
+
+/* Reading mode positioning contexts */
+.markdown-reading-view p,
+.markdown-reading-view li,
+.markdown-reading-view h1,
+.markdown-reading-view h2,
+.markdown-reading-view h3,
+.markdown-reading-view h4,
+.markdown-reading-view h5,
+.markdown-reading-view h6,
+.markdown-reading-view blockquote,
+.markdown-reading-view .callout,
+/* Editing mode's equivalent. Most Live Preview content is line-based
+   (.cm-line, already position:relative above) rather than rendered as real
+   p/li/blockquote elements — but a callout renders as an embedded WIDGET
+   whose *inside* (.callout-content > p, same as reading mode) is actual
+   HTML, not cm-lines, so it needs this rule too. Without it, nothing inside
+   a Live Preview callout is a positioned ancestor at all, and
+   correctIndentedSidenotePositions in layout-math.ts — which walks up
+   looking for one — falls through to "not indented" and applies no
+   correction, leaving a callout-nested sidenote positioned as if it were a
+   top-level paragraph. */
+.markdown-source-view.mod-cm6 .callout p,
+.markdown-source-view.mod-cm6 .callout li,
+.markdown-source-view.mod-cm6 .callout blockquote,
+.markdown-source-view.mod-cm6 .callout {
+	position: relative;
+}
+
+/* Callouts clip their content — Obsidian sets overflow:hidden on .callout so
+   the coloured background respects the rounded corners. A sidenote margin is
+   absolutely positioned far outside its anchor's box, so anchored inside a
+   callout it was clipped away completely: invisible in both reading and
+   editing mode, and for both formats.
+
+   Opt only the callouts that actually contain a sidenote out of clipping, so
+   ordinary callouts keep their corner clipping untouched. */
+.markdown-reading-view .callout:has(.sidenote-number),
+.markdown-source-view.mod-cm6 .callout:has(.sidenote-number) {
+	overflow: visible;
+}
+
+/* .callout-content is a SEPARATE clipping layer nested inside .callout —
+   Obsidian gives it its own `overflow-x: auto` (for long code blocks etc.),
+   independent of .callout's own overflow above. Freeing .callout alone still
+   left this one clipping the sidenote away: `auto` still clips until
+   scrolled, it isn't a no-op like `visible`. */
+.markdown-reading-view .callout:has(.sidenote-number) .callout-content,
+.markdown-source-view.mod-cm6
+	.callout:has(.sidenote-number)
+	.callout-content {
+	overflow: visible;
+}
+
+/* THIRD clipping layer, editing mode only: Obsidian wraps the whole callout
+   widget in .cm-embed-block, which is harmless while idle but gets its own
+   `overflow: hidden` the instant the mouse hovers it (for a box-shadow
+   effect) — the margin computed visible/opacity:1 at a plausible on-screen 
+	 position, but `elementFromPoint` at that exact spot returned .cm-scroller, 
+	 not the margin, meaning something between the callout and the scroller 
+	 was still clipping it despite both .callout and .callout-content above 
+	 being freed. Since the sidenote margin escapes far outside the callout's 
+	 own visual footprint, this hover rule clips it away almost any time the 
+	 callout is actually being looked at — !important because the hover rule 
+	 has to be beaten unconditionally, not just avoided at rest. */
+.markdown-source-view.mod-cm6 .cm-embed-block:has(.sidenote-number) {
+	overflow: visible !important;
+}
+
+/* FOURTH layer, and the one actually responsible — confirmed live via
+   DevTools: forcing the margin to `z-index: 999999` with a solid red
+   background and re-running elementFromPoint at its own coordinates still
+   returned .cm-scroller, and no red box appeared on screen at all. That
+   only happens with CSS `contain: paint`, which Obsidian sets on
+   .cm-embed-block.cm-callout (almost certainly for render-isolation
+   performance on embedded widgets) — it forces everything inside to be
+   clipped to the container's own box for painting purposes, a SEPARATE
+   mechanism from `overflow` that overflow:visible has no power over at
+   all. This is why the three overflow fixes above were each individually
+   correct but never actually fixed anything: none of them touch paint
+   containment. `:has()`-scoped, like the others, so an ordinary callout
+   keeps its full performance containment untouched. */
+.markdown-source-view.mod-cm6
+	.cm-embed-block.cm-callout:has(.sidenote-number) {
+	contain: none !important;
+}
+
+/* === Hide original span content === */
+.sidenote-number > span.sidenote {
+	display: inline-block;
+	width: 0;
+	max-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	vertical-align: baseline;
+}
+
+/* === The sidenote margin block === */
+.sidenote-margin {
+	position: absolute;
+	top: 0;
+	width: var(--sidenote-width);
+	color: var(--sn-text-color, var(--text-normal));
+	/* Sized off the note's base text size, not the parent's, so a sidenote
+	   anchored in a heading isn't rendered at a fraction of the heading. */
+	font-size: var(--sn-font-size, calc(var(--font-text-size, 16px) * 0.8));
+	line-height: var(--sn-line-height, 1.35);
+	overflow-wrap: break-word;
+	transform: translateY(
+		calc(var(--sidenote-line-offset, 0px) + var(--sidenote-shift, 0px))
+	);
+	will-change: transform;
+	z-index: 10;
+	pointer-events: auto;
+	transition: var(--sn-transition, none);
+}
+
+/* A margin is inserted with the document-wide offset and only receives its
+   per-wrapper indent correction once the positioning pass runs, a frame or two
+   later. Since --sn-transition animates left/right, that correction is
+   otherwise visible as the sidenote sliding sideways into place every time one
+   scrolls into view. Suppressed until the first pass has settled.
+
+   Selector is deliberately specific enough to beat both .sidenote-margin rules
+   without !important fighting; the !important here is for the transition only. */
+.sidenote-margin.is-placing,
+.cm-line .sidenote-number[data-footnote-id] .sidenote-margin.is-placing {
+	transition: none !important;
+}
+
+/* Don't inherit the anchor's typography. A sidenote attached to a heading
+   otherwise picks up the heading's font, weight and style along with its size.
+   Markdown emphasis inside the sidenote still works — the strong/em rules
+   below set their own weight and style. */
+.sidenote-margin,
+.margin-note-popup {
+	font-family: var(--font-text, inherit);
+	font-weight: var(--font-normal, normal);
+	font-style: normal;
+	font-variant: normal;
+	letter-spacing: normal;
+}
+
+/* Hovering the sidenote itself.
+
+   The .cm-line variant exists purely for specificity. The editing-mode
+   footnote margin rule further down
+   (.cm-line .sidenote-number[data-footnote-id] .sidenote-margin) also sets
+   `color` and ties with — or beats — the plain selector here, so on source
+   order alone it wins and the hover tint never appears for footnotes. Same
+   selector shaping the per-sidenote side overrides use above. */
+.sidenote-margin:hover:not([data-editing="true"]),
+.cm-line
+	.sidenote-number[data-footnote-id]
+	.sidenote-margin:hover:not([data-editing="true"]) {
+	color: var(--sn-hover-color, var(--text-muted));
+}
+
+.sidenote-margin[data-editing="true"] {
+	display: block !important;
+}
+
+.sidenote-margin[data-editing="true"]::before {
+	float: left !important;
+	margin-right: 0.3em !important;
+	shape-outside: margin-box !important;
+}
+
+.sidenote-margin[data-editing="true"]
+	> .cm-editor
+	> .cm-scroller
+	> .cm-content {
+	display: block !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	box-sizing: border-box !important;
+}
+
+.sidenote-margin[data-editing="true"]
+	> .cm-editor
+	> .cm-scroller
+	> .cm-content
+	> .cm-line {
+	width: 100% !important;
+	min-width: 0 !important;
+	word-break: break-word !important;
+	white-space: pre-wrap !important;
+}
+
+.sidenote-margin[data-editing="true"] > .cm-editor > .cm-announced {
+	display: none !important;
+}
+
+/* Compact mode typography */
+.markdown-source-view.mod-cm6[data-sidenote-mode="compact"]
+	.sidenote-margin,
+.markdown-reading-view[data-sidenote-mode="compact"] .sidenote-margin {
+	font-size: var(
+		--sn-font-size-compact,
+		calc(var(--font-text-size, 16px) * 0.7)
+	);
+	line-height: var(--sn-line-height-compact, 1.25);
+}
+
+/* Isolation to prevent overlap during transitions */
+.markdown-reading-view .sidenote-margin,
+.markdown-source-view.mod-cm6 .sidenote-margin {
+	isolation: isolate;
+}
+
+/* Hidden mode */
+.markdown-source-view.mod-cm6[data-sidenote-mode="hidden"]
+	.sidenote-margin,
+.markdown-reading-view[data-sidenote-mode="hidden"] .sidenote-margin {
+	display: none !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
+/* === Prevent clipping by CM layers (only when sidenotes are active) === */
+.markdown-source-view.mod-cm6[data-has-sidenotes="true"]:not(
+		[data-sidenote-mode="hidden"]
+	)
+	.cm-editor,
+.markdown-source-view.mod-cm6[data-has-sidenotes="true"]:not(
+		[data-sidenote-mode="hidden"]
+	)
+	.cm-content,
+.markdown-source-view.mod-cm6[data-has-sidenotes="true"]:not(
+		[data-sidenote-mode="hidden"]
+	)
+	.cm-sizer,
+.markdown-source-view.mod-cm6[data-has-sidenotes="true"]:not(
+		[data-sidenote-mode="hidden"]
+	)
+	.cm-contentContainer {
+	overflow: visible !important;
+}
+
+/* Empty mode — opacity fade */
+.markdown-source-view.mod-cm6[data-sidenote-mode=""] .sidenote-margin,
+.markdown-reading-view[data-sidenote-mode=""] .sidenote-margin {
+	opacity: 0;
+	pointer-events: none;
+	position: absolute;
+}
+
+/* === Defensive scoping: ensure plugin styles win === */
+.markdown-source-view.mod-cm6 .sidenote-margin,
+.markdown-reading-view .sidenote-margin {
+	box-sizing: border-box !important;
+	z-index: 1;
+	contain: layout style;
+}
+
+/* === Internal links in sidenotes === */
+.sidenote-margin a.internal-link {
+	cursor: pointer;
+}
+
+/* === Sidenote margin while an inline editor is open === */
+.sidenote-margin[data-editing="true"] {
+	background: var(--background-modifier-form-field);
+	border-radius: 4px;
+	padding: 4px 6px;
+	outline: 2px solid var(--interactive-accent);
+	cursor: text;
+}
+
+/* .sidenote-margin[data-editing="true"]::before {
+	display: none;
+} */
+
+/* === Markdown formatting inside sidenotes === */
+.sidenote-margin strong,
+.sidenote-margin b {
+	font-weight: bold;
+}
+
+.sidenote-margin em,
+.sidenote-margin i {
+	font-style: italic;
+}
+
+.sidenote-margin code {
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	background-color: var(--code-background);
+	padding: 0.1em 0.3em;
+	border-radius: 3px;
+}
+
+.sidenote-fn-link-hidden {
+	display: none;
+}
+
+/* ==========================================================
+   Number Badge Styles
+   Selected via [data-sn-badge-style] on <html>
+   ========================================================== */
+
+/* --- Plain (superscript) --- */
+[data-sn-badge-style="plain"] .sidenote-number {
+	line-height: 0;
+}
+
+[data-sn-badge-style="plain"] .sidenote-number::after {
+	vertical-align: baseline;
+	position: relative;
+	top: -0.5em;
+	font-size: 0.7em;
+	font-weight: bold;
+	margin-right: 0.2rem;
+	line-height: 0;
+	color: var(--sn-number-color, var(--text-accent));
+}
+
+[data-sn-show-numbers="true"][data-sn-badge-style="plain"]
+	.sidenote-number::after {
+	content: attr(data-sidenote-num);
+}
+
+[data-sn-show-numbers="false"][data-sn-badge-style="plain"]
+	.sidenote-number::after {
+	content: none;
+}
+
+[data-sn-show-numbers="true"][data-sn-badge-style="plain"]
+	.sidenote-margin[data-sidenote-num]::before {
+	content: attr(data-sidenote-num) ". ";
+	font-weight: bold;
+	color: var(--sn-number-color, inherit);
+}
+
+[data-sn-show-numbers="false"][data-sn-badge-style="plain"]
+	.sidenote-margin[data-sidenote-num]::before {
+	content: none;
+}
+
+/* --- Neumorphic (subtle badge) --- */
+:root {
+	--sn-badge-bg: rgba(128, 128, 128, 0.1);
+	--sn-badge-text: var(--text-muted);
+	--sn-badge-border: rgba(128, 128, 128, 0.15);
+	--sn-active-bg: rgba(214, 214, 214, 0.2);
+	--sn-active-text: var(--text-accent, var(--text-normal));
+	--sn-badge-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	--sn-badge-hover-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+[data-sn-badge-style="neumorphic"]
+	.sidenote-margin[data-sidenote-num]::before {
+	content: attr(data-sidenote-num);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.7em;
+	height: 1.7em;
+	margin-right: 8px;
+	padding: 0 4px;
+	background-color: var(--sn-badge-bg);
+	border: 1px solid var(--sn-badge-border);
+	border-radius: 4px;
+	color: var(--sn-number-color, var(--text-accent));
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	font-weight: 600;
+	vertical-align: middle;
+	line-height: 1;
+	box-shadow: var(--sn-badge-shadow);
+}
+
+[data-sn-badge-style="neumorphic"]
+	.sidenote-margin:hover[data-sidenote-num]::before,
+[data-sn-badge-style="neumorphic"]
+	.sidenote-margin[data-editing="true"][data-sidenote-num]::before {
+	background-color: var(--sn-active-bg);
+	color: var(--text-accent);
+	box-shadow: var(--sn-badge-hover-shadow);
+}
+
+[data-sn-badge-style="neumorphic"] .sidenote-number::after {
+	content: attr(data-sidenote-num);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.3em;
+	height: 1.4em;
+	background-color: var(--sn-badge-bg);
+	border: 1px solid var(--sn-badge-border);
+	border-radius: 3px;
+	color: var(--sn-number-color, var(--text-accent));
+	font-size: 0.7em;
+	font-weight: bold;
+	margin-left: 2px;
+	margin-right: 0.2rem;
+	vertical-align: super;
+	line-height: 0;
+	box-shadow: var(--sn-badge-shadow);
+}
+
+/* Highlight sidenote when hovering over number in the note text.
+   Second selector is the specificity-matched footnote variant — see the note
+   on .sidenote-margin:hover above. */
+.sidenote-number:hover .sidenote-margin:not([data-editing="true"]),
+.cm-line
+	.sidenote-number[data-footnote-id]:hover
+	.sidenote-margin:not([data-editing="true"]) {
+	color: var(--sn-hover-color, var(--text-muted));
+}
+
+/* Brighten the inline number itself on hover */
+.sidenote-number:hover::after {
+	color: var(--sn-number-color, var(--text-accent));
+}
+
+[data-sn-badge-style="neumorphic"] .sidenote-number:hover::after {
+	background-color: var(--sn-active-bg);
+	box-shadow: var(--sn-badge-hover-shadow);
+}
+
+/* --- Pill (colored capsule) --- */
+:root {
+	--sn-pill-bg: rgba(128, 128, 128, 0.1);
+	--sn-pill-text: var(--text-normal);
+	--sn-pill-border: rgba(128, 128, 128, 0.15);
+	--sn-pill-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	--sn-pill-hover-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+[data-sn-badge-style="pill"] .sidenote-margin[data-sidenote-num]::before {
+	content: attr(data-sidenote-num);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.5em;
+	height: 1.5em;
+	margin-right: 10px;
+	padding: 0 6px;
+	background: var(--sn-number-color, var(--sn-pill-bg));
+	border: 1px solid var(--sn-pill-border);
+	border-radius: 999px;
+	color: var(--sn-pill-text);
+	font-family: var(--font-monospace);
+	font-size: 0.8em;
+	font-weight: 700;
+	vertical-align: middle;
+	line-height: 1;
+	box-shadow: var(--sn-pill-shadow);
+	transition:
+		box-shadow 0.15s ease,
+		transform 0.15s ease;
+}
+
+[data-sn-badge-style="pill"]
+	.sidenote-margin:hover[data-sidenote-num]::before {
+	box-shadow: var(--sn-pill-hover-shadow);
+	transform: scale(1.1);
+}
+
+[data-sn-badge-style="pill"]
+	.sidenote-margin[data-editing="true"][data-sidenote-num]::before {
+	box-shadow: var(--sn-pill-hover-shadow);
+	transform: scale(1.1);
+}
+
+[data-sn-badge-style="pill"] .sidenote-number::after {
+	content: attr(data-sidenote-num);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.2em;
+	height: 1.2em;
+	background: var(--sn-number-color, var(--sn-pill-bg));
+	border: 1px solid var(--sn-pill-border);
+	border-radius: 999px;
+	color: var(--sn-pill-text);
+	font-size: 0.66em;
+	font-weight: 700;
+	margin-left: 2px;
+	margin-right: 0.2rem;
+	vertical-align: super;
+	line-height: 0;
+	box-shadow: var(--sn-pill-shadow);
+}
+
+[data-sn-badge-style="pill"] .sidenote-number:hover::after {
+	box-shadow: var(--sn-pill-hover-shadow);
+}
+
+/* ==========================================================
+   Footnote-edit mode: hide definitions & reference numbers
+   Driven by [data-sn-format], [data-sn-hide-footnotes],
+   [data-sn-hide-footnote-numbers] on <html>
+   ========================================================== */
+
+/* Hide footnote definitions in Live Preview */
+[data-sn-format="footnote-edit"][data-sn-hide-footnotes="true"]
+	.markdown-source-view.mod-cm6.is-live-preview[data-has-sidenotes="true"][data-sidenote-mode="normal"]
+	.cm-line.HyperMD-footnote,
+[data-sn-format="footnote-edit"][data-sn-hide-footnotes="true"]
+	.markdown-source-view.mod-cm6.is-live-preview[data-has-sidenotes="true"][data-sidenote-mode="compact"]
+	.cm-line.HyperMD-footnote,
+[data-sn-format="footnote-edit"][data-sn-hide-footnotes="true"]
+	.markdown-source-view.mod-cm6.is-live-preview[data-has-sidenotes="true"][data-sidenote-mode="full"]
+	.cm-line.HyperMD-footnote {
+	display: none;
+}
+
+/* Hide footnote link inside sidenote wrapper in reading mode.
+
+   Collapsed to zero width rather than display:none, matching how the HTML
+   format hides its inline span above. display:none leaves the <sup> with no
+   in-flow content, so the wrapper produces no client rects and
+   getBoundingClientRect() returns all zeros — which applyLineOffset then reads
+   as a position, putting the margin far off. Keeping a zero-width box means
+   the wrapper still reports the line it sits on. */
+[data-sn-hide-footnote-numbers="true"]
+	.sidenote-number[data-footnote-id]
+	a.footnote-link {
+	display: inline-block;
+	width: 0;
+	max-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+/* Hide original [^1] reference numbers in Live Preview */
+[data-sn-format="footnote-edit"][data-sn-hide-footnote-numbers="true"]
+	.markdown-source-view.mod-cm6.is-live-preview
+	.cm-line:has(.sidenote-number[data-footnote-id])
+	.cm-footref {
+	display: none;
+}
+
+/* === CM6 footnote sidenote widget === */
+.cm-line .sidenote-number[data-footnote-id] {
+	position: static;
+	display: inline;
+}
+
+.cm-line:has(.sidenote-number[data-footnote-id]) {
+	position: relative;
+}
+
+.cm-line .sidenote-number[data-footnote-id] .sidenote-margin {
+	position: absolute;
+	top: 0;
+	width: var(--sidenote-width);
+	color: var(--sn-text-color, var(--text-normal));
+	font-size: var(--sn-font-size, calc(var(--font-text-size, 16px) * 0.8));
+	line-height: var(--sn-line-height, 1.35);
+	overflow-wrap: break-word;
+	transform: translateY(
+		calc(var(--sidenote-line-offset, 0px) + var(--sidenote-shift, 0px))
+	);
+	will-change: transform;
+	z-index: 10;
+	pointer-events: auto;
+	transition: var(--sn-transition, none);
+}
+
+/* ==========================================================
+   Sidenote inline CM6 editor (footnote-edit mode)
+   ========================================================== */
+.sidenote-margin .sidenote-cm-editor.cm-editor {
+	background: transparent !important;
+	color: inherit !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	border: none !important;
+	height: auto !important;
+}
+
+.sidenote-margin .sidenote-cm-editor .cm-scroller {
+	padding: 0 !important;
+	margin: 0 !important;
+	overflow-x: hidden !important;
+	overflow: visible !important;
+	height: auto !important;
+}
+
+.sidenote-margin .sidenote-cm-editor .cm-content {
+	padding: 2px 0 !important;
+	margin: 0 !important;
+}
+
+.sidenote-margin[data-editing="true"] .sidenote-cm-editor .cm-content {
+	color: var(--sn-text-color, var(--text-normal)) !important;
+}
+
+.sidenote-margin .sidenote-cm-editor .cm-line {
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+.sidenote-margin .sidenote-cm-editor .cm-gutters {
+	display: none !important;
+}
+
+.sidenote-margin .sidenote-cm-editor .cm-cursor {
+	border-left-color: var(--text-normal) !important;
+}
+
+.sidenote-margin .sidenote-cm-editor .cm-focused {
+	outline: none !important;
+}
+
+/* Also reset the scroller/editor containers from the old styles */
+.sidenote-editor {
+	overflow: visible;
+}
+
+.sidenote-editor .cm-editor {
+	height: auto;
+}
+
+.sidenote-editor .cm-scroller {
+	overflow: visible !important;
+	height: auto !important;
+}
+
+/* Margin notes: hide the number badge */
+.sidenote-number.margin-note::before {
+	display: none;
+}
+
+.sidenote-number.margin-note::after {
+	display: none;
+}
+
+/* Optionally: remove any badge padding/spacing for margin notes */
+small.sidenote-margin.margin-note {
+	/* No top offset for the badge */
+}
+
+.sidenote-margin.margin-note::before {
+	display: none;
+	content: none;
+}
+
+/* Hide margin note entries from the footnotes section at the bottom */
+section.footnotes li:has(> p > a[data-footref^="mn-"]) {
+	display: none;
+}
+
+.margin-note-marker {
+	position: relative;
+	display: inline;
+	font-size: var(--sn-mn-marker-scale, 1em);
+	color: var(--text-muted);
+	cursor: pointer;
+	vertical-align: baseline;
+	height: 0;
+	line-height: 0.5;
+}
+
+.sidenote-number.margin-note {
+	line-height: inherit;
+	display: inline;
+}
+
+.margin-note-marker:hover {
+	color: var(--text-normal);
+}
+
+.margin-note-marker-img {
+	width: var(--sn-mn-marker-scale, 1em);
+	height: var(--sn-mn-marker-scale, 1em);
+	vertical-align: text-top;
+	display: inline-block;
+	cursor: pointer;
+	pointer-events: none;
+}
+
+/* Hide badge styles for margin notes */
+[data-sn-badge-style="neumorphic"] .sidenote-number.margin-note::after {
+	display: none;
+}
+
+[data-sn-badge-style="neumorphic"]
+	.sidenote-margin.margin-note[data-sidenote-num]::before {
+	display: none;
+}
+
+[data-sn-badge-style="pill"]
+	.sidenote-margin.margin-note[data-sidenote-num]::before {
+	display: none;
+}
+
+[data-sn-badge-style="plain"] .sidenote-number.margin-note::after {
+	display: none;
+}
+
+/* ---- Margin note popup mode ---- */
+.margin-note-icon {
+	display: block;
+	cursor: pointer;
+	font-size: var(--sn-mn-popup-scale, 1.5em);
+	font-weight: bold;
+	color: var(--text-accent);
+	line-height: 0.5;
+	transition: color 0.15s ease;
+	user-select: none;
+	text-align: center;
+}
+
+span.sidenote-number.margin-note {
+	line-height: 0;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.margin-note-icon:hover {
+	color: var(--text-normal);
+}
+
+.sidenote-margin.margin-note.popup-mode-margin {
+	overflow: visible !important;
+}
+
+.margin-note-popup {
+	position: absolute;
+	top: 1.8em;
+	left: 0;
+	z-index: var(--layer-popover);
+	width: calc(
+		var(--sn-base-width) + var(--sn-max-extra) * var(--sidenote-scale, 0.5)
+	);
+	max-width: calc(var(--sn-base-width) + var(--sn-max-extra));
+	min-width: var(--sn-base-width);
+	padding: 0.75rem 1rem;
+	background: inherit;
+	backdrop-filter: blur(16px);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+	font-size: var(--sn-font-size, calc(var(--font-text-size, 16px) * 0.8));
+	line-height: var(--sn-line-height, 1.35);
+	color: var(--text-normal);
+	opacity: 0;
+	transform: translateY(-4px);
+	transition:
+		opacity 0.15s ease,
+		transform 0.15s ease;
+	pointer-events: none;
+}
+
+.margin-note-popup.is-visible {
+	transform: translateY(0);
+	pointer-events: auto;
+	opacity: 1;
+}
+
+.margin-note-popup .margin-note-popup-close {
+	position: absolute;
+	top: 4px;
+	right: 6px;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 0.85em;
+	line-height: 1;
+	padding: 2px;
+}
+
+.margin-note-popup .margin-note-popup-close:hover {
+	color: var(--text-normal);
+}
+
+/* Hint that clicking the popup body starts an edit */
+.margin-note-popup-content--readable {
+	cursor: text;
+}
+
+.margin-note-icon-img {
+	width: var(--sn-mn-popup-scale, 1.5em);
+	height: var(--sn-mn-popup-scale, 1.5em);
+	vertical-align: middle;
+	display: inline-block;
+	cursor: pointer;
+	pointer-events: none;
+}

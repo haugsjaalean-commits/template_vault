@@ -1,0 +1,552 @@
+/*
+ * Dynamic Viewer
+ *
+ * Two hosts, one look: the side pane fills its leaf, the embedded band sits
+ * above a note's content at a height he can drag. Everything inside a
+ * `.dynamic-viewer-embed` is Obsidian's own base markup and is left alone.
+ */
+
+.dynamic-viewer {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 100%;
+}
+
+/* ----- tabs ------------------------------------------------------------- */
+
+.dynamic-viewer-tabs {
+	display: flex;
+	gap: 2px;
+	flex: 0 0 auto;
+	overflow-x: auto;
+	scrollbar-width: none;
+	padding: 4px 6px 0 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.dynamic-viewer-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.dynamic-viewer-tabs.is-empty {
+	display: none;
+}
+
+.dynamic-viewer-tab {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	flex: 0 0 auto;
+	max-width: 220px;
+	padding: 4px 10px;
+	border-radius: var(--radius-s) var(--radius-s) 0 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+}
+
+.dynamic-viewer-tab:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.dynamic-viewer-tab.is-active {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+	font-weight: var(--font-medium);
+}
+
+.dynamic-viewer-tab.is-missing {
+	color: var(--text-error);
+}
+
+.dynamic-viewer-tab-icon {
+	display: flex;
+	align-items: center;
+}
+
+.dynamic-viewer-tab-icon .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+.dynamic-viewer-tab-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ----- body ------------------------------------------------------------- */
+
+.dynamic-viewer-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+/*
+ * Stacked, the body is a scrolling column of fixed-height bases rather than one
+ * base filling it. `flex: 0 0 auto` on the items is what stops flexbox squashing
+ * them all into the leaf's height, which is the whole difference.
+ */
+.dynamic-viewer-body.is-stacked {
+	overflow-y: auto;
+}
+
+.dynamic-viewer-stack-item {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.dynamic-viewer-stack-item:last-child {
+	border-bottom: none;
+}
+
+.dynamic-viewer-stack-head {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 10px 2px 10px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+}
+
+.dynamic-viewer-stack-head.is-missing {
+	color: var(--text-error);
+}
+
+.dynamic-viewer-stack-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * Each one is a definite height with a grip, because a base embed has none of
+ * its own. Vertical only: the width is the column's.
+ */
+.dynamic-viewer-stack-item > .dynamic-viewer-embed {
+	flex: 0 0 auto;
+	resize: vertical;
+	overflow: hidden;
+	min-height: 140px;
+}
+
+.dynamic-viewer-embed {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+/*
+ * A base embed is normally a block in a note with a height of its own. Here it
+ * is the whole surface, so it is told to fill instead.
+ */
+.dynamic-viewer-embed > .bases-embed,
+.dynamic-viewer-embed.bases-embed {
+	flex: 1 1 auto;
+	min-height: 0;
+	height: 100%;
+	max-height: none;
+}
+
+.dynamic-viewer-notice {
+	padding: 12px 14px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+}
+
+/*
+ * Nothing to show. One line, and the one thing to do about it - centred rather
+ * than pinned to the top-left, because an empty pane with a button in the corner
+ * reads as broken rather than as waiting.
+ */
+.dynamic-viewer-empty {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	padding: 24px 16px;
+	text-align: center;
+}
+
+.dynamic-viewer-empty .dynamic-viewer-notice {
+	padding: 0;
+}
+
+/* ----- the side pane ---------------------------------------------------- */
+
+.dynamic-viewer-pane {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+}
+
+.dynamic-viewer-host {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.dynamic-viewer-picker {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/*
+ * A dynamic view is a list of base views, so this row is the list of lists. It
+ * is drawn even for one, because it is the only place a new one can be made.
+ */
+.dynamic-viewer-pill {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 9px;
+	border-radius: var(--radius-l);
+	background-color: var(--background-modifier-hover);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	max-width: 100%;
+}
+
+.dynamic-viewer-pill:hover {
+	color: var(--text-normal);
+}
+
+.dynamic-viewer-pill.is-active {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.dynamic-viewer-pill.is-active:hover {
+	color: var(--text-on-accent);
+}
+
+.dynamic-viewer-pill-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dynamic-viewer-pill-mark {
+	display: flex;
+	align-items: center;
+	opacity: 0.75;
+}
+
+.dynamic-viewer-pill-mark .svg-icon {
+	width: 11px;
+	height: 11px;
+}
+
+/* ----- the band inside a note -------------------------------------------- */
+
+/*
+ * It lives under the properties, inside the note's scroll area, so it is styled
+ * as a block in the document rather than as a strip of the pane: bordered and
+ * rounded like an embed, and taking the readable-line width from the sizer it
+ * sits in.
+ *
+ * `user-select` and the cursor are reset because this is inside CodeMirror's
+ * subtree, which sets both for the text it owns.
+ */
+.dynamic-viewer-band {
+	margin: 0.5em 0 1.2em 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+	overflow: hidden;
+	cursor: default;
+	-webkit-user-select: auto;
+	user-select: auto;
+}
+
+.dynamic-viewer-band.is-empty {
+	display: none;
+}
+
+.dynamic-viewer-section + .dynamic-viewer-section {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.dynamic-viewer-section-header {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 10px;
+	cursor: pointer;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.dynamic-viewer-section-header:hover {
+	color: var(--text-muted);
+}
+
+/*
+ * Pushed to the far edge, and faint until the header is hovered: it is the only
+ * control on a surface whose whole point is to be quiet.
+ */
+.dynamic-viewer-section-open {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 100ms ease-out;
+}
+
+.dynamic-viewer-section-header:hover .dynamic-viewer-section-open {
+	opacity: 1;
+}
+
+.dynamic-viewer-section-open:hover {
+	color: var(--text-normal);
+}
+
+.dynamic-viewer-section-open .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+.dynamic-viewer-chevron {
+	display: flex;
+	align-items: center;
+}
+
+.dynamic-viewer-chevron .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+/*
+ * `resize: vertical` is the drag; the plugin only remembers where it stopped.
+ * `overflow: hidden` is what makes the handle appear at all on a flex child.
+ */
+.dynamic-viewer-section-body {
+	resize: vertical;
+	overflow: hidden;
+	min-height: 140px;
+	display: flex;
+	flex-direction: column;
+}
+
+/* ----- settings --------------------------------------------------------- */
+
+.dynamic-viewer-card-hint {
+	margin: -6px 0 4px 0;
+}
+
+/*
+ * A box. A dynamic view is assembled out of as many of these as he likes - a
+ * list of links, or a function - so each one has to look like a thing you can
+ * add another of, and be plain editable text inside.
+ */
+.dynamic-viewer-box {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: 6px 8px 8px 8px;
+	margin: 8px 0;
+	background-color: var(--background-secondary);
+}
+
+.dynamic-viewer-box-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 5px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dynamic-viewer-box-icon {
+	display: flex;
+	align-items: center;
+}
+
+.dynamic-viewer-box-icon .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
+.dynamic-viewer-box-title {
+	font-weight: var(--font-medium);
+}
+
+.dynamic-viewer-box-count {
+	color: var(--text-faint);
+}
+
+/* Pushed to the far edge, so it never sits under the pointer on the way in. */
+.dynamic-viewer-box-remove {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	color: var(--text-faint);
+}
+
+.dynamic-viewer-box-remove:hover {
+	color: var(--text-error);
+}
+
+.dynamic-viewer-box-remove .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
+.dynamic-viewer-box-area,
+.dynamic-viewer-box-input {
+	width: 100%;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+}
+
+.dynamic-viewer-box-area {
+	min-height: 4em;
+	resize: vertical;
+}
+
+.dynamic-viewer-box-adders {
+	display: flex;
+	gap: 6px;
+	margin: 4px 0 4px 0;
+}
+
+.dynamic-viewer-box-add {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: var(--font-ui-smaller);
+}
+
+.dynamic-viewer-box-add .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
+.dynamic-viewer-warning {
+	color: var(--text-warning);
+	font-size: var(--font-ui-smaller);
+}
+
+/* ----- the modals ------------------------------------------------------- */
+
+.dynamic-viewer-prompt-input {
+	width: 100%;
+}
+
+/* ----- a dynamic view's own tab ----------------------------------------- */
+
+/*
+ * A `.dview` opened as a file: its definition above, the dynamic view itself
+ * below. The definition folds away because a dashboard opened for reading wants
+ * the height - but its header stays, since this is the only place to edit one.
+ */
+.dynamic-viewer-file {
+	overflow-y: auto;
+}
+
+.dynamic-viewer-definition {
+	flex: 0 0 auto;
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding: 0 16px 4px 16px;
+}
+
+.dynamic-viewer-definition-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 10px 0;
+	cursor: var(--cursor);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.dynamic-viewer-definition-head:hover {
+	color: var(--text-normal);
+}
+
+.dynamic-viewer-definition-chevron {
+	display: flex;
+	align-items: center;
+}
+
+.dynamic-viewer-definition-chevron .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+.dynamic-viewer-definition-title {
+	font-weight: var(--font-medium);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.dynamic-viewer-definition-body.is-hidden {
+	display: none;
+}
+
+/*
+ * Obsidian 1.13 draws a standalone `.setting-item` as a rounded card with 20px of
+ * padding. Overriding that padding to `8px 0` put the text hard against the
+ * corner radius, which is what looked cut off - so nothing here touches padding,
+ * background or radius on a setting item. Everything else in this section is
+ * lined up *to* that card instead.
+ */
+.dynamic-viewer-definition-body .setting-item {
+	margin-bottom: 6px;
+}
+
+/*
+ * A box is one of those cards too, now that it stands among them: same ground,
+ * same radius, same inset. It kept its own smaller frame while it lived in the
+ * settings tab, where there was a bordered card around the whole group.
+ */
+.dynamic-viewer-definition-body .dynamic-viewer-box {
+	background-color: var(--background-primary-alt);
+	border: none;
+	border-radius: var(--radius-l);
+	padding: 14px 16px;
+	margin: 0 0 6px;
+}
+
+/*
+ * Loose text and the adders are inset to the same 16px, so every line of writing
+ * in this section starts on one edge whether or not it sits on a card.
+ */
+.dynamic-viewer-definition-body .dynamic-viewer-card-hint {
+	padding: 0 16px;
+	margin: 8px 0 10px 0;
+}
+
+.dynamic-viewer-definition-body .dynamic-viewer-warning {
+	padding: 0 16px;
+}
+
+.dynamic-viewer-definition-body .dynamic-viewer-box-adders {
+	padding: 2px 16px 12px 16px;
+}
+
+.dynamic-viewer-file .dynamic-viewer-host {
+	min-height: 240px;
+}

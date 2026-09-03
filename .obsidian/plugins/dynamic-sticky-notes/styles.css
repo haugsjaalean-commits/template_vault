@@ -1,0 +1,451 @@
+/*
+ * Dynamic Sticky Notes — written entirely by Claude for Leander.
+ *
+ * Two rules run through this file.
+ *
+ * 1. A card paints, it does not lay out. Its colour arrives as two custom
+ *    properties, `--dsn-light` and `--dsn-dark`, and the theme picks one; nothing
+ *    here changes a margin or a padding Obsidian owns inside the embedded
+ *    editor. That is the Stenopaper lesson — when the app owns a property, pick
+ *    one it is not using.
+ *
+ * 2. A card is the same object in the notes view and in the trash view, because
+ *    his spec says the trash shows them "in the same manner". The check circle
+ *    is drawn on every card and revealed by `.mod-trash` on the body, rather
+ *    than a second kind of card existing.
+ */
+
+.dsn-root {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0;
+	overflow: hidden;
+}
+
+/* --------------------------------------------------------------- the header */
+
+.dsn-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2) var(--size-4-3);
+	border-bottom: 1px solid var(--background-modifier-border);
+	flex: 0 0 auto;
+}
+
+.dsn-tabs {
+	display: flex;
+	gap: 2px;
+	background: var(--background-modifier-hover);
+	border-radius: var(--radius-m);
+	padding: 2px;
+}
+
+.dsn-tab {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px var(--size-4-2);
+	border-radius: calc(var(--radius-m) - 2px);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.dsn-tab:hover {
+	color: var(--text-normal);
+}
+
+.dsn-tab.is-active {
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-shadow: var(--shadow-s);
+}
+
+.dsn-count {
+	font-size: 10px;
+	line-height: 1;
+	padding: 2px 4px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.dsn-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	margin-left: auto;
+}
+
+.dsn-text-action {
+	font-size: var(--font-ui-smaller);
+	padding: 2px var(--size-4-2);
+	height: auto;
+}
+
+/* ---------------------------------------------------------------- the grid */
+
+.dsn-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+}
+
+.dsn-grid {
+	display: grid;
+	grid-template-columns: repeat(var(--dsn-cols, 1), minmax(0, 1fr));
+	gap: var(--size-4-2);
+	padding: var(--size-4-2);
+	align-items: start;
+}
+
+.dsn-empty {
+	grid-column: 1 / -1;
+	padding: var(--size-4-4) var(--size-4-2);
+	text-align: center;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* ---------------------------------------------------------------- the card */
+
+.dsn-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: var(--dsn-card-height, 190px);
+	border-radius: var(--radius-m);
+	background: var(--background-primary-alt);
+	box-shadow: var(--shadow-s);
+	overflow: hidden;
+	/*
+	 * The paper edge. A sticky note is a physical object in his Stenopaper
+	 * vocabulary, so the card gets a hairline and a shadow rather than a border
+	 * that reads as a UI panel.
+	 */
+	border: 1px solid var(--background-modifier-border);
+}
+
+.dsn-card.has-colour {
+	background: var(--dsn-light);
+	border-color: color-mix(in srgb, var(--dsn-light) 80%, black 20%);
+}
+
+.theme-dark .dsn-card.has-colour {
+	background: var(--dsn-dark);
+	border-color: color-mix(in srgb, var(--dsn-dark) 80%, white 15%);
+}
+
+/*
+ * The highlight of the active file's own sticky notes. An outline rather than a
+ * border: a border would move the text by a pixel each time you walk into a note
+ * and out again, and an outline belongs to the whole silhouette.
+ */
+.dsn-card.is-stuck {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+.dsn-card.is-pinned .dsn-pin {
+	opacity: 1;
+	color: var(--text-accent);
+}
+
+.dsn-card.is-selected {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+.dsn-card-head {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	padding: 2px 2px 2px var(--size-4-2);
+	flex: 0 0 auto;
+	min-height: 24px;
+}
+
+.dsn-card-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	cursor: pointer;
+}
+
+.dsn-card-title:hover {
+	color: var(--text-normal);
+	text-decoration: underline;
+}
+
+.dsn-card-title.is-loose {
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+.dsn-card-actions {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+}
+
+.dsn-card-button {
+	--icon-size: var(--icon-xs);
+	padding: 3px;
+	opacity: 0;
+	transition: opacity 100ms ease-in-out;
+}
+
+.dsn-card:hover .dsn-card-button,
+.dsn-card:focus-within .dsn-card-button {
+	opacity: 0.65;
+}
+
+.dsn-card .dsn-card-button:hover {
+	opacity: 1;
+}
+
+/* Pinned is a state you must be able to see without hovering. */
+.dsn-card.is-pinned .dsn-pin {
+	opacity: 1;
+}
+
+/* ---------------------------------------------------------------- the body */
+
+.dsn-card-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	font-size: var(--font-ui-small);
+}
+
+/*
+ * The embedded editor is a whole markdown view. Three of its parts belong to a
+ * note being read on its own and not to a card two inches wide: its own title,
+ * its properties block, and the embed's title bar. The text stays.
+ */
+.dsn-card-body .inline-title,
+.dsn-card-body .metadata-container,
+.dsn-card-body .metadata-properties-heading,
+.dsn-card-body .markdown-embed-title,
+.dsn-card-body .frontmatter,
+.dsn-card-body .mod-header,
+.dsn-card-body .mod-footer {
+	display: none !important;
+}
+
+.dsn-card-body .markdown-embed-content,
+.dsn-card-body .markdown-source-view,
+.dsn-card-body .markdown-preview-view,
+.dsn-card-body .cm-editor {
+	height: 100%;
+	max-height: none;
+	background: transparent;
+}
+
+.dsn-card-body .markdown-source-view.mod-cm6 .cm-scroller {
+	padding: 0;
+}
+
+.dsn-card-body .cm-sizer,
+.dsn-card-body .markdown-preview-sizer {
+	padding: 0 var(--size-4-2) var(--size-4-2) var(--size-4-2) !important;
+	max-width: none !important;
+	margin: 0 !important;
+	min-height: 0 !important;
+}
+
+.dsn-card-body .cm-contentContainer,
+.dsn-card-body .cm-content {
+	padding-bottom: 0;
+}
+
+.dsn-card-body .cm-line {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+/* A card is not a document: no reading width, no giant first heading. */
+.dsn-card-body .cm-editor,
+.dsn-card-body .markdown-preview-view {
+	--file-line-width: none;
+	--font-text-size: var(--font-ui-small);
+}
+
+.dsn-card-body .HyperMD-header,
+.dsn-card-body h1, .dsn-card-body h2, .dsn-card-body h3 {
+	font-size: var(--font-ui-medium);
+	margin-block: var(--size-2-2);
+}
+
+/* The fallback, and the blank draft card. */
+.dsn-fallback {
+	width: 100%;
+	height: 100%;
+	resize: none;
+	border: none;
+	outline: none;
+	box-shadow: none;
+	background: transparent;
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+	padding: 0 var(--size-4-2) var(--size-4-2) var(--size-4-2);
+}
+
+.dsn-fallback:focus {
+	box-shadow: none;
+	border: none;
+}
+
+.dsn-card.is-draft {
+	border-style: dashed;
+}
+
+.dsn-card.is-draft .dsn-card-title::before {
+	content: '+ ';
+}
+
+/* --------------------------------------------------------- the resize grip */
+
+/*
+ * Bottom right, and `ns-resize` rather than `nwse-resize`: a card's width is the
+ * grid's, and a corner offering a width you cannot change is a corner that lies.
+ *
+ * It is faint rather than hidden. A resize affordance you only find by hovering
+ * is one you never find.
+ */
+.dsn-card-grip {
+	position: absolute;
+	right: 1px;
+	bottom: 1px;
+	width: 14px;
+	height: 14px;
+	z-index: 3;
+	cursor: ns-resize;
+	color: var(--text-faint);
+	opacity: 0.5;
+	touch-action: none;
+	clip-path: polygon(100% 0, 100% 100%, 0 100%);
+	background-image: repeating-linear-gradient(135deg,
+		currentColor 0 1px, transparent 1px 4px);
+}
+
+.dsn-card:hover .dsn-card-grip,
+.dsn-card.is-resizing .dsn-card-grip {
+	opacity: 1;
+	color: var(--text-muted);
+}
+
+/*
+ * While a drag is in flight the pointer is outside the card almost at once, so
+ * the cursor and the selection lock have to be on the document, not the grip.
+ */
+body.dsn-resizing,
+body.dsn-resizing * {
+	cursor: ns-resize !important;
+	user-select: none !important;
+}
+
+.dsn-card.is-resizing {
+	box-shadow: var(--shadow-l);
+}
+
+/* --------------------------------------------------------- the trash view */
+
+/*
+ * The check circle. Drawn on every card, shown only in the trash — one card
+ * class, two views, so nothing has to be fixed twice.
+ */
+.dsn-card-check {
+	display: none;
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	border: 1.5px solid var(--text-faint);
+	background: var(--background-primary);
+	color: transparent;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	z-index: 2;
+}
+
+.dsn-body.mod-trash .dsn-card-check {
+	display: flex;
+}
+
+.dsn-body.mod-trash .dsn-card-actions {
+	margin-right: 20px;
+}
+
+.dsn-card-check .svg-icon {
+	width: 12px;
+	height: 12px;
+}
+
+.dsn-card.is-selected .dsn-card-check {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/* Cleared notes are a memory of the view, not of the vault: they read faint. */
+.dsn-body.mod-trash .dsn-card:not(.is-selected) {
+	opacity: 0.75;
+}
+
+/* ---------------------------------------------------------- the base view */
+
+.dsn-base {
+	height: 100%;
+	min-height: 300px;
+	display: flex;
+	flex-direction: column;
+}
+
+.dsn-base > * {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+/* ------------------------------------------------------------- the menus */
+
+.dsn-swatch {
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	background: var(--dsn-light);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.theme-dark .dsn-swatch {
+	background: var(--dsn-dark);
+}
+
+/* ------------------------------------------------------------- settings */
+
+.dsn-palette-settings .dsn-palette-row {
+	padding: var(--size-2-2) 0;
+	border: none;
+}
+
+.dsn-palette-settings .dsn-palette-row .setting-item-info {
+	display: none;
+}
+
+.dsn-palette-settings .dsn-palette-row .setting-item-control {
+	justify-content: flex-start;
+	gap: var(--size-4-2);
+}

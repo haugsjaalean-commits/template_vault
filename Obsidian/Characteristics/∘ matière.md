@@ -1,6 +1,6 @@
 ---
 characteristic meaning:
-property type:
+property type: list
 is base characteristic: false
 possible values:
   - "[[Matière]]"

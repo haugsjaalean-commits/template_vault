@@ -3,6 +3,7 @@ is a:
   - "[[Art]]"
 characteristics:
 type of:
+views:
 created: 2026-08-21 15:01
 ext links:
 related:
@@ -12,6 +13,7 @@ evolution:
 garden:
 life stage: current
 creation domain:
+  - writing
 creator:
   - "[[Joseph Weizenbaum]]"
 ---

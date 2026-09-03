@@ -3,6 +3,7 @@ is a:
   - "[[Project]]"
 characteristics:
 type of:
+views:
 created: 2026-08-21 18:11
 ext links:
 related:
@@ -11,18 +12,17 @@ rating:
 evolution:
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
   - bug
-active priority: 1
+active priority: 0.5
 difficulty: 5
 payoff: 4
 activity: sleeping
 done: false
-duedate:
 urgency:
 what to do:
 checkpoint: seen

@@ -3,6 +3,7 @@ is a:
   - "[[Improvement]]"
 characteristics:
 type of:
+views:
 created: 2026-08-27 20:23
 ext links:
 related:
@@ -11,7 +12,7 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
   - "[[selecting classes in the view]]"

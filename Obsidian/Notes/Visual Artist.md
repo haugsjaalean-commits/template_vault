@@ -8,6 +8,7 @@ characteristics:
   - "[[∘ visual domain]]"
 type of:
   - "[[Creator]]"
+views:
 created: 2026-08-19 15:31
 ext links:
 related:

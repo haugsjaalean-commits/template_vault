@@ -1,0 +1,38 @@
+filters:
+  and:
+    - file.hasLink(this.file)
+    - file.inFolder("Obsidian/Notes")
+formulas:
+  word count: file.WordCount()
+  link distance: file.linkDistance()
+  value: (payoff/difficulty).round(2)
+  is a contains self: file.isA() == self
+  is_is_a: this.file == note["is a"]
+  is_type_of: this.file == note["TYPE OF"]
+  connection type: if(formula["is_is_a"], "is a", if(formula["is_type_of"], "type of", "misc"))
+  Untitled: ""
+  file: file
+  is is a: this.file == note["is a"]
+  is type of: this.file == note["TYPE OF"]
+properties:
+  formula.word count:
+    displayName: word count
+  formula.link distance:
+    displayName: link distance
+views:
+  - type: table
+    name: Table
+    groupBy:
+      property: formula.Connection type
+      direction: DESC
+    order:
+      - formula.word count
+      - file.name
+      - is a
+    sort:
+      - property: is a
+        direction: ASC
+      - property: formula.word count
+        direction: DESC
+    columnSize:
+      file.name: 363

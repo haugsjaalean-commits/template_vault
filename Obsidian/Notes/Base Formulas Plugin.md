@@ -3,6 +3,7 @@ is a:
   - "[[Obsidian Plugin]]"
 characteristics:
 type of:
+views:
 created: 2026-08-17 10:56
 ext links:
 related:
@@ -12,7 +13,7 @@ rating:
 evolution:
 garden:
 life stage: legacy
-abandoned: false
+dead: true
 category:
 project:
 subject:
@@ -21,10 +22,9 @@ difficulty:
 payoff:
 activity: sleeping
 done: true
-duedate:
 urgency:
 what to do:
-checkpoint:
+checkpoint: reached
 ---
 
 ## Improvements 

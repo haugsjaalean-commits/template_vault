@@ -3,6 +3,7 @@ is a:
   - "[[Improvement]]"
 characteristics:
 type of:
+views:
 created: 2026-08-21 20:21
 ext links:
 related:
@@ -11,7 +12,7 @@ rating:
 evolution:
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
   - "[[Graphs for Bases]]"

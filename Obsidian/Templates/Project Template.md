@@ -3,6 +3,7 @@ is a:
   - "[[Project]]"
 characteristics:
 type of:
+views:
 created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
 ext links:
 related:
@@ -11,7 +12,7 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
 subject:
@@ -20,7 +21,6 @@ difficulty:
 payoff:
 activity:
 done: false
-duedate:
 urgency:
 what to do:
 checkpoint:

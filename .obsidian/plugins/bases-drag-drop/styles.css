@@ -320,3 +320,15 @@ body.bases-dnd-no-new .bases-toolbar-new-item-menu {
 	color: var(--text-muted);
 	border-color: var(--text-error);
 }
+
+/*
+ * The name of a new note, asked in a modal — used only where Obsidian's own
+ * rename popover cannot be built, which is every base drawn as an embed.
+ */
+.bases-dnd-rename h3 {
+	margin: 0 0 12px 0;
+}
+
+.bases-dnd-rename input[type="text"] {
+	width: 100%;
+}

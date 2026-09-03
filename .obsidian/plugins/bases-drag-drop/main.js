@@ -114,7 +114,7 @@
  * Declared Order calls `hasKey()` on it to rank it.
  */
 const {
-	Plugin, PluginSettingTab, Setting, Modal, Notice, BasesEntryGroup, StringValue,
+	Plugin, PluginSettingTab, Setting, Modal, Menu, Notice, BasesEntryGroup, StringValue,
 	getFrontMatterInfo, parseYaml,
 } = require('obsidian');
 
@@ -191,6 +191,8 @@ const DEFAULT_SETTINGS = {
 	 * dragged there. Off, the note is simply made, template and all.
 	 */
 	newNotePlacement: true,
+	/* Ask which subclass, where the base's class has any. */
+	newNoteSubclass: true,
 };
 
 const MODIFIERS = {
@@ -1412,6 +1414,20 @@ async function frontmatterOf(app, file) {
 	}
 }
 
+/*
+ * The name inside a wikilink, or the text as written.
+ *
+ * `type of` may hold `"[[Effort]]"` or a bare `Effort`; both name the same class,
+ * and an alias after a pipe is a display name rather than a name.
+ */
+function linkName(value) {
+	const text = String(value === null || value === undefined ? '' : value).trim();
+	const m = /^\[\[([^\]]+)\]\]$/.exec(text);
+	const inner = m ? m[1] : text;
+	const bar = inner.indexOf('|');
+	return (bar === -1 ? inner : inner.slice(0, bar)).trim();
+}
+
 /* Nothing there to lose: null, undefined, '' or an empty list. */
 function isBlank(v) {
 	if (v === null || v === undefined || v === '') return true;
@@ -1448,6 +1464,66 @@ async function pourTemplate(app, template, file) {
 	const info = getFrontMatterInfo(raw);
 	const body = raw.slice(info.contentStart);
 	if (body.trim()) await app.vault.process(file, (c) => c + body);
+}
+
+/*
+ * The name of a note that already exists.
+ *
+ * Only ever shown when Obsidian's own rename popover could not be built, which is
+ * every base drawn as an embed. It offers exactly what the popover offers - the
+ * name, selected - and renames through `fileManager`, so links are rewritten.
+ */
+class RenameNoteModal extends Modal {
+	constructor(app, file, onDone) {
+		super(app);
+		this.file = file;
+		this.onDone = onDone;
+		this.done = false;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.addClass('bases-dnd-rename');
+		contentEl.createEl('h3', { text: 'Name the new note' });
+
+		const input = contentEl.createEl('input', { attr: { type: 'text' } });
+		input.value = this.file.basename;
+		input.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter') { event.preventDefault(); this.commit(input.value); }
+			if (event.key === 'Escape') { event.preventDefault(); this.close(); }
+		});
+
+		const row = contentEl.createDiv({ cls: 'modal-button-container' });
+		const ok = row.createEl('button', { cls: 'mod-cta', text: 'Rename' });
+		ok.addEventListener('click', () => this.commit(input.value));
+		const keep = row.createEl('button', { text: 'Keep this name' });
+		keep.addEventListener('click', () => this.close());
+
+		window.setTimeout(() => { input.focus(); input.select(); }, 0);
+	}
+
+	async commit(value) {
+		const clean = String(value || '').trim();
+		this.done = true;
+		if (clean && clean !== this.file.basename) {
+			const folder = this.file.parent && this.file.parent.path !== '/'
+				? this.file.parent.path + '/' : '';
+			try {
+				await this.app.fileManager.renameFile(this.file, folder + clean + '.md');
+			} catch (e) {
+				console.error(TAG, e);
+				new Notice('Could not rename to ' + clean + '.');
+			}
+		}
+		this.close();
+	}
+
+	onClose() {
+		this.contentEl.empty();
+		/* Placement is armed however the name was settled - his "once the user
+		 * clicks out of that window". */
+		if (this.onDone) this.onDone();
+	}
 }
 
 /* ------------------------------------------------------------- the drag layer */
@@ -3088,9 +3164,45 @@ class BasesTableKanbanPlugin extends Plugin {
 		try {
 			const controller = menu.queryController;
 			const view = controller && controller.view;
-			const template = this.templateFor(controller);
+			let template = this.templateFor(controller);
+			let chosen = null;
 
-			await this.createNote(menu, original, name, frontmatter, template);
+			/*
+			 * Which subclass — asked first, because the answer decides which
+			 * template makes the note. A base that names its own template has
+			 * already answered, and one candidate is not a question.
+			 */
+			const query = controller && controller.query;
+			if (this.settings.newNoteSubclass && query && !query.newItemTemplate) {
+				const cls = this.classOfBase(query);
+				const choices = cls ? this.subclassChoices(cls) : [];
+				if (choices.length > 1) {
+					chosen = await this.askForClass(menu, choices);
+					/* Dismissed without choosing: nothing is created. */
+					if (!chosen) return;
+					template = chosen.template;
+				}
+			}
+
+			/*
+			 * Obsidian's own `open` can THROW after the note exists.
+			 *
+			 * Its last step builds the rename popover, and in a base that is
+			 * *embedded* — a Dynamic Viewer band, a `![[X.base]]` in a note — the
+			 * popover factory returns null and Obsidian calls `setIsFocused` on it
+			 * unguarded. The note has already been created, named and given its
+			 * frontmatter by then; what is lost is the prompt and everything after
+			 * it, which is why the button looked like it did nothing at all.
+			 *
+			 * So a throw is only a throw when there is no note. With one, the
+			 * failure is Obsidian's last step and ours still have to run.
+			 */
+			try {
+				await this.createNote(menu, original, name, frontmatter, template, chosen);
+			} catch (e) {
+				if (!menu.newlyCreatedFile) throw e;
+				console.warn(TAG, 'Obsidian could not open its rename popover here', e);
+			}
 
 			const file = menu.newlyCreatedFile;
 			if (!file) return;
@@ -3106,6 +3218,33 @@ class BasesTableKanbanPlugin extends Plugin {
 			const wantsName = this.settings.newNoteName;
 			const popover = menu.popover;
 			if (!wantsName && popover) menu.close();
+
+			/*
+			 * No popover, but he asked to be prompted: an embedded base. Obsidian
+			 * has no second way of offering the name in place — its own fallback,
+			 * on a phone, is to open the note in a tab, which here would navigate
+			 * away from the very base he is placing the note into.
+			 *
+			 * So the name is asked in a modal instead, and only in this case. It is
+			 * not a second copy of Obsidian's creation: nothing is created here, the
+			 * note already exists and this renames it.
+			 */
+			if (wantsName && !popover) {
+				new RenameNoteModal(this.app, file, () => {
+					/*
+					 * The layer is looked up when the name is settled, not now. An
+					 * embedded base's `view` is not on its controller yet at the
+					 * moment the note is created, so asking early answers "there is
+					 * nowhere to place it" for a base that has somewhere.
+					 */
+					if (!this.settings.newNotePlacement) return;
+					const live = menu.queryController;
+					const target = live && live.view ? this.layers.get(live.view) : null;
+					if (!target || !target.canPlace()) return;
+					window.setTimeout(() => this.beginPlacement(target, file), 0);
+				}).open();
+				return;
+			}
 
 			if (!this.settings.newNotePlacement) return;
 			const layer = view ? this.layers.get(view) : null;
@@ -3141,7 +3280,7 @@ class BasesTableKanbanPlugin extends Plugin {
 	 * of this one call. It is a short window, it fires once, and it is put back in
 	 * a `finally`, and only if it is still ours.
 	 */
-	async createNote(menu, original, name, frontmatter, template) {
+	async createNote(menu, original, name, frontmatter, template, chosen) {
 		const app = this.app;
 		const fileManager = app.fileManager;
 		const owned = Object.prototype.hasOwnProperty.call(fileManager, 'createNewFile');
@@ -3191,6 +3330,20 @@ class BasesTableKanbanPlugin extends Plugin {
 						if (isBlank(seeded[key])) continue;
 						const k = resolveKey(fm, key);
 						if (isBlank(fm[k])) fm[k] = seeded[key];
+					}
+
+					/*
+					 * One exception to "a derived value outranks the template": the
+					 * class he PICKED. Obsidian derives `is a` from the base's own
+					 * `isA("X")` filter, which is the parent — writing it over the
+					 * subclass would undo the choice and leave him editing the
+					 * frontmatter afterwards, which is the whole thing he asked to
+					 * be rid of. A subclass satisfies that filter anyway, so the
+					 * base is not being lied to.
+					 */
+					if (chosen) {
+						const isA = this.isAProperty();
+						if (!isBlank(seeded[isA])) fm[resolveKey(fm, isA)] = seeded[isA];
 					}
 				}
 				if (frontmatter) frontmatter(fm);
@@ -3257,6 +3410,144 @@ class BasesTableKanbanPlugin extends Plugin {
 			if (m && !found.includes(m[1])) found.push(m[1]);
 		}
 		return found.length === 1 ? found[0] : null;
+	}
+
+	/*
+	 * The classes a new note in this base could be — its class, and everything
+	 * below it.
+	 *
+	 * His ask (2026-09-03): a `+ New` in Improvement Base makes an Improvement, and
+	 * he then edits the frontmatter to say Project. A Project is a `type of` Effort
+	 * is a `type of` Improvement, so it satisfies the base's own filter and belongs
+	 * there — the class is the one thing about a new note that cannot be settled
+	 * afterwards without work, and it is the one thing the button was deciding for
+	 * him.
+	 *
+	 * This reads `type of` out of the notes, which is his OOF convention and not
+	 * OOF Class Manager's private state — the same licence OOF Declared Order has
+	 * to read `possible values`. The property *name* is taken from that plugin when
+	 * it is loaded, because a name he can change in one place must not be spelled
+	 * differently in another.
+	 */
+	isAProperty() {
+		const oof = this.app.plugins.plugins['oof-objects'];
+		const named = oof && oof.settings && oof.settings.isAProperty;
+		return (typeof named === 'string' && named.trim()) || 'is a';
+	}
+
+	inheritsProperty() {
+		const oof = this.app.plugins.plugins['oof-objects'];
+		const named = oof && oof.settings && oof.settings.inheritsProperty;
+		return (typeof named === 'string' && named.trim()) || 'type of';
+	}
+
+	/*
+	 * `X`, then every class that reaches X by `type of`, breadth first — so the
+	 * order on the menu is the order of the tree, nearest first. A class is listed
+	 * once even where two parents lead to it, at the shallower depth, and only if
+	 * it has a template: without one there is nothing to create it from.
+	 */
+	subclassChoices(cls) {
+		const property = this.inheritsProperty();
+		const key = (name) => String(name || '').trim().toLowerCase();
+
+		/* parent -> children, built once from the whole vault. */
+		const children = new Map();
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			const raw = cache && cache.frontmatter ? cache.frontmatter[property] : null;
+			const list = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+			for (const entry of list) {
+				const parent = key(linkName(entry));
+				if (!parent) continue;
+				if (!children.has(parent)) children.set(parent, []);
+				children.get(parent).push(file.basename);
+			}
+		}
+
+		const out = [];
+		const seen = new Set();
+		let level = [cls];
+		let depth = 0;
+		while (level.length && depth < 12) {
+			const next = [];
+			for (const name of level.sort((a, b) => a.localeCompare(b))) {
+				if (seen.has(key(name))) continue;
+				seen.add(key(name));
+				const template = this.templateNamed(name);
+				if (template) out.push({ name, template, depth, symbol: this.symbolOf(name) });
+				for (const child of (children.get(key(name)) || [])) next.push(child);
+			}
+			level = next;
+			depth++;
+		}
+		return out;
+	}
+
+	/* A class's `symbol:`, but only a Lucide one — a menu item's icon is an id. */
+	symbolOf(name) {
+		const file = this.classNoteNamed(name);
+		const cache = file ? this.app.metadataCache.getFileCache(file) : null;
+		const symbol = cache && cache.frontmatter ? cache.frontmatter.symbol : null;
+		const text = typeof symbol === 'string' ? symbol.trim() : '';
+		return text.startsWith('lucide:') ? text.slice(7) : null;
+	}
+
+	classNoteNamed(name) {
+		const wanted = String(name || '').toLowerCase();
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (file.basename.toLowerCase() === wanted) return file;
+		}
+		return null;
+	}
+
+	/*
+	 * Which subclass, asked before anything is created.
+	 *
+	 * This is the one question that has to come first, and it does not contradict
+	 * his "the button should bring up no menu" — that was about *placement*, which
+	 * had to be asked against a fiction of a note that did not exist yet. A class
+	 * is not a fiction: the classes are notes in the vault, and the answer decides
+	 * which template makes the note. Ask it afterwards and the answer is a rewrite
+	 * rather than a choice, which is the work he is trying to be rid of.
+	 *
+	 * Shown only where there is something to choose. One candidate is not a
+	 * question, so a base whose class has no subclasses behaves exactly as before.
+	 */
+	askForClass(menu, choices) {
+		return new Promise((resolve) => {
+			const list = new Menu();
+			let answered = false;
+			const answer = (choice) => {
+				if (answered) return;
+				answered = true;
+				resolve(choice);
+			};
+
+			for (const choice of choices) {
+				list.addItem((item) => {
+					/* Indented by depth: the menu is the tree, read downwards. */
+					item.setTitle('  '.repeat(choice.depth) + choice.name);
+					if (choice.symbol) item.setIcon(choice.symbol);
+					item.onClick(() => answer(choice));
+				});
+			}
+
+			list.onHide(() => window.setTimeout(() => answer(null), 0));
+
+			/*
+			 * Shown a tick late, on purpose. We are still inside the dispatch of the
+			 * click on `+ New`, and a menu opened during that click is closed again
+			 * by the same click reaching the document - it appears for no frames at
+			 * all and answers `null`, which reads exactly like the button doing
+			 * nothing. Obsidian's own menus dodge this by taking the event
+			 * (`showAtMouseEvent`); there is no event to hand down here.
+			 */
+			const rect = menu.buttonEl.getBoundingClientRect();
+			window.setTimeout(() => {
+				list.showAtPosition({ x: rect.left, y: rect.bottom + 4 });
+			}, 0);
+		});
 	}
 
 	/*
@@ -3413,6 +3704,15 @@ class BasesTableKanbanSettingTab extends PluginSettingTab {
 			.setDesc('For a base where notes are not made by hand. Everything below applies only while it is shown.')
 			.addToggle((t) => t.setValue(this.plugin.settings.hideNewButton)
 				.onChange(async (v) => { this.plugin.settings.hideNewButton = v; await this.plugin.saveSettings(); }));
+
+		new Setting(containerEl)
+			.setName('Ask which subclass')
+			.setDesc('Before the note is made, where the base’s class has classes under it: '
+				+ 'its own class and every `type of` beneath it, so an Improvement Base can make a '
+				+ 'Project without editing the frontmatter afterwards. Shown only where there is '
+				+ 'something to choose, and never when the base names its own template.')
+			.addToggle((t) => t.setValue(this.plugin.settings.newNoteSubclass)
+				.onChange(async (v) => { this.plugin.settings.newNoteSubclass = v; await this.plugin.saveSettings(); }));
 
 		new Setting(containerEl)
 			.setName('Ask for the name')

@@ -3,6 +3,7 @@ is a:
   - "[[Effort]]"
 characteristics:
 type of:
+views:
 created: 2026-08-30 13:16
 ext links:
 related:
@@ -11,7 +12,7 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
   - "[[Class Manager]]"

@@ -3,6 +3,7 @@ is a:
   - "[[Bug Fix]]"
 characteristics:
 type of:
+views:
 created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
 ext links:
 related:
@@ -11,8 +12,9 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
+  - fix problem
 project:
 subject:
 active priority:
@@ -20,7 +22,6 @@ difficulty:
 payoff:
 activity:
 done: false
-duedate:
 urgency:
 what to do:
 checkpoint:

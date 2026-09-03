@@ -1,0 +1,9 @@
+{
+  "id": "dynamic-sticky-notes",
+  "name": "Dynamic Sticky Notes",
+  "version": "1.0.0",
+  "minAppVersion": "1.13.0",
+  "description": "A panel of sticky notes that follows the note you are in — write a thought first and let it find its place afterwards. Sticky notes link to files, are cleared when you move on unless pinned, and the empty unlinked ones collect themselves.",
+  "author": "Claude (written for Leander)",
+  "isDesktopOnly": false
+}

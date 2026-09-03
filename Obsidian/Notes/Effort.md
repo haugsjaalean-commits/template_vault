@@ -7,6 +7,7 @@ characteristics:
   - "[[∘ checkpoint]]"
 type of:
   - "[[Improvement]]"
+views:
 created: 2026-08-30 11:56
 ext links:
 related:

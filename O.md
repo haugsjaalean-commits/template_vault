@@ -4,7 +4,7 @@ tags:
 ---
 ## Branches
 
-[[Structure Base.base#Base Classes]]
+![[Structure Base.base#Base Classes]]
 [[My Obsidian workflow]]
 [[README]]
 [[How to organize with the system]]

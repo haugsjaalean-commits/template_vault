@@ -37,244 +37,802 @@
       "displayName": "",
       "scope": "all",
       "bases": []
+    },
+    {
+      "name": "is a contains self",
+      "expression": "file.isA() == self",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
+    },
+    {
+      "name": "is_is_a",
+      "expression": "this.file == note[\"is a\"]",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
+    },
+    {
+      "name": "is_type_of",
+      "expression": "this.file == note[\"TYPE OF\"]",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
+    },
+    {
+      "name": "connection type",
+      "expression": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
+    },
+    {
+      "name": "Untitled",
+      "expression": "",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
+    },
+    {
+      "name": "file",
+      "expression": "file",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
+    },
+    {
+      "name": "is is a",
+      "expression": "this.file == note[\"is a\"]",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
+    },
+    {
+      "name": "is type of",
+      "expression": "this.file == note[\"TYPE OF\"]",
+      "displayName": "",
+      "scope": "all",
+      "bases": []
     }
   ],
   "views": [],
   "snapshots": {
+    "Obsidian/Bases/Backlink Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
     "Obsidian/Bases/Base Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/ABC Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Acquaintance Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Air Monitor Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/App Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Art Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Bicycle Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Bug Fix Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Calendar Event Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Class Note Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Coding Project Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Company Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Concept Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Cours Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Creator Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Doc Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Ear (from Nothing) Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Earbud Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Effort Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Family Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Headphone Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Improvement Base (L-2in1's conflicted copy 2026-09-01).base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Improvement Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Keyboard Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Listening device Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Matière Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Meaning Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Object Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Obsidian Note Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Obsidian Theme Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Period Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Person Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Place Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Practice Word Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Project Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Quote Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/School Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Session Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Sticky Note Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Style Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Teacher Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Thought Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
+    },
+    "Obsidian/Bases/Class Bases/Time Sensitive Todo Base.base": {
+      "word count": "file.WordCount()",
+      "link distance": "file.linkDistance()",
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Todo Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Visual Artist Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Class Bases/Word Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Everything base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Inline Todo Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Local Graph Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
     "Obsidian/Bases/Structure Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     },
-    "Obsidian/Bases/Templates Base.base": {
+    "Obsidian/Bases/Template Base.base": {
       "word count": "file.WordCount()",
       "link distance": "file.linkDistance()",
-      "value": "(payoff/difficulty).round(2)"
+      "value": "(payoff/difficulty).round(2)",
+      "is a contains self": "file.isA() == self",
+      "is_is_a": "this.file == note[\"is a\"]",
+      "is_type_of": "this.file == note[\"TYPE OF\"]",
+      "connection type": "if(formula[\"is_is_a\"], \"is a\", if(formula[\"is_type_of\"], \"type of\", \"misc\"))",
+      "Untitled": "",
+      "file": "file",
+      "is is a": "this.file == note[\"is a\"]",
+      "is type of": "this.file == note[\"TYPE OF\"]"
     }
   },
   "viewSnapshots": {
+    "Obsidian/Bases/Backlink Base.base": {},
     "Obsidian/Bases/Base Base.base": {},
     "Obsidian/Bases/Class Bases/ABC Base.base": {},
     "Obsidian/Bases/Class Bases/Acquaintance Base.base": {},
     "Obsidian/Bases/Class Bases/Air Monitor Base.base": {},
+    "Obsidian/Bases/Class Bases/App Base.base": {},
     "Obsidian/Bases/Class Bases/Art Base.base": {},
     "Obsidian/Bases/Class Bases/Bicycle Base.base": {},
     "Obsidian/Bases/Class Bases/Bug Fix Base.base": {},
+    "Obsidian/Bases/Class Bases/Calendar Event Base.base": {},
     "Obsidian/Bases/Class Bases/Class Note Base.base": {},
+    "Obsidian/Bases/Class Bases/Coding Project Base.base": {},
     "Obsidian/Bases/Class Bases/Company Base.base": {},
     "Obsidian/Bases/Class Bases/Concept Base.base": {},
     "Obsidian/Bases/Class Bases/Cours Base.base": {},
     "Obsidian/Bases/Class Bases/Creator Base.base": {},
+    "Obsidian/Bases/Class Bases/Doc Base.base": {},
     "Obsidian/Bases/Class Bases/Ear (from Nothing) Base.base": {},
     "Obsidian/Bases/Class Bases/Earbud Base.base": {},
     "Obsidian/Bases/Class Bases/Effort Base.base": {},
+    "Obsidian/Bases/Class Bases/Family Base.base": {},
     "Obsidian/Bases/Class Bases/Headphone Base.base": {},
+    "Obsidian/Bases/Class Bases/Improvement Base (L-2in1's conflicted copy 2026-09-01).base": {},
     "Obsidian/Bases/Class Bases/Improvement Base.base": {},
     "Obsidian/Bases/Class Bases/Keyboard Base.base": {},
     "Obsidian/Bases/Class Bases/Listening device Base.base": {},
     "Obsidian/Bases/Class Bases/Matière Base.base": {},
+    "Obsidian/Bases/Class Bases/Meaning Base.base": {},
     "Obsidian/Bases/Class Bases/Object Base.base": {},
     "Obsidian/Bases/Class Bases/Obsidian Note Base.base": {},
     "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base": {},
     "Obsidian/Bases/Class Bases/Obsidian Theme Base.base": {},
+    "Obsidian/Bases/Class Bases/Period Base.base": {},
     "Obsidian/Bases/Class Bases/Person Base.base": {},
     "Obsidian/Bases/Class Bases/Place Base.base": {},
     "Obsidian/Bases/Class Bases/Practice Word Base.base": {},
     "Obsidian/Bases/Class Bases/Project Base.base": {},
+    "Obsidian/Bases/Class Bases/Quote Base.base": {},
     "Obsidian/Bases/Class Bases/School Base.base": {},
     "Obsidian/Bases/Class Bases/Session Base.base": {},
+    "Obsidian/Bases/Class Bases/Sticky Note Base.base": {},
     "Obsidian/Bases/Class Bases/Style Base.base": {},
     "Obsidian/Bases/Class Bases/Teacher Base.base": {},
+    "Obsidian/Bases/Class Bases/Thought Base.base": {},
+    "Obsidian/Bases/Class Bases/Time Sensitive Todo Base.base": {},
     "Obsidian/Bases/Class Bases/Todo Base.base": {},
     "Obsidian/Bases/Class Bases/Visual Artist Base.base": {},
     "Obsidian/Bases/Class Bases/Word Base.base": {},
@@ -282,7 +840,7 @@
     "Obsidian/Bases/Inline Todo Base.base": {},
     "Obsidian/Bases/Local Graph Base.base": {},
     "Obsidian/Bases/Structure Base.base": {},
-    "Obsidian/Bases/Templates Base.base": {}
+    "Obsidian/Bases/Template Base.base": {}
   },
   "pendingDeletes": [],
   "pendingRenames": [],

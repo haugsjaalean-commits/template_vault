@@ -3,6 +3,7 @@ is a:
   - "[[Obsidian Plugin]]"
 characteristics:
 type of:
+views:
 created: 2026-08-30 10:09
 ext links:
 related:
@@ -12,19 +13,18 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
 subject:
-active priority:
+active priority: 10
 difficulty:
 payoff:
-activity:
-done: true
-duedate:
+activity: simmering
+done: false
 urgency:
 what to do:
-checkpoint:
+checkpoint: mapped
 ---
 
 

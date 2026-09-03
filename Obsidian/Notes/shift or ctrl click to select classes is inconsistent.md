@@ -3,6 +3,7 @@ is a:
   - "[[Bug Fix]]"
 characteristics:
 type of:
+views:
 created: 2026-08-27 20:32
 ext links:
 related:
@@ -11,7 +12,7 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
   - fix problem
 project:
@@ -22,7 +23,6 @@ difficulty:
 payoff:
 activity: sleeping
 done: true
-duedate:
 urgency:
 what to do:
 checkpoint:

@@ -1,0 +1,9 @@
+{
+  "id": "dynamic-viewer",
+  "name": "Dynamic Viewer",
+  "version": "2.6.0",
+  "minAppVersion": "1.10.0",
+  "description": "A dynamic view is a .dview file: a named list of base views, drawn as tabs and always about the note you are reading. Open one as a tab, put it in the sidebar, or show it inside every note under the properties. Entries are links or the call file.views().",
+  "author": "Claude",
+  "isDesktopOnly": false
+}

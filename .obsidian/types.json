@@ -65,6 +65,14 @@
     "difficulty": "number",
     "originator": "multitext",
     "test bool": "checkbox",
-    "abandoned": "checkbox"
+    "abandoned": "checkbox",
+    "date": "date",
+    "end": "text",
+    "start": "text",
+    "matière": "multitext",
+    "dead": "checkbox",
+    "etymology": "multitext",
+    "views": "multitext",
+    "code proj": "multitext"
   }
 }

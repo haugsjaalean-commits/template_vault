@@ -3,6 +3,7 @@ is a:
   - "[[Visual Artist]]"
 characteristics:
 type of:
+views:
 created: 2026-08-21 17:38
 ext links:
 related:

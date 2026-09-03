@@ -8,6 +8,7 @@ characteristics:
   - "[[∘ typing difficulty]]"
 type of:
   - "[[Word]]"
+views:
 created: 2026-08-30 07:33
 ext links:
 related:

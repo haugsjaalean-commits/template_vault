@@ -6,6 +6,14 @@ formulas:
   word count: file.WordCount()
   link distance: file.linkDistance()
   value: (payoff/difficulty).round(2)
+  is a contains self: file.isA() == self
+  is_is_a: this.file == note["is a"]
+  is_type_of: this.file == note["TYPE OF"]
+  connection type: if(formula["is_is_a"], "is a", if(formula["is_type_of"], "type of", "misc"))
+  Untitled: ""
+  file: file
+  is is a: this.file == note["is a"]
+  is type of: this.file == note["TYPE OF"]
 properties:
   formula.word count:
     displayName: word count
@@ -13,22 +21,29 @@ properties:
     displayName: link distance
 views:
   - type: table
-    name: Table
+    name: Table no dead
+    filters:
+      and:
+        - dead != true
     groupBy:
-      property: status
+      property: done
       direction: ASC
     order:
       - active priority
       - file.name
+      - rating
+      - formula.value
+      - payoff
+      - difficulty
+      - checkpoint
       - activity
-      - lifespan
-      - importance
     sort:
+      - property: checkpoint
+        direction: ASC
       - property: activity
         direction: ASC
       - property: active priority
         direction: DESC
-    columnSize:
-      note.activity: 117
-      note.status: 106
-    declaredGroupOrder: status
+    declaredOrder:
+      - checkpoint
+      - activity

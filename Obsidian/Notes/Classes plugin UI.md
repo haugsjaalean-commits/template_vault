@@ -2,6 +2,7 @@
 is a:
 characteristics:
 type of:
+views:
 created: 2026-08-19 13:43
 ext links:
 related:

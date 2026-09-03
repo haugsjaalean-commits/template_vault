@@ -3,6 +3,7 @@ is a:
   - "[[Effort]]"
 characteristics:
 type of:
+views:
 created: 2026-08-30 09:12
 ext links:
 related:
@@ -12,17 +13,17 @@ rating:
 evolution:
 garden:
 life stage:
-abandoned: false
+dead: false
 category:
 project:
   - "[[Class Manager]]"
 subject:
   - wording and semantics
   - organization
-active priority: 10
+active priority: 0
 difficulty: 5
 payoff: 1
-activity: active
+activity: sleeping
 checkpoint: reached
 ---
 

@@ -5,6 +5,8 @@ symbol: lucide:brain
 is a:
 characteristics:
 type of:
+  - "[[Thought]]"
+views:
 created: 2026-08-24 09:45
 ext links:
 related:

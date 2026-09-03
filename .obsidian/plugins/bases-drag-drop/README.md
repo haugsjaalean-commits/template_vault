@@ -1033,3 +1033,50 @@ update, over the debugging port against `template_vault`:
 
 `plugin.diagnostics` exposes the placement functions on the live instance for
 exactly this. It reads nothing and writes nothing.
+
+---
+
+## v2.5 — `+ New` in an embedded base
+
+Obsidian's `NewItemMenu.open` ends by building the rename popover and calls
+`setIsFocused` on it unguarded. In a base drawn as an **embed** — a Dynamic Viewer
+band, a `![[X.base]]` in a note — the popover factory returns `null`, so `open`
+rejects *after* the note has been created, named by Templater and given its
+frontmatter. The button looked inert while quietly leaving files behind.
+
+Three changes:
+
+- **A throw is only a throw when there is no note.** The wrapper rethrows only if
+  `menu.newlyCreatedFile` is absent; otherwise it logs a warning and carries on
+  with the steps Obsidian's failure would have eaten.
+- **The name is asked in a modal** where the popover could not be built and
+  *Offer a name for the new note* is on. This is not a second copy of Obsidian's
+  creation — nothing is created there, the note exists and the modal renames it
+  through `fileManager`, so links are rewritten. Obsidian's own fallback (its
+  phone path) opens the note in a tab, which would navigate away from the base the
+  note is being placed into.
+- **The drag layer is resolved when the name is settled**, not when the note is
+  made: an embedded base's `view` is not on its controller yet at creation time.
+
+---
+
+## v2.6 — which subclass
+
+A `+ New` in a class base asks which class, before anything is created: the base's
+own class and every class below it by `type of`, indented by depth and carrying
+each class's `symbol:` where that symbol is a Lucide id. Picking one makes the note
+from *that* class's template.
+
+An Improvement Base can therefore make a Project — a Project is a `type of` Effort
+is a `type of` Improvement, so it satisfies the base's own filter and belongs
+there — without editing the frontmatter afterwards.
+
+- Shown only where there is something to choose. One candidate is not a question,
+  and a base that names its own `newItemTemplate` has already answered.
+- Dismissing it creates nothing.
+- The picked class **outranks** the `is a` Obsidian derives from the base's filter,
+  which is the parent. That is the one exception to *a derived value beats the
+  template*: without it the choice is undone as it is made.
+- `type of` and `is a` are read from OOF Class Manager's settings when it is
+  loaded, and default to those names otherwise.
+- Off switch: *Ask which subclass*.

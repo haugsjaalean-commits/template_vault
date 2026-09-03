@@ -6,11 +6,12 @@ is a:
 characteristics:
   - "[[∘ originator]]"
 type of:
+views:
 created: 2026-08-30 18:36
 ext links:
 related:
 note rating:
-rating: 9
+rating: 8.5
 evolution: Charmander
 garden:
 life stage: current

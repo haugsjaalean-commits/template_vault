@@ -5,11 +5,11 @@ symbol: lucide:check-circle
 is a:
 characteristics:
   - "[[∘ urgency]]"
-  - "[[∘ duedate]]"
   - "[[∘ what to do]]"
   - "[[∘ done]]"
 type of:
   - "[[Improvement]]"
+views:
 created: 2026-08-16 18:29
 ext links:
 related:

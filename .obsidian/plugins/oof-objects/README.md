@@ -229,18 +229,51 @@ A card above the classes lists the **base characteristics** — the properties t
 system reasons with, as opposed to the ones that merely describe a subject:
 
 ```
-is a          instantiation: this note is one of these
+is a             instantiation: this note is one of these
 characteristics  what this class's instances carry
 type of          subclassing: this class is a kind of that one
+views            the bases this class's instances are looked at through
 ```
 
-Every class below gets **one editable row per entry**, so adding a fourth here
-adds a fourth row everywhere.
+Every class below gets **one editable row per entry**.
+
+**The list belongs to the plugin, not to you.** The card is read-only: no ×, no
++. Adding a base characteristic is an edit to `BASE_CHARACTERISTICS` in
+`main.js`, and a stored settings file naming anything else is overwritten on
+every load. That is deliberate — a base characteristic is a property the engine
+reasons *with*, so it is only ever added alongside the code that reasons with it.
+
+The four are named by settings of their own — `isAProperty`,
+`characteristicsProperty`, `inheritsProperty` and `viewsProperty` — so you can
+rename them, and each chip's tooltip says what its property is for.
+
+**Their values are three different kinds of thing**, and the row you edit knows
+which:
+
+| property | its values are | shown as |
+|---|---|---|
+| `characteristics` | characteristic names, linked `[[∘ domain]]` | `domain` |
+| `is a`, `type of` | class names | the class |
+| `views` | a base, and past a `#` one view inside it | the view's name |
+
+A `views` row therefore opens the base a chip names, and keeps the entry exactly
+as written — `[[Improvement Base.base#dynamic project]]` — rather than reducing it
+to a note name.
+
+**Its `+` is picked from, not typed into.** A class name is short, known and
+spellable, so the inline box with its Tab-completion is right for one; a base
+view is long, exact and something you are *choosing*, so the `+` opens a fuzzy
+list of every base in the vault and every view inside it. That is the same
+prompt [Dynamic Viewer](../dynamic-viewer/README.md) gives for the same list —
+deliberately, since it is the same question.
+
+The view names come from reading each `.base`, cached in the background because a
+base's body is only readable asynchronously and this panel is not.
 
 **A base characteristic appears only where it carries a value.** A template
 therefore gets `is a: "[[Class]]"` and nothing else from this list — a new note
-is not a class, so `characteristics` and `type of` would be blank, and blank base
-characteristics are not written.
+is not a class, so the others would be blank, and blank base characteristics are
+not written.
 
 In practice they are added in exactly two situations:
 
@@ -257,15 +290,12 @@ invented: a class with no parent still gets `type of:` with nothing after
 it. The plan labels those entries *(missing)* to distinguish them from values
 you changed.
 
-**Removing one cleans up after itself.** Take a base characteristic off the list
-and the next Update removes that now-orphaned property from every class that
-still carries it — empty ones only. One holding a value is reported as a
-conflict and left alone, the same rule as everywhere else. Those entries are
-labelled *(retired)*.
-
-The three defaults are anchors the engine depends on and cannot be removed;
-anything you add beyond them is read, shown and written faithfully, but carries
-no inheritance meaning of its own.
+**Dropping one cleans up after itself.** Take a base characteristic out of
+`BASE_CHARACTERISTICS` — or open a vault whose settings file still names one the
+code has dropped — and the next Update removes that now-orphaned property from
+every class that still carries it, empty ones only. One holding a value is
+reported as a conflict and left alone, the same rule as everywhere else. Those
+entries are labelled *(retired)*.
 
 ## What nothing uses
 
@@ -505,7 +535,7 @@ Every row sits under a heading. Three of them do not name a class:
 | heading | what is under it |
 |---|---|
 | **&lt;Class&gt; characteristics** | what that class hands down — `Person characteristics`, `Obsidian Note characteristics` |
-| **Base characteristics** | `is a`, `type of`, `characteristics` — and anything a characteristic note flags with `is base characteristic: true` |
+| **Base characteristics** | `is a`, `type of`, `characteristics`, `views` — and anything a characteristic note flags with `is base characteristic: true` |
 | **Not from a class** | a real characteristic that no class in the chain, and no root, hands down |
 | **Native attributes** | a field Obsidian itself owns — `tags`, `aliases`, anything with no characteristic note |
 
@@ -883,7 +913,7 @@ classes*, *Fold all classes*) if they are worth a hotkey.
 
 Opened, a class shows:
 
-1. **one row per base characteristic** — `is a`, `characteristics`, `type of`, and
+1. **one row per base characteristic** — `is a`, `characteristics`, `type of`, `views`, and
    whatever else you add. Chips link to the note behind each value
 2. **inherited** — greyed under `characteristics`, not editable there because they
    belong to the parent, but still clickable
@@ -2095,7 +2125,7 @@ reported as itself, naming the note. Two or more is a shape.
 
 ## In base queries
 
-The same hierarchy answers questions inside any base. Four functions are added
+The same hierarchy answers questions inside any base. Five functions are added
 to the Bases formula language:
 
 ```
@@ -2103,6 +2133,7 @@ file.isA("Person")           an instance of Person, through its class's chain
 file.inheritsFrom("Person")  a subclass of Person, following `type of` only
 file.ancestors()             everything above it by either relation, nearest first
 file.isADistance("Person")   how many hops along the chain, or null
+file.views()                 the bases this note is looked at through
 ```
 
 ```yaml
@@ -2138,8 +2169,51 @@ Cycles terminate.
 *Is `Artist` itself an Artist?* By default no — a class is not one of its own
 instances. **Bases → A class is its own instance** turns that on, at distance 0.
 
-> These four were a separate plugin, **Bases Is A**, until 2026-08-17. They read
-> the property names configured here, so there is nothing to keep in step.
+> Four of the five were a separate plugin, **Bases Is A**, until 2026-08-17.
+> They read the property names configured here, so there is nothing to keep in
+> step. `file.views()` joined them 2026-09-01.
+
+
+## `views` — what a note is looked at through
+
+A class's `views:` names the bases — and, past a `#`, the view inside one — that
+its instances are seen through:
+
+```yaml
+# Project.md
+views:
+  - "[[Improvement Base.base#dynamic project]]"
+```
+
+`file.views()` answers that for any note, and **nothing is ever written into an
+instance to say so**. Every note carries an empty `views:` the way it carries an
+empty `characteristics:`; what it inherits is not copied into it.
+
+**A view travels by `is a`, not by `type of`.** The walk is the one
+[`file.isA()`](#in-base-queries) does — instantiate once, then climb the subclass
+chain — so with the line above on `Project`:
+
+| note | gets it | why |
+|---|---|---|
+| a note that **is a** Project | yes | instantiation |
+| a note that is an Obsidian Plugin, a **type of** Project | yes | the chain above its class |
+| `Project` itself | yes | its own `views:` |
+| `Improvement`, a class that is a **type of** Project | **no** | it *stores* the view for its instances; it does not receive it |
+
+That last row is the whole distinction. A subclass carries a view onward without
+being shown it.
+
+A note's own `views:` counts, which is what lets a dashboard be pinned to one
+note. Entries are deduplicated on the link as written, nearest class first, and
+returned as links — so a base can display them, and
+[Dynamic Viewer](../dynamic-viewer/README.md) draws them as tabs.
+
+Both spellings resolve: `[[Improvement Base.base#dynamic project]]` and
+`[[Improvement Base]]`. Obsidian resolves a bare wikilink to `.md`, so the
+extension is tried as a fallback — a note of that name never wins over a base.
+
+The property is named by **Settings → Views property**; emptying it turns
+`file.views()` off.
 
 ## Editing costs you nothing
 
@@ -2277,9 +2351,11 @@ nothing.
 ## Settings
 
 Folders (`Obsidian/Notes`, `Obsidian/Characteristics`, `Obsidian/Templates`),
-the template suffix (` Template`), the **characteristic prefix** (`∘ `), the base
-characteristics, the bases options above, and **A class is its own instance** for
-the base functions.
+the template suffix (` Template`), the **characteristic prefix** (`∘ `), the four
+property names (**Inheritance**, **Instance**, **Characteristics**, **Views**),
+the bases options above, and **A class is its own instance** for the base
+functions. The base characteristics themselves are
+[not a setting](#class).
 
 **Symbol property** for the mark before a class name; **Rate each class by what it adds** for the `+N` after it.
 

@@ -1,7 +1,7 @@
 {
   "id": "bases-drag-drop",
   "name": "Bases Table Kanban",
-  "version": "2.4.1",
+  "version": "2.6.0",
   "minAppVersion": "1.13.0",
   "description": "Turns a base into a board you can work in: drag a note between groups and rows and the properties that put it there are written for you, and the base's own + new button asks where the note should go and makes it there, template body and all. Every placement says what it will change before you commit, only positions the sort can reach are offered, and a drop is one Ctrl+Z away from undone.",
   "author": "Claude (written for Leander)",

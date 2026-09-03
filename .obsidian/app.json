@@ -3,5 +3,6 @@
   "newFileFolderPath": "Obsidian/Notes",
   "attachmentFolderPath": "Attachments",
   "showLineNumber": true,
-  "alwaysUpdateLinks": true
+  "alwaysUpdateLinks": true,
+  "readableLineLength": true
 }

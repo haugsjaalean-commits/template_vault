@@ -3,6 +3,7 @@ is a:
   - "[[Earbud]]"
 characteristics:
 type of:
+views:
 created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
 ext links:
 related:

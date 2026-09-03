@@ -7,6 +7,7 @@ characteristics:
   - "[[∘ creator]]"
   - "[[∘ creation domain]]"
 type of:
+views:
 created: 2026-08-21 17:55
 ext links:
 related:

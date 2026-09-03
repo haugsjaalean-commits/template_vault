@@ -6,6 +6,7 @@ is a:
 characteristics:
 type of:
   - "[[Obsidian Plugin]]"
+views:
 created: 2026-08-24 09:50
 ext links:
 related:

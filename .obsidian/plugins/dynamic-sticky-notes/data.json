@@ -1,0 +1,71 @@
+{
+  "isAProperty": "is a",
+  "stickyClass": "Sticky Note",
+  "fileProperty": "file",
+  "colorProperty": "color",
+  "templatePath": "Obsidian/Templates/Sticky Note Template.md",
+  "basePath": "Obsidian/Bases/Class Bases/Sticky Note Base.base",
+  "folder": "Obsidian/Notes",
+  "nameFormat": "YYYY-MM-DD dddd — HH.mm.ss",
+  "columns": 1,
+  "cardHeight": 190,
+  "blankCard": true,
+  "highlightStuck": true,
+  "newColour": "__random__",
+  "palette": [
+    {
+      "name": "Paper",
+      "light": "#faf6ea",
+      "dark": "#2b2823"
+    },
+    {
+      "name": "Yellow",
+      "light": "#fdf1c4",
+      "dark": "#4a3f13"
+    },
+    {
+      "name": "Orange",
+      "light": "#fbe1c9",
+      "dark": "#4d3418"
+    },
+    {
+      "name": "Pink",
+      "light": "#fadbe6",
+      "dark": "#4a2030"
+    },
+    {
+      "name": "Purple",
+      "light": "#e6dcfa",
+      "dark": "#332a55"
+    },
+    {
+      "name": "Blue",
+      "light": "#d9e6fa",
+      "dark": "#1f3450"
+    },
+    {
+      "name": "Cyan",
+      "light": "#d4eff0",
+      "dark": "#143f44"
+    },
+    {
+      "name": "Green",
+      "light": "#dbf0d5",
+      "dark": "#1e4023"
+    },
+    {
+      "name": "Grey",
+      "light": "#e9e7e2",
+      "dark": "#343330"
+    }
+  ],
+  "collectGarbage": true,
+  "collectAttached": true,
+  "trashLimit": 40,
+  "state": {
+    "open": [],
+    "pinned": [],
+    "trash": [],
+    "heights": {}
+  }
+}

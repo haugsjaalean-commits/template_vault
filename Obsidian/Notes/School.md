@@ -7,6 +7,7 @@ characteristics:
   - "[[∘ level]]"
 type of:
   - "[[Place]]"
+views:
 created: 2026-08-24 13:08
 ext links:
 related:

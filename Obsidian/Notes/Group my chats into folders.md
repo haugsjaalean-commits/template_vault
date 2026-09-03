@@ -3,6 +3,7 @@ is a:
   - "[[Todo]]"
 characteristics:
 type of:
+views:
 created: 2026-08-21 15:47
 ext links:
 related:
@@ -11,7 +12,7 @@ rating:
 evolution:
 garden:
 life stage: current
-abandoned: false
+dead: false
 category:
 project:
 subject:
@@ -20,7 +21,6 @@ difficulty:
 payoff:
 activity:
 done: true
-duedate:
 urgency:
 what to do:
 ---

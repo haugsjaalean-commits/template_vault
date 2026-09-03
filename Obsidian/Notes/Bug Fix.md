@@ -5,7 +5,8 @@ symbol: lucide:bug
 is a:
 characteristics:
 type of:
-  - "[[Project]]"
+  - "[[Coding Project]]"
+views:
 created: 2026-08-27 10:09
 ext links:
 related:

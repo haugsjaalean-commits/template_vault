@@ -6,6 +6,7 @@ is a:
 characteristics:
 type of:
   - "[[Listening device]]"
+views:
 created: 2026-08-30 20:31
 ext links:
 related:

@@ -8,6 +8,7 @@ characteristics:
   - "[[∘ class date]]"
   - "[[∘ class number]]"
 type of:
+views:
 created: 2026-08-24 12:20
 ext links:
 related:

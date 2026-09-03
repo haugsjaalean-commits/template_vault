@@ -10,6 +10,7 @@ characteristics:
   - "[[∘ death day]]"
   - "[[∘ historical importance]]"
 type of:
+views:
 created: 2026-08-15 12:42
 ext links:
 related:

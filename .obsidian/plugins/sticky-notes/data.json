@@ -1,0 +1,88 @@
+{
+  "saveWorkspace": true,
+  "taskbarVisibility": true,
+  "pinOption": "Always",
+  "sizeOption": "Default",
+  "dimensions": "300x300",
+  "resizable": false,
+  "useRecentBgColor": true,
+  "rememberBgColors": false,
+  "bgColors": [
+    {
+      "property": "background_color",
+      "value": "Base",
+      "lightColor": "#ffffff",
+      "darkColor": "#1e1e1e",
+      "isDefault": false
+    },
+    {
+      "property": "background_color",
+      "value": "Red",
+      "lightColor": "#fadadf",
+      "darkColor": "#bf2227",
+      "isDefault": false
+    },
+    {
+      "property": "background_color",
+      "value": "Orange",
+      "lightColor": "#fae7d0",
+      "darkColor": "#ce721c",
+      "isDefault": false
+    },
+    {
+      "property": "background_color",
+      "value": "Yellow",
+      "lightColor": "#faf0d0",
+      "darkColor": "#ca8a04",
+      "isDefault": true
+    },
+    {
+      "property": "background_color",
+      "value": "Green",
+      "lightColor": "#d0f0df",
+      "darkColor": "#199a53",
+      "isDefault": false
+    },
+    {
+      "property": "background_color",
+      "value": "Cyan",
+      "lightColor": "#d0f0f0",
+      "darkColor": "#1a99ad",
+      "isDefault": false
+    },
+    {
+      "property": "background_color",
+      "value": "Blue",
+      "lightColor": "#d0e3fa",
+      "darkColor": "#247ad6",
+      "isDefault": false
+    },
+    {
+      "property": "background_color",
+      "value": "Purple",
+      "lightColor": "#e7dffa",
+      "darkColor": "#6442d1",
+      "isDefault": false
+    },
+    {
+      "property": "background_color",
+      "value": "Pink",
+      "lightColor": "#f5dae7",
+      "darkColor": "#bb3a7a",
+      "isDefault": false
+    }
+  ],
+  "newStickyNotePath": "",
+  "workspaceNotes": [
+    {
+      "id": "1220c6d8ef0f5275",
+      "color": {
+        "property": "background_color",
+        "value": "Base",
+        "lightColor": "#ffffff",
+        "darkColor": "#1e1e1e",
+        "isDefault": false
+      }
+    }
+  ]
+}

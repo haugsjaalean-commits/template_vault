@@ -5,6 +5,7 @@ is a:
   - "[[Acquaintance]]"
 characteristics:
 type of:
+views:
 created: 2026-08-27 20:52
 ext links:
 related:
@@ -23,7 +24,9 @@ death day:
 children:
 historical importance:
 location:
-matière: "[[littérature]]"
+matière:
+  - "[[Littérature]]"
+  - "[[French]]"
 ---
 
 

@@ -6,6 +6,7 @@ is a:
 characteristics:
 type of:
   - "[[Earbud]]"
+views:
 created: 2026-08-30 20:53
 ext links:
 related:

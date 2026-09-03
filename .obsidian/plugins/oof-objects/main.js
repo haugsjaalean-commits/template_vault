@@ -44,8 +44,8 @@
 
 const obsidian = require('obsidian');
 
-const { Plugin, PluginSettingTab, Setting, ItemView, Modal, TFile, Notice, setIcon,
-	SearchComponent } = obsidian;
+const { Plugin, PluginSettingTab, Setting, ItemView, Modal, FuzzySuggestModal, TFile,
+	Notice, setIcon, SearchComponent } = obsidian;
 /*
  * Two the harness does not stub, and neither is load-bearing: without `Menu` the
  * pencil opens the rename dialog directly, as it did before there was anything
@@ -80,6 +80,24 @@ const DISMISSED_SECTION = '::dismissed';
 /* The actions that remove a whole file, and are shown in red because of it. */
 const TRASH_KINDS = ['trash-characteristic', 'trash-template', 'trash-base'];
 
+/*
+ * The base characteristics: the properties the system itself reasons with, as
+ * opposed to the ones that merely describe a subject. Every class card shows one
+ * editable row per entry.
+ *
+ * **This list is the plugin's, not his** (2026-09-01, from his note `The user
+ * should not be able to add or delete base characteristics`): *"All base
+ * characteristics should be added in the backend."* Adding one is an edit to this
+ * line and nothing else; `loadSettings` overwrites whatever a stored copy says,
+ * and the panel draws the row with no × and no +.
+ *
+ * The three anchors carry meaning to the engine and are named by settings of
+ * their own (`isAProperty`, `characteristicsProperty`, `inheritsProperty`);
+ * `views` is read by `file.views()` through `viewsProperty`. Any entry here that
+ * no setting names would be stored and edited faithfully but inherit nothing.
+ */
+const BASE_CHARACTERISTICS = ['is a', 'characteristics', 'type of', 'views'];
+
 const DEFAULT_SETTINGS = {
 	notesFolder: 'Obsidian/Notes',
 	characteristicsFolder: 'Obsidian/Characteristics',
@@ -89,6 +107,12 @@ const DEFAULT_SETTINGS = {
 	isAProperty: 'is a',
 	/* The property on a class listing what its instances carry. */
 	characteristicsProperty: 'characteristics',
+	/*
+	 * The property naming the bases a class's instances are looked at through.
+	 * A base characteristic like the three above: inherited by the walk and never
+	 * written into an instance. Emptying it turns file.views() off.
+	 */
+	viewsProperty: 'views',
 	/*
 	 * A characteristic note's file name begins with this; the characteristic's
 	 * name, and so the property key, never does. Emptying it turns the whole
@@ -384,18 +408,13 @@ const DEFAULT_SETTINGS = {
 	 * them.
 	 */
 	deleteUnusedCharacteristics: true,
+	/* BASE_CHARACTERISTICS, above. Not a choice: see the comment there. */
+	logicProperties: BASE_CHARACTERISTICS.slice(),
 	/*
-	 * The base characteristics: the properties the system itself reasons with,
-	 * as opposed to the ones that merely describe a subject. Every class shows
-	 * one editable row per entry, and the list is his to extend. The three
-	 * anchors above say which of these carry meaning to the engine; any other
-	 * entry is stored and edited faithfully but inherits nothing.
-	 */
-	logicProperties: ['is a', 'characteristics', 'type of'],
-	/*
-	 * Base characteristics he has since removed from the list. Kept so Update
-	 * can clear them off the classes that still carry them - otherwise dropping
-	 * one would silently leave an orphan key in every class note.
+	 * Base characteristics the plugin no longer names, and stray ones a stored
+	 * settings file still carried. Kept so Update can clear them off the classes
+	 * that still carry them - otherwise dropping one would silently leave an
+	 * orphan key in every class note.
 	 */
 	retiredLogicProperties: [],
 	/* `<Class> Template.md`, his rename of "architype". */
@@ -611,6 +630,45 @@ function linkName(value) {
 	if (!text) return null;
 
 	return text.split('/').pop();
+}
+
+/*
+ * A `views:` entry, reduced to the link it names - and, unlike `linkName`, the
+ * subpath is kept. `[[Improvement Base.base#dynamic project]]` names one view
+ * of one base, and dropping the `#` half would name the base's default view
+ * instead, which is a different thing to look at.
+ */
+function viewLink(value) {
+	if (value === null || value === undefined) return null;
+
+	let text = typeof value === 'string' ? value : String(value);
+	text = text.trim();
+	if (!text) return null;
+
+	const wikilink = text.match(/^!?\[\[(.+)\]\]$/);
+	if (wikilink) text = wikilink[1];
+
+	const pipe = text.indexOf('|');
+	if (pipe !== -1) text = text.slice(0, pipe);
+
+	text = text.trim();
+	return text || null;
+}
+
+/* `Improvement Base.base#dynamic project` in its two halves. */
+function splitViewLink(text) {
+	const hash = String(text).indexOf('#');
+	return hash === -1
+		? { target: String(text).trim(), view: '' }
+		: {
+			target: String(text).slice(0, hash).trim(),
+			view: String(text).slice(hash + 1).trim(),
+		};
+}
+
+/* A `.base`, whose views a `views` row offers. */
+function isBaseFile(file) {
+	return file instanceof TFile && file.extension === 'base';
 }
 
 function asLink(name) {
@@ -2166,6 +2224,13 @@ class OofClassesPlugin extends Plugin {
 		 */
 		this.templateRenames = new Map();
 
+		/*
+		 * base path -> the names of the views inside it. Same shape and same reason
+		 * as the two above: a `.base` body is only readable asynchronously, and the
+		 * panel that offers those names to a `views` row is synchronous.
+		 */
+		this.baseViews = new Map();
+
 		/* What Obsidian currently thinks each property's type is. */
 		this.registeredTypes = {};
 		/* Memoised inheritance walks, for the Bases formula functions. */
@@ -2174,6 +2239,7 @@ class OofClassesPlugin extends Plugin {
 		await this.loadSettings();
 		/* Not awaited: an empty set simply offers nothing this time round. */
 		this.refreshOrphanBases().catch(() => {});
+		this.readBaseViews().catch(() => {});
 		/*
 		 * A migration that never reaches disk runs again next time, and this one
 		 * overrules a setting - so it is written out immediately, before he has a
@@ -2214,12 +2280,22 @@ class OofClassesPlugin extends Plugin {
 		this.registerEvent(this.app.vault.on('create', (file) => {
 			if (this.isCharacteristicFile(file)) this.readDefaultsTables().catch(() => {});
 			if (this.isTemplateFile(file)) this.readTemplateRenames().catch(() => {});
+			if (isBaseFile(file)) this.readBaseViews().catch(() => {});
 			touched(file);
+		}));
+		/*
+		 * A `.base` has no frontmatter, so `metadataCache.on('changed')` never fires
+		 * for one - the vault's own modify event is the only notice we get that a
+		 * view was added to or renamed inside a base.
+		 */
+		this.registerEvent(this.app.vault.on('modify', (file) => {
+			if (isBaseFile(file)) this.readBaseViews().catch(() => {});
 		}));
 		this.registerEvent(this.app.vault.on('delete', (file) => {
 			if (file && file.path) {
 				this.defaultsRows.delete(file.path);
 				this.templateRenames.delete(file.path);
+				this.baseViews.delete(file.path);
 			}
 			touched(file);
 		}));
@@ -2232,6 +2308,11 @@ class OofClassesPlugin extends Plugin {
 			if (typeof oldPath === 'string') {
 				this.defaultsRows.delete(oldPath);
 				this.templateRenames.delete(oldPath);
+				this.baseViews.delete(oldPath);
+			}
+			if (isBaseFile(file) || (typeof oldPath === 'string'
+				&& oldPath.slice(-5) === '.base')) {
+				this.readBaseViews().catch(() => {});
 			}
 			if (this.isCharacteristicFile(file)) this.readDefaultsTables().catch(() => {});
 			if (this.isTemplateFile(file)) this.readTemplateRenames().catch(() => {});
@@ -2448,19 +2529,52 @@ class OofClassesPlugin extends Plugin {
 		return dest && dest.basename ? dest.basename : name;
 	}
 
+	/*
+	 * What a base characteristic's values *are*. Three kinds, and the difference
+	 * matters at every edge — reading them off frontmatter, writing them back, and
+	 * drawing them as chips.
+	 *
+	 *   characteristic  a property name, written `[[∘ domain]]`, shown as `domain`
+	 *   class           a class name, canonicalised so `[[note]]` and `[[Note]]`
+	 *                   are one class
+	 *   view            a base, and past a `#` one view inside it
+	 *
+	 * **`views` is the reason this exists** (2026-09-01, his report — *"adding
+	 * views doesn't really seem to work … it's still grayed out"*). Every base
+	 * characteristic used to be read as a class name, which for a view is wrong
+	 * twice over: `linkName()` drops both the `.base` and the `#dynamic project`,
+	 * so the chip was greyed as a class with no note **and the next write of that
+	 * class note would have put `[[Improvement Base]]` back in place of the view he
+	 * chose**. The greying was the visible half of a silent data loss.
+	 */
+	logicValueKind(property) {
+		if (property === this.settings.characteristicsProperty) return 'characteristic';
+		if (property && property === this.settings.viewsProperty) return 'view';
+		return 'class';
+	}
+
 	/* Read every base characteristic off one note's frontmatter. */
 	readLogicValues(frontmatter) {
 		const values = this.emptyLogicValues();
+
 		for (const property of this.settings.logicProperties) {
-			const isCharacteristic = property === this.settings.characteristicsProperty;
+			const kind = this.logicValueKind(property);
+
 			values[property] = toArray(frontmatter[property])
-				.map(linkName)
+				/* A view keeps its subpath; everything else is reduced to a name. */
+				.map((entry) => (kind === 'view' ? viewLink(entry) : linkName(entry)))
 				.filter(Boolean)
-				.map((name) => this.canonicalName(name))
+				/*
+				 * A view is not a note name, so there is nothing to canonicalise it
+				 * against — and doing so would resolve `Improvement Base.base` to
+				 * whatever `.md` happened to be near it.
+				 */
+				.map((name) => (kind === 'view' ? name : this.canonicalName(name)))
 				/* `[[∘ domain]]` names the characteristic `domain`. */
-				.map((name) => (isCharacteristic
+				.map((name) => (kind === 'characteristic'
 					? stripPrefix(name, this.settings.characteristicPrefix) : name));
 		}
+
 		return values;
 	}
 
@@ -3184,6 +3298,151 @@ class OofClassesPlugin extends Plugin {
 		this.defaultsRows.set(file.path, entry);
 		if (!quiet) { this.invalidatePicture(); this.refreshViews(); }
 		return true;
+	}
+
+	/* ----- what a `views` chip can offer ------------------------------------ */
+
+	/*
+	 * The views inside each `.base`, by path.
+	 *
+	 * A base's views live in its body, and a body can only be read
+	 * asynchronously, while the panel that offers them is synchronous — the same
+	 * arrangement `defaultsRows` and `templateRenames` use, and for the same
+	 * reason. The cost is one pass over the bases at startup.
+	 */
+	async readBaseViews() {
+		let changed = false;
+		const seen = new Set();
+
+		for (const file of this.app.vault.getFiles()) {
+			if (file.extension !== 'base') continue;
+			seen.add(file.path);
+
+			let text = '';
+			try { text = await this.app.vault.cachedRead(file); } catch (error) { continue; }
+			if (this.rememberBaseViews(file, text)) changed = true;
+		}
+
+		for (const path of Array.from(this.baseViews.keys())) {
+			if (!seen.has(path)) { this.baseViews.delete(path); changed = true; }
+		}
+
+		if (changed) this.refreshViews();
+		return changed;
+	}
+
+	/*
+	 * One base's view names. Parsed with Obsidian's own YAML rather than by hand,
+	 * and a base that will not parse is remembered as having none — being unable
+	 * to read its views is no reason to forget the base.
+	 */
+	rememberBaseViews(file, text) {
+		let names = [];
+		try {
+			const data = obsidian.parseYaml(text);
+			const views = data && Array.isArray(data.views) ? data.views : [];
+			names = views
+				.map((view) => (view && typeof view.name === 'string' ? view.name.trim() : ''))
+				.filter((name) => name.length > 0);
+		} catch (error) {
+			names = [];
+		}
+
+		const before = this.baseViews.get(file.path);
+		if (before && before.join(' ') === names.join(' ')) return false;
+		this.baseViews.set(file.path, names);
+		return true;
+	}
+
+	/*
+	 * Every base, and every view inside one, as something a `views` row can hold.
+	 * The text is what gets stored, so it is the full link — extension and
+	 * subpath — and the chip shortens it for display rather than the other way
+	 * round.
+	 */
+	viewSuggestions() {
+		const out = [];
+
+		const bases = this.app.vault.getFiles()
+			.filter((file) => file.extension === 'base')
+			.sort((a, b) => a.basename.localeCompare(b.basename));
+
+		for (const file of bases) {
+			const link = this.app.metadataCache.fileToLinktext(file, '', false);
+			out.push(link);
+			for (const name of (this.baseViews.get(file.path) || [])) {
+				out.push(link + '#' + name);
+			}
+		}
+
+		return out;
+	}
+
+	/*
+	 * The `+` on a `views` row: pick a base, or one of its views.
+	 *
+	 * Labelled the way Dynamic Viewer's picker labels the same list, `Base  →
+	 * view`, because it is the same list and the two should not feel like two
+	 * different questions. What is *stored* is the full link, which is what the
+	 * label is derived from rather than the other way round.
+	 */
+	promptForView(taken, onPick) {
+		const already = new Set((taken || []).map((value) => String(value).toLowerCase()));
+
+		const items = [];
+		for (const value of this.viewSuggestions()) {
+			if (already.has(value.toLowerCase())) continue;
+			const parts = splitViewLink(value);
+			const file = this.resolveBase(parts.target, '');
+			const name = file ? file.basename : parts.target;
+			items.push({
+				value: value,
+				label: parts.view ? name + '  →  ' + parts.view : name,
+			});
+		}
+
+		if (items.length === 0) {
+			new Notice(this.baseViews.size === 0
+				? 'There are no .base files in this vault yet.'
+				: 'Every base and view is already listed here.', 5000);
+			return;
+		}
+
+		new BaseViewPickerModal(this.app, items, onPick).open();
+	}
+
+	/* What a `views` chip says on its face: the view it names, or the base. */
+	viewLabel(value) {
+		const parts = splitViewLink(value);
+		if (parts.view) return parts.view;
+		const file = this.resolveBase(parts.target, '');
+		return file ? file.basename : parts.target;
+	}
+
+	/* And in full, on hover, with whether it actually reaches anything. */
+	viewTooltip(value) {
+		const parts = splitViewLink(value);
+		const file = this.resolveBase(parts.target, '');
+		if (!file) return value + ' — no base of that name';
+
+		const known = this.baseViews.get(file.path) || [];
+		if (!parts.view) return file.basename + ' — its default view';
+		if (known.length > 0 && known.indexOf(parts.view) === -1) {
+			return file.basename + ' — it has no view called "' + parts.view + '"';
+		}
+		return file.basename + ' — the view "' + parts.view + '"';
+	}
+
+	/* A `views` entry that reaches a real base, and a real view inside it. */
+	viewResolves(value) {
+		const parts = splitViewLink(value);
+		const file = this.resolveBase(parts.target, '');
+		if (!file) return false;
+		if (!parts.view) return true;
+
+		const known = this.baseViews.get(file.path) || [];
+		/* Unread or unparsable: the base is there, so do not call it missing. */
+		return known.length === 0 || known.indexOf(parts.view) !== -1;
 	}
 
 	/* A file in the templates folder, which is the only place a block is written. */
@@ -4665,7 +4924,8 @@ class OofClassesPlugin extends Plugin {
 	 */
 	registerBasesFunctions() {
 		const missing = typeof this.registerInstanceFunc !== 'function'
-			|| !obsidian.FileValue || !obsidian.BooleanValue || !obsidian.ListValue;
+			|| !obsidian.FileValue || !obsidian.BooleanValue || !obsidian.ListValue
+			|| !obsidian.LinkValue;
 
 		if (missing) {
 			new Notice('OOF Class Manager: this Obsidian version does not expose the Bases function '
@@ -4722,6 +4982,15 @@ class OofClassesPlugin extends Plugin {
 				return distance === undefined
 					? obsidian.NullValue.value : new obsidian.NumberValue(distance);
 			},
+		));
+
+		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
+			this, 'views',
+			'The bases this note is looked at through: its own "views", then the ones '
+				+ 'its class declares and every class above that, nearest first.',
+			[self],
+			(file) => new obsidian.ListValue(this.viewEntriesFor(file).map(
+				(entry) => new obsidian.LinkValue(this.app, entry.link, file.path, null))),
 		));
 
 		return true;
@@ -4891,6 +5160,101 @@ class OofClassesPlugin extends Plugin {
 		return Array.from(merged.keys())
 			.sort((a, b) => merged.get(a) - merged.get(b))
 			.map((key) => names.get(key));
+	}
+
+
+	/* ----- the views a note is looked at through ---------------------------- */
+
+	/*
+	 * `views` is a base characteristic in his sense: a class's `views:` names the
+	 * bases - and, past a `#`, the view inside one - that its instances are seen
+	 * through, and nothing is ever written into an instance to say so. His note:
+	 * "the plugin will understand that they inherit that view, but it will not be
+	 * specifically listed anywhere in the frontmatter."
+	 *
+	 * Which notes a view reaches is the `is a` question and not the `type of` one:
+	 * "a file only receives a view if the relationship is `is a`. Otherwise, if
+	 * the connection is `type of` then it simply stores the view." That sentence
+	 * is `isAClosure` exactly - instantiate once, then climb the subclass chain -
+	 * so a view put on Person is on every Artist note without Artist listing it,
+	 * while Artist itself only stores it.
+	 *
+	 * A note's own `views:` is its own. One rule, no special case for a class, and
+	 * it is what lets a dashboard be pinned to a single note.
+	 *
+	 * Nearest first, deduplicated on the link as written: two classes naming one
+	 * view is one view, and the nearer one is the one that says where it came from.
+	 */
+	viewEntriesFor(file) {
+		const property = String(this.settings.viewsProperty || '').trim();
+		if (!property || !(file instanceof TFile)) return [];
+
+		const entries = [];
+		const seen = new Set();
+
+		const read = (source, distance) => {
+			const cache = this.app.metadataCache.getFileCache(source);
+			const frontmatter = (cache && cache.frontmatter) || null;
+			if (!frontmatter) return;
+
+			for (const raw of toArray(frontmatter[property])) {
+				const link = viewLink(raw);
+				if (!link) continue;
+
+				const key = link.toLowerCase();
+				if (seen.has(key)) continue;
+				seen.add(key);
+
+				const parts = splitViewLink(link);
+				entries.push({
+					link: link,
+					target: parts.target,
+					view: parts.view,
+					file: this.resolveBase(parts.target, source.path),
+					from: source.basename,
+					distance: distance,
+				});
+			}
+		};
+
+		read(file, 0);
+
+		const closure = this.isAClosure(file);
+		const keys = Array.from(closure.distance.keys())
+			.sort((a, b) => closure.distance.get(a) - closure.distance.get(b));
+
+		for (const key of keys) {
+			/* A class named but never written is a virtual node: no frontmatter. */
+			if (key.charAt(0) !== 'f') continue;
+			const source = this.app.vault.getAbstractFileByPath(key.slice(2));
+			if (source instanceof TFile) read(source, closure.distance.get(key));
+		}
+
+		return entries;
+	}
+
+	/* The same, as the links themselves - what Dynamic Viewer reads. */
+	viewsFor(file) {
+		return this.viewEntriesFor(file).map((entry) => entry.link);
+	}
+
+	/*
+	 * A base named with or without its extension. Obsidian's own link resolution
+	 * defaults to `.md`, so `[[Improvement Base]]` finds the note of that name and
+	 * never the base beside it - the `.base` fallback is what lets both spellings
+	 * work, and a note wins only when there is no base to be found.
+	 */
+	resolveBase(target, sourcePath) {
+		if (!target) return null;
+
+		const path = sourcePath || '';
+		const named = this.app.metadataCache.getFirstLinkpathDest(target, path);
+		if (named instanceof TFile && named.extension === 'base') return named;
+
+		const guessed = this.app.metadataCache.getFirstLinkpathDest(target + '.base', path);
+		if (guessed instanceof TFile) return guessed;
+
+		return named instanceof TFile ? named : null;
 	}
 
 	/* Is Artist an Artist? Only when the setting says so. */
@@ -10930,12 +11294,35 @@ class OofClassesPlugin extends Plugin {
 			if (stored.inheritsProperty === 'inherits from') {
 				stored.inheritsProperty = DEFAULT_SETTINGS.inheritsProperty;
 			}
-			if (Array.isArray(stored.logicProperties)) {
-				stored.logicProperties = stored.logicProperties.map(
-					(property) => (property === 'inherits from'
-						? DEFAULT_SETTINGS.inheritsProperty
-						: property));
-			}
+			/*
+			 * The base characteristics are the plugin's list, not his (2026-09-01):
+			 * *"All base characteristics should be added in the backend."* So a
+			 * stored copy is **overwritten** rather than merged, and anything it
+			 * names that the code does not is *retired* rather than simply dropped -
+			 * the same mechanism the chip's × used to drive, so Update still clears
+			 * the orphan key off every class that still carries it.
+			 *
+			 * The rename is applied first, or `inherits from` in an old stored list
+			 * would be retired and Update would go looking for a key to clear that
+			 * his notes stopped using months ago.
+			 *
+			 * **This runs on every load, and that is the point.** A one-shot
+			 * migration is right where a value is legitimately his to set straight
+			 * back - the sort below is exactly that - but here there is no way to set
+			 * it back, so a stored list outranking the code even once would be the
+			 * feature not existing.
+			 */
+			const strayBase = toArray(stored.logicProperties)
+				.map((property) => (property === 'inherits from'
+					? DEFAULT_SETTINGS.inheritsProperty
+					: property))
+				.filter((property) => BASE_CHARACTERISTICS.indexOf(property) === -1);
+
+			stored.logicProperties = BASE_CHARACTERISTICS.slice();
+			stored.retiredLogicProperties = Array.from(new Set(
+				toArray(stored.retiredLogicProperties)
+					.concat(strayBase)
+					.filter((property) => BASE_CHARACTERISTICS.indexOf(property) === -1)));
 
 			/*
 			 * `created` and `updated` were on the shipped ignore list for one
@@ -12448,8 +12835,14 @@ class ClassesView extends ItemView {
 
 	/*
 	 * The base characteristics: the properties the system reasons with, sitting
-	 * above the objects because they apply to all of them. Editing this list
-	 * adds or removes a row on every class card.
+	 * above the objects because they apply to all of them. One row per entry on
+	 * every class card below.
+	 *
+	 * **Read-only since 2026-09-01**, from his note `The user should not be able
+	 * to add or delete base characteristics`. The chips still open their notes;
+	 * what is gone is `onChange`, and `renderChipRow` draws neither the x nor the
+	 * + without it - so there is one way to change this list and it is
+	 * BASE_CHARACTERISTICS.
 	 */
 	renderBaseCharacteristics(container, characteristics) {
 		const plugin = this.plugin;
@@ -12462,41 +12855,14 @@ class ClassesView extends ItemView {
 
 		const body = card.createDiv({ cls: 'oof-object-body' });
 		body.createEl('p', {
-			text: 'The properties the system reasons with. Every class below gets one row per entry.',
+			text: 'The properties the system reasons with. Every class below gets one row '
+				+ 'per entry. The list belongs to the plugin, so it is not added to or '
+				+ 'removed from here.',
 			cls: 'oof-base-note',
 		});
 
 		this.renderChipRow(body, 'properties', plugin.settings.logicProperties, {
 			owner: '::base',
-			suggestions: Array.from(characteristics.keys()),
-			onChange: async (next) => {
-				/* Never let the three the engine depends on be removed. */
-				const anchors = [
-					plugin.settings.isAProperty,
-					plugin.settings.characteristicsProperty,
-					plugin.settings.inheritsProperty,
-				];
-				const missing = anchors.filter((a) => !next.includes(a));
-				if (missing.length > 0) {
-					new Notice('OOF Class Manager: "' + missing.join('", "')
-						+ '" is used by the engine and cannot be removed.', 6000);
-					return;
-				}
-				/*
-				 * Remember what was dropped, so Update can clear the orphan key
-				 * off the objects that still carry it. Anything added back stops
-				 * being retired.
-				 */
-				const removed = plugin.settings.logicProperties.filter((p) => !next.includes(p));
-				const retired = toArray(plugin.settings.retiredLogicProperties)
-					.concat(removed)
-					.filter((p) => !next.includes(p));
-
-				plugin.settings.logicProperties = next;
-				plugin.settings.retiredLogicProperties = Array.from(new Set(retired));
-				await plugin.saveSettings();
-				this.render();
-			},
 			onOpen: (name) => {
 				const characteristic = characteristics.get(name);
 				if (characteristic) {
@@ -12508,17 +12874,30 @@ class ClassesView extends ItemView {
 			tooltip: (name) => {
 				const characteristic = characteristics.get(name);
 				const meaning = characteristic && characteristic.meaning ? characteristic.meaning : null;
-				const anchored = name === plugin.settings.isAProperty
-					|| name === plugin.settings.characteristicsProperty
-					|| name === plugin.settings.inheritsProperty;
 				const parts = [];
 				if (meaning) parts.push(meaning);
-				parts.push(anchored ? 'used by the engine' : 'stored and editable, no inheritance');
+				parts.push(this.baseCharacteristicRole(name));
 				if (!characteristic) parts.push('no note yet');
 				return parts.join(' — ');
 			},
 			missing: (name) => !characteristics.has(name),
 		});
+	}
+
+	/*
+	 * What one base characteristic is for, in three words. Read off the settings
+	 * that name them rather than off the list's order, so renaming `is a` in the
+	 * settings does not leave a chip claiming the wrong job.
+	 */
+	baseCharacteristicRole(name) {
+		const settings = this.plugin.settings;
+		if (name === settings.isAProperty
+			|| name === settings.characteristicsProperty
+			|| name === settings.inheritsProperty) {
+			return 'used by the engine';
+		}
+		if (name === settings.viewsProperty) return 'read by file.views()';
+		return 'stored and editable, no inheritance';
 	}
 
 	/* ----- the second, fainter path: the class under the pointer ----- */
@@ -13823,6 +14202,19 @@ class ClassesView extends ItemView {
 		};
 
 		/* Opening whichever note a value refers to, whatever kind it is. */
+		/*
+		 * A `views` chip names a base, so it opens the base - and says so when
+		 * there is none, rather than offering to make a class of that name.
+		 */
+		const openView = (name) => {
+			const file = plugin.resolveBase(splitViewLink(name).target, '');
+			if (file) {
+				this.app.workspace.getLeaf(false).openFile(file);
+				return;
+			}
+			new Notice('No base called "' + splitViewLink(name).target + '".', 4000);
+		};
+
 		const openObject = (name) => {
 			const object = objects.get(name);
 			if (object && object.file) {
@@ -13852,17 +14244,36 @@ class ClassesView extends ItemView {
 		 * folder; everything else points at objects.
 		 */
 		for (const property of plugin.settings.logicProperties) {
-			const isCharacteristics = property === plugin.settings.characteristicsProperty;
+			const kind = plugin.logicValueKind(property);
+			const isCharacteristics = kind === 'characteristic';
+			const isViews = kind === 'view';
 
+			/*
+			 * Three kinds of value, three sets of answers. A `views` row names bases
+			 * rather than classes, so every one of these would otherwise be wrong:
+			 * it would suggest class names, grey the chip for having no note, offer
+			 * to open a class that does not exist, and show `Improvement Base` where
+			 * he wrote `Improvement Base.base#dynamic project`.
+			 */
 			this.renderChipRow(body, property, draft.values[property] || [], {
 				owner: draft.name,
-				suggestions: isCharacteristics ? Array.from(characteristics.keys()) : objectNames,
+				suggestions: isCharacteristics
+					? Array.from(characteristics.keys())
+					: (isViews ? [] : objectNames),
+				pick: isViews
+					? (taken, add) => plugin.promptForView(taken, add)
+					: null,
 				onChange: (next) => { this.setDraftValue(draft, property, next); },
-				onOpen: isCharacteristics ? openCharacteristic : openObject,
-				tooltip: isCharacteristics ? characteristicTooltip : (name) => {
-					const object = objects.get(name);
-					return object && object.file ? name : name + ' — no note yet';
-				},
+				onOpen: isCharacteristics
+					? openCharacteristic
+					: (isViews ? openView : openObject),
+				label: isViews ? (name) => plugin.viewLabel(name) : null,
+				tooltip: isCharacteristics ? characteristicTooltip : (isViews
+					? (name) => plugin.viewTooltip(name)
+					: (name) => {
+						const object = objects.get(name);
+						return object && object.file ? name : name + ' — no note yet';
+					}),
 				menu: isCharacteristics
 					? (name, event) => {
 						if (characteristics.has(name)) this.characteristicMenu(name, event);
@@ -13870,10 +14281,12 @@ class ClassesView extends ItemView {
 					: null,
 				missing: isCharacteristics
 					? (name) => !characteristics.has(name)
-					: (name) => {
-						const object = objects.get(name);
-						return (!object || !object.file) && !characteristics.has(name);
-					},
+					: (isViews
+						? (name) => !plugin.viewResolves(name)
+						: (name) => {
+							const object = objects.get(name);
+							return (!object || !object.file) && !characteristics.has(name);
+						}),
 			});
 
 			/*
@@ -14115,7 +14528,14 @@ class ClassesView extends ItemView {
 			if (options.missing && options.missing(value)) cls += ' oof-chip-missing';
 			const chip = chips.createSpan({ cls: cls });
 
-			const text = chip.createEl('a', { text: value, cls: 'oof-chip-text' });
+			/*
+			 * What the chip says can differ from what it holds. A `views` entry is
+			 * `Improvement Base.base#dynamic project` and reads as `dynamic project`;
+			 * everything downstream - removing it, saving it - still works on the
+			 * value, so this is display and nothing else.
+			 */
+			const shown = options.label ? options.label(value) : value;
+			const text = chip.createEl('a', { text: shown, cls: 'oof-chip-text' });
 			text.setAttribute('title', options.tooltip(value));
 
 			/*
@@ -14155,6 +14575,25 @@ class ClassesView extends ItemView {
 		}
 
 		if (!onChange) return;
+
+		/*
+		 * Some rows are picked from rather than typed into. A class name is short,
+		 * known and spellable, so the inline box below is right for it; a base view
+		 * is long and exact and is being *chosen*, so its `+` opens a modal instead
+		 * - the same prompt Dynamic Viewer gives for the same list.
+		 */
+		if (options.pick) {
+			const button = chips.createSpan({ cls: 'oof-add oof-add-pick', text: '+' });
+			button.setAttribute('title', 'Pick one');
+			button.onclick = (event) => {
+				event.stopPropagation();
+				options.pick(values, (picked) => {
+					if (!picked || values.includes(picked)) return;
+					onChange(values.concat([picked]));
+				});
+			};
+			return;
+		}
 
 		/*
 		 * The input is wrapped so the dropdown arrow can be ours: the native one is
@@ -14271,6 +14710,29 @@ class ClassesView extends ItemView {
 }
 
 /* --------------------------------------------------------------- the modals */
+/*
+ * Every base in the vault, and every view inside one, offered by name.
+ *
+ * A `views` row is picked from rather than typed into (2026-09-01, his ask):
+ * the inline box with a datalist is right for a class name, which he knows and
+ * can spell, and wrong for `Improvement Base.base#dynamic project`, which is
+ * long, exact, and something he is choosing rather than recalling. Dynamic
+ * Viewer prompts this way for the same list, and being prompted the same way for
+ * the same thing in two plugins is the point.
+ */
+class BaseViewPickerModal extends FuzzySuggestModal {
+	constructor(app, items, onChoose) {
+		super(app);
+		this.items = items;
+		this.onChoose = onChoose;
+		this.setPlaceholder('Pick a base, or one of its views');
+	}
+
+	getItems() { return this.items; }
+	getItemText(item) { return item.label; }
+	onChooseItem(item) { this.onChoose(item.value); }
+}
+
 
 /*
  * Update never writes straight away: it shows the whole plan first, with the
@@ -15835,8 +16297,9 @@ class OofClassesSettingTab extends PluginSettingTab {
 		containerEl.createEl('h4', { text: 'Base queries' });
 
 		containerEl.createEl('p', {
-			text: 'file.isA("Person"), file.inheritsFrom("Person"), file.ancestors() and '
-				+ 'file.isADistance("Person") are available in any base formula, filter or sort. '
+			text: 'file.isA("Person"), file.inheritsFrom("Person"), file.ancestors(), '
+				+ 'file.isADistance("Person") and file.views() are available in any base '
+				+ 'formula, filter or sort. '
 				+ 'They read the same properties as the panel, so they can never disagree with it. '
 				+ 'file.isADistance("Person") == 1 is "named Person in its own is a", which is '
 				+ 'what the Class base menu\'s exact-matches switch writes.',
@@ -15857,6 +16320,8 @@ class OofClassesSettingTab extends PluginSettingTab {
 		this.addText(containerEl, 'Inheritance property', 'Subclassing: a class names its parent class.', 'inheritsProperty');
 		this.addText(containerEl, 'Instance property', 'Instantiation: a note names its class.', 'isAProperty');
 		this.addText(containerEl, 'Characteristics property', 'Lists what an object\'s instances carry.', 'characteristicsProperty');
+		this.addText(containerEl, 'Views property', 'Names the bases an object\'s instances '
+			+ 'are looked at through. Read by file.views(); emptying it turns that off.', 'viewsProperty');
 
 		new Setting(containerEl)
 			.setName('Hide the "Add property" button')
