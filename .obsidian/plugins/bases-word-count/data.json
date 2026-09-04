@@ -2241,10 +2241,34 @@
       "size": 908
     },
     "Obsidian/Notes/Response 1.md": {
-      "words": 390,
-      "chars": 2224,
-      "mtime": 1788525453622,
-      "size": 2490
+      "words": 2032,
+      "chars": 11337,
+      "mtime": 1788541510386,
+      "size": 11753
+    },
+    "Obsidian/Notes/presentness.md": {
+      "words": 0,
+      "chars": 0,
+      "mtime": 1788528588689,
+      "size": 323
+    },
+    "Obsidian/Notes/Zooming messes up wire size.md": {
+      "words": 34,
+      "chars": 177,
+      "mtime": 1788534798054,
+      "size": 557
+    },
+    "Obsidian/Notes/2026-09-04 Friday — 11.52.03.md": {
+      "words": 75,
+      "chars": 404,
+      "mtime": 1788540267931,
+      "size": 640
+    },
+    "Obsidian/Notes/Make the highlighted files pop out.md": {
+      "words": 42,
+      "chars": 227,
+      "mtime": 1788537468642,
+      "size": 579
     }
   }
 }

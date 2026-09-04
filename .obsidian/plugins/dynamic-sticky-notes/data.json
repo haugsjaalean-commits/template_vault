@@ -63,9 +63,16 @@
   "collectAttached": true,
   "trashLimit": 40,
   "state": {
-    "open": [],
+    "open": [
+      "Obsidian/Notes/2026-09-04 Friday — 11.52.03.md"
+    ],
     "pinned": [],
-    "trash": [],
-    "heights": {}
+    "trash": [
+      "Obsidian/Notes/2026-09-04 Friday — 11.52.03.md"
+    ],
+    "heights": {
+      "Obsidian/Notes/2026-09-04 Friday — 11.52.03.md": 408,
+      "Obsidian/Notes/2026-09-04 Friday — 12.28.06.md": 577
+    }
   }
 }

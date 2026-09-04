@@ -5,12 +5,40 @@
       "path": "Obsidian/Notes/Response 1.md"
     },
     {
-      "basename": "rotated_90_clockwise",
-      "path": "Attachments/rotated_90_clockwise.pdf"
+      "basename": "2026-09-04 Friday — 11.52.03",
+      "path": "Obsidian/Notes/2026-09-04 Friday — 11.52.03.md"
+    },
+    {
+      "basename": "Obsidian Plugin Base",
+      "path": "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base"
+    },
+    {
+      "basename": "Backlink Base",
+      "path": "Obsidian/Bases/Backlink Base.base"
+    },
+    {
+      "basename": "Local Graph Base",
+      "path": "Obsidian/Bases/Local Graph Base.base"
+    },
+    {
+      "basename": "Make the highlighted files pop out",
+      "path": "Obsidian/Notes/Make the highlighted files pop out.md"
+    },
+    {
+      "basename": "Zooming messes up wire size",
+      "path": "Obsidian/Notes/Zooming messes up wire size.md"
     },
     {
       "basename": "Culture anglaise et littérature",
       "path": "Obsidian/Notes/Culture anglaise et littérature.md"
+    },
+    {
+      "basename": "presentness",
+      "path": "Obsidian/Notes/presentness.md"
+    },
+    {
+      "basename": "rotated_90_clockwise",
+      "path": "Attachments/rotated_90_clockwise.pdf"
     },
     {
       "basename": "Cours Base",
@@ -65,10 +93,6 @@
       "path": "Obsidian/Notes/shift or ctrl click to select classes is inconsistent.md"
     },
     {
-      "basename": "Obsidian Plugin Base",
-      "path": "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base"
-    },
-    {
       "basename": "Base",
       "path": "Obsidian/Dynamic Views/Base.dview"
     },
@@ -111,10 +135,6 @@
     {
       "basename": "How views work in Dynamic Viewer and for Class Manager",
       "path": "Obsidian/Notes/How views work in Dynamic Viewer and for Class Manager.md"
-    },
-    {
-      "basename": "Backlink Base",
-      "path": "Obsidian/Bases/Backlink Base.base"
     },
     {
       "basename": "The user should not be able to add or delete base characteristics",
@@ -175,30 +195,6 @@
     {
       "basename": "Improvement",
       "path": "Obsidian/Notes/Improvement.md"
-    },
-    {
-      "basename": "How to classify Projects",
-      "path": "Obsidian/Notes/How to classify Projects.md"
-    },
-    {
-      "basename": "Automatic imbedded dynamic view size",
-      "path": "Obsidian/Notes/Automatic imbedded dynamic view size.md"
-    },
-    {
-      "basename": "Improvement Base",
-      "path": "Obsidian/Bases/Class Bases/Improvement Base.base"
-    },
-    {
-      "basename": "2026-09-02 Wednesday — 08.07.47",
-      "path": "Obsidian/Notes/2026-09-02 Wednesday — 08.07.47.md"
-    },
-    {
-      "basename": "Class Note Base",
-      "path": "Obsidian/Bases/Class Bases/Class Note Base.base"
-    },
-    {
-      "basename": "Three modes of creation in Obsidian",
-      "path": "Obsidian/Notes/Three modes of creation in Obsidian.md"
     }
   ],
   "omittedPaths": [],
