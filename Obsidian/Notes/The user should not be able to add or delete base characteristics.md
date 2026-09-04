@@ -21,10 +21,10 @@ active priority:
 difficulty:
 payoff:
 activity: active
-done: false
+done: true
 urgency:
 what to do:
-checkpoint: mapped
+checkpoint: reached
 ---
 
 The user should not be able to add or delete base characteristics. All base characteristics should be added in the backend. 

@@ -1,6 +1,6 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Project]]"
 characteristics:
 type of:
 views:
@@ -21,6 +21,10 @@ active priority:
 difficulty:
 payoff:
 activity:
+done: true
+urgency:
+what to do:
+checkpoint:
 ---
 
 The file is created, but I am not promte

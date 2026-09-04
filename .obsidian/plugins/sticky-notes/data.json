@@ -75,13 +75,13 @@
   "newStickyNotePath": "",
   "workspaceNotes": [
     {
-      "id": "1220c6d8ef0f5275",
+      "id": "40d2a41b99d5d8a1",
       "color": {
         "property": "background_color",
-        "value": "Base",
-        "lightColor": "#ffffff",
-        "darkColor": "#1e1e1e",
-        "isDefault": false
+        "value": "Yellow",
+        "lightColor": "#faf0d0",
+        "darkColor": "#ca8a04",
+        "isDefault": true
       }
     }
   ]

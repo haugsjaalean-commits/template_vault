@@ -671,7 +671,7 @@ off with *Follow the active note*.
 
 ### The tree
 
-There are two drawings of it, and they differ in what the horizontal space is
+There are three drawings of it, and they differ in what the horizontal space is
 spent on.
 
 **A tree** — *classes aligned, connexions drawn out*. Every node in one column
@@ -682,14 +682,19 @@ the detours, so the width is the number of connexions that have to overtake each
 other rather than the depth of the hierarchy. Brackets nest — the shortest reach
 innermost, the longest furthest out.
 
+**A compressed tree** — *one lane for all the wires out of a class*. The same
+drawing, with the wires that leave one node bundled into a single trunk. See
+**Compressed wires** below; it is the one to use once there are enough classes
+for the wires to be wider than the cards.
+
 **A graph** — *a lane per branch, like a commit graph*. A lane belongs to a class
 and holds it for as long as it has descendants, so the node's position tells you
 which branch it is on.
 
 **The ⑂ button on the title row**, beside unfold-all and fold-all, steps round the
-three. It shows the icon of the one you will get next, is accented while either
-drawing is on, and is greyed out while you are searching — a filtered tree has holes in it, so the panel falls
-back to the list.
+four. It shows the icon of the one you will get next, is accented while any of
+the three drawings is on, and is greyed out while you are searching — a filtered
+tree has holes in it, so the panel falls back to the list.
 
 The same choice is **Settings → Class layout**, beside *Order in the panel*.
 Choosing the tree hides that sort, since the tree is the order.
@@ -750,6 +755,54 @@ This applies to the bracket drawing too, where every edge is already a wire in a
 lane — the brackets used to run straight through each other. And the bracket
 drawing **shows second parents at all** now; until this it drew only the descent,
 which meant a class could be a `type of` two things and the picture said one.
+
+### Compressed wires
+
+A lane per wire is one lane per *child*. A class with ten children spends ten
+lanes on ten lines that leave the same node and run down side by side, and past
+forty classes that band is wider than the cards beside it — which is the point at
+which the drawing is mostly wires.
+
+**A compressed tree draws the wires out of one node as a single trunk**, with a
+branch turning in at each child. Choose it with the ⑃ button on the title row, or
+at **Settings → Class layout**.
+
+```
+  a tree            a compressed tree
+
+  ┌┬● Note          ┌● Note
+  ││● Person        │● Person
+  ││● Artist        │● Artist
+  │└● Project       ├● Project
+  │ ● Issue         │● Issue
+  └─● Todo          └● Todo
+```
+
+Two of Note's children are not the row directly below it, so each is a wire; on
+the left they get a lane each, on the right they share one. Every node is in the
+same column either way, and every wire still leaves Note and arrives at its own
+child. At two children that is one lane saved; at ten it is nine.
+
+**No precision is lost.** The wires leave the same node, so they were already
+lying on top of one another at the only place they could have been told apart.
+Compressing them stops paying for a distinction the drawing never made — the
+trunk still leaves the same parent, and each branch still arrives at its own
+child.
+
+Two things are **never** bundled, because overlapping those really would lose
+something:
+
+- **Wires from different nodes.** Where a wire comes from is the whole of what it
+  says, and two origins drawn on one line say neither.
+- **A second-parent wire and a descent out of the same node.** The two are drawn
+  differently — dashed and solid — and one line cannot be both. They get a trunk
+  each.
+
+Everything else is unchanged. The nodes stay in their column and keep their
+distance from the cards; brackets still nest, now by a trunk's whole reach rather
+than by its first branch; a wire crossing a lane is still the one cut; and the
+highlight still follows one wire at a time — **a trunk lights only as far as the
+lit branch hangs off it**, so the run below that child stays grey.
 
 **Settings - A row with more in it than fits** decides what a card does when a
 row holds more than the panel is wide. It covers **both** rows of a card: the
@@ -2125,7 +2178,7 @@ reported as itself, naming the note. Two or more is a shape.
 
 ## In base queries
 
-The same hierarchy answers questions inside any base. Five functions are added
+The same hierarchy answers questions inside any base. Six functions are added
 to the Bases formula language:
 
 ```
@@ -2134,6 +2187,7 @@ file.inheritsFrom("Person")  a subclass of Person, following `type of` only
 file.ancestors()             everything above it by either relation, nearest first
 file.isADistance("Person")   how many hops along the chain, or null
 file.views()                 the bases this note is looked at through
+file.classBase()             the generated base this note is seen through
 ```
 
 ```yaml
@@ -2169,9 +2223,9 @@ Cycles terminate.
 *Is `Artist` itself an Artist?* By default no — a class is not one of its own
 instances. **Bases → A class is its own instance** turns that on, at distance 0.
 
-> Four of the five were a separate plugin, **Bases Is A**, until 2026-08-17.
+> Four of the six were a separate plugin, **Bases Is A**, until 2026-08-17.
 > They read the property names configured here, so there is nothing to keep in
-> step. `file.views()` joined them 2026-09-01.
+> step. `file.views()` joined them 2026-09-01, `file.classBase()` 2026-09-03.
 
 
 ## `views` — what a note is looked at through
@@ -2214,6 +2268,46 @@ extension is tried as a fallback — a note of that name never wins over a base.
 
 The property is named by **Settings → Views property**; emptying it turns
 `file.views()` off.
+
+## `file.classBase()` — the base a note is seen through
+
+`views` says which bases a class *chooses* for its instances. `file.classBase()`
+answers the plainer question underneath it: **which generated base holds this
+note?**
+
+```yaml
+formulas:
+  its base: file.classBase()
+```
+
+It returns a **link to one `.base`**, or null:
+
+| the note | what comes back |
+|---|---|
+| `Person`, a class with a base | `Person Base.base` — its own |
+| `Jess`, who **is a** Person | `Person Base.base` — their class's |
+| `Hokusai`, an **is a** Artist | `Artist Base.base` — the **nearest**, not Person's |
+| `Sculptor`, a **type of** Artist whose own base was trashed | `Artist Base.base` — the chain above it |
+| a note that is nothing | null |
+
+Nothing is written into a note to say so, exactly as with
+[`views`](#views--what-a-note-is-looked-at-through) — the answer is the
+`is a` chain read at query time, and then the `type of` chain above a class,
+which is what lets a class with no base of its own fall back to its parent's.
+
+**Existence at the generated path is the whole test.** A base of your own that
+happens to end in ` Base` is never claimed as a class's, the dynamic base is
+never returned — it belongs to a selection rather than to a class — and
+changing **Bases folder** or **Base suffix** moves what counts, the same way it
+moves what [Update](#generated-bases) would write.
+
+The link is spelled `Person Base.base`, extension included, for the reason a
+`views` row is: Obsidian resolves a bare wikilink to `.md` first, so
+`[[Person Base]]` would find a note of that name before the base beside it.
+
+**One base, not a list.** A note that names two classes at the same distance
+takes the first its `is a` names — *the* base of a note is one thing to open,
+and a column of two links is not something a dynamic view can follow.
 
 ## Editing costs you nothing
 

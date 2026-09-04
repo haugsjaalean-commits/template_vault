@@ -54,6 +54,146 @@ const obsidian = require('obsidian');
 const { Plugin, PluginSettingTab, Setting, ItemView, FileView, Component, Modal, Menu,
 	TFile, Notice, setIcon } = obsidian;
 
+/* ------------------------------------------------- the band as a real embed */
+
+/*
+ * CodeMirror, if this build of Obsidian hands it over. Everything that uses it is
+ * optional: without it, *In the note's layout* is the only attachment there is,
+ * which is what the plugin did before this existed.
+ */
+let cmView = null;
+let cmState = null;
+try {
+	cmView = require('@codemirror/view');
+	cmState = require('@codemirror/state');
+} catch (e) {
+	cmView = null;
+	cmState = null;
+}
+
+/*
+ * A band drawn the way Obsidian draws `![[Some Base.base]]`: a **block widget
+ * decoration**, so it is part of the document rather than a foreign element
+ * standing above it - with nothing written into the file.
+ *
+ * This is the root cause addressed rather than compensated for, which was his
+ * reading (2026-09-03) and the measurements agree. Attached this way the band's
+ * height is in CodeMirror's height map and `contentDOM.offsetTop` does not grow,
+ * so every scroll position corresponds to a real document position and Obsidian's
+ * own untouched `getScroll`/`applyScroll` are accurate. Measured on his vault:
+ * `offsetTop` 2159 -> 1073, `docHeight` 408 -> 1539, and the round trip
+ * 1165/850/535/115px out -> 79/0/0/0, where 79px is what a note with properties
+ * and no band does anyway.
+ *
+ * **A block decoration must come from a StateField, never a ViewPlugin** -
+ * CodeMirror throws *"Block decorations may not be specified via plugins"* - and
+ * that rule is why this works: heights have to be known to the state before the
+ * view renders, which is the very property that makes the height map account for
+ * the band, and it is also what removes the race with Obsidian's scroll restoring.
+ */
+function bandExtension(plugin) {
+	if (!cmView || !cmState) return [];
+	const { Decoration, WidgetType, EditorView } = cmView;
+	const { StateField } = cmState;
+
+	class BandWidget extends WidgetType {
+		constructor(generation) { super(); this.generation = generation; }
+
+		/*
+		 * There is one band per note and it never becomes a different band, so
+		 * widgets compare equal and CodeMirror keeps the DOM it already has -
+		 * rebuilding would tear down a live base query on every keystroke.
+		 *
+		 * The generation is the one thing that can make them differ, and it is
+		 * bumped only when the band has been carried off somewhere else (reading
+		 * mode owns it between switches) and has to be adopted back.
+		 */
+		eq(other) { return other.generation === this.generation; }
+
+		/*
+		 * The band itself, never a copy: it carries live base queries.
+		 *
+		 * **Unless the view is in reading mode**, and that exception is the whole
+		 * of a bug he found: there is one band element per note, reading mode needs
+		 * it inside `.mod-header`, and a widget that hands it over keeps taking it
+		 * back every time CodeMirror renders - so the band ended up in the hidden
+		 * editor's `.cm-content` at zero height and reading mode had none. The
+		 * editor only owns it while the editor is the one being looked at.
+		 */
+		toDOM(view) {
+			const band = plugin.bandForEditor(view);
+			const owner = band && band.view;
+			const reading = owner && typeof owner.getMode === 'function'
+				&& owner.getMode() === 'preview';
+			if (band && band.el && !reading) return band.el;
+			/* No band for this note, or reading mode has it: a nothing, not a gap. */
+			return createDiv({ cls: 'dynamic-viewer-band-placeholder' });
+		}
+
+		/*
+		 * CodeMirror owns where the element sits, not whether it lives. The band
+		 * is a Component owned by the plugin and outlives any number of renders.
+		 */
+		destroy() {}
+
+		/* The base inside owns its toolbar, menus, search field and drags. */
+		ignoreEvent() { return true; }
+
+		/*
+		 * What lets the layout be right before the band has ever been measured,
+		 * which is what the DOM attachment could not offer: there, the height only
+		 * existed once the element had been moved into place, and Obsidian
+		 * restored the scroll before that happened.
+		 */
+		get estimatedHeight() { return plugin.bandHeightHint(); }
+	}
+
+	/*
+	 * The first line of the body, read from the document rather than from the
+	 * metadata cache so that the field stays a pure function of the state.
+	 */
+	const bodyStart = (doc) => {
+		if (doc.lines >= 2 && doc.line(1).text.trim() === '---') {
+			for (let i = 2; i <= doc.lines; i++) {
+				if (doc.line(i).text.trim() === '---') return Math.min(i + 1, doc.lines);
+			}
+		}
+		return 1;
+	};
+
+	/*
+	 * Where the band hangs. *Under the properties* is the start of the first body
+	 * line, because the title and the properties are not in the document at all -
+	 * which is also why *above the file name* cannot be said this way and falls
+	 * back to here. *After the body text* is the end of the last line.
+	 */
+	const build = (state) => {
+		if (plugin.settings.editAttach !== 'embed') return Decoration.none;
+		const doc = state.doc;
+		const bottom = plugin.settings.editPosition === 'bottom';
+		const pos = bottom ? doc.line(doc.lines).to : doc.line(bodyStart(doc)).from;
+		return Decoration.set([
+			Decoration.widget({
+				widget: new BandWidget(plugin.bandGeneration),
+				block: true,
+				side: bottom ? 1 : -1,
+			}).range(pos),
+		]);
+	};
+
+	/*
+	 * Recomputed on every transaction rather than only on `docChanged`, because
+	 * the answer also depends on a setting and on the generation - and an empty
+	 * transaction is how both are announced. It is one range, and `eq()` keeps
+	 * CodeMirror from touching the DOM when nothing has really changed.
+	 */
+	return StateField.define({
+		create: (state) => build(state),
+		update: (deco, tr) => build(tr.state),
+		provide: (field) => EditorView.decorations.from(field),
+	});
+}
+
 const VIEW_TYPE = 'dynamic-viewer';
 /* A dynamic view is a file, and this is what one is called. */
 const EXTENSION = 'dview';
@@ -85,6 +225,41 @@ const DEFAULT_SETTINGS = {
 	activeView: '',
 	/* path -> { collapsed, height }. Never in the file: it would churn on a drag. */
 	state: {},
+	/*
+	 * The paths of the dynamic views, in the order they are drawn.
+	 *
+	 * Here rather than as an `order:` number in each `.dview`, which was the first
+	 * design and was his to correct: a number per file can collide, and two files
+	 * both claiming to be second is a state with no right answer. The deeper
+	 * reason is the same one in a different form - **an order is a property of the
+	 * collection, not of any member**. "Which comes first" is not a fact about
+	 * `Base.dview`; a number inside it would be that file making a claim about an
+	 * arrangement it cannot see. One list, one place, and no two entries can
+	 * disagree.
+	 *
+	 * The cost, and it is real: the order does not travel with the files the way
+	 * `boxes` and the three switches do. A dynamic view this list has never heard
+	 * of simply goes at the end, so a copied-in file is placed rather than lost.
+	 */
+	order: [],
+	/*
+	 * Where a band sits in the note, one answer per mode: 'title' (above the file
+	 * name), 'properties' (under them) or 'bottom' (after the body text).
+	 *
+	 * Two settings rather than one because the two modes are two different DOMs
+	 * with different rules about what may live where, and he reads in one and
+	 * writes in the other.
+	 */
+	editPosition: 'properties',
+	readPosition: 'properties',
+	/*
+	 * How a band is attached in editing mode: 'layout' puts it in the note's
+	 * layout beside the properties, 'embed' makes it a block widget inside the
+	 * document, the way an `![[...]]` embed is.
+	 *
+	 * A separate question from *where* it sits, so a separate setting.
+	 */
+	editAttach: 'embed',
 };
 
 /* ------------------------------------------------------------------ helpers */
@@ -122,16 +297,27 @@ function anchorPosition(el) {
 }
 
 /*
- * The functions a function box may hold. One so far — OOF Class Manager's
- * `file.views()` — matched by name rather than parsed, because Obsidian exports
- * no formula parser and one function needs no grammar. A second joins by adding
- * a row here.
+ * The functions a function box may hold, matched by name rather than parsed:
+ * Obsidian exports no formula parser, and a table needs no grammar. A third
+ * joins by adding a row here and a branch to `callFunction`.
+ *
+ * Both are OOF Class Manager's, and they answer two different questions about
+ * one note. `file.views()` is what a class *chose* for its instances - a list,
+ * possibly empty. `file.classBase()` is the generated base that actually
+ * *holds* the note - one base, or none, and it needs nothing written anywhere
+ * to be true, which is why it is worth a box of its own: a dynamic view built
+ * on it shows the right dashboard for whatever you are standing on.
  */
 const FUNCTIONS = [
 	{
 		name: 'file.views()',
 		test: /^file\s*\.\s*views\s*\(\s*\)$/i,
 		describe: 'The bases this note is looked at through, from OOF Class Manager.',
+	},
+	{
+		name: 'file.classBase()',
+		test: /^file\s*\.\s*classBase\s*\(\s*\)$/i,
+		describe: 'The generated base of this note’s class, from OOF Class Manager.',
 	},
 ];
 
@@ -521,6 +707,21 @@ class DynamicPanel extends Component {
 
 	entryFor(link) {
 		return this.entries.find((entry) => entry.link === link) || null;
+	}
+
+	/*
+	 * The bases actually on the screen, each with the name its tab carries.
+	 *
+	 * Tabbed, that is the one being looked at; stacked, it is all of them - the
+	 * same question answered by the same code, because "the current base" in a
+	 * stack is every base, and a menu with three of them is honest where a menu
+	 * with one guessed one is not.
+	 */
+	basesOn() {
+		const list = this.stacked()
+			? this.entries.slice()
+			: [this.entryFor(this.selected) || this.entries[0]].filter(Boolean);
+		return list.map((entry) => ({ entry: entry, label: this.labelFor(entry) }));
 	}
 
 	/*
@@ -941,20 +1142,20 @@ class EmbedBand extends Component {
 	}
 
 	/*
-	 * Where the band goes: **inside the note's own scroll area, directly under the
-	 * properties**, so it moves with the note the way an embed does.
+	 * Where the band goes, per mode, from `editPosition` / `readPosition`.
 	 *
-	 * It used to sit between the tab header and `contentEl` — outside the scroller,
-	 * so it ate the same strip of every note for ever, which is what he asked to be
-	 * rid of. This is the more literal reading of his original *"at the top of the
-	 * note"*, and it is CodeMirror's DOM, so everything below is about surviving in
-	 * someone else's tree.
+	 * Three places, and they are the same three in both modes (his ask,
+	 * 2026-09-03): above the file name, under the properties, or after the body
+	 * text. They are two settings rather than one because the two modes are two
+	 * different DOMs with different rules, and he reads in one and writes in the
+	 * other.
 	 *
-	 * Both modes are in the document at once — `.markdown-source-view` and
-	 * `.markdown-reading-view` are siblings with one hidden — so the band follows
-	 * whichever the view says it is in, and only ever one base query is live per
-	 * note. The paths are `:scope >` chains rather than a loose `querySelector`,
-	 * or an embedded note inside this one would offer its own sizer first.
+	 * `after the body text` is worth knowing about beyond taste: in editing mode
+	 * it is the only one of the three that does not sit between the top of the
+	 * scroller and the first line, and Obsidian's own scroll <-> line mapping
+	 * cannot represent positions in that stretch. Measured on his vault, the
+	 * round-trip drift is 1165px above the text and 79px below it - and 79px is
+	 * what a note with properties and no band does anyway.
 	 */
 	anchorFor() {
 		const view = this.view;
@@ -966,30 +1167,87 @@ class EmbedBand extends Component {
 			: ':scope > .markdown-source-view');
 		if (!root) return null;
 
-		const sizer = root.querySelector(reading
-			? ':scope > .markdown-preview-view > .markdown-preview-sizer'
-			: ':scope > .cm-editor > .cm-scroller > .cm-sizer');
+		return reading ? this.readingAnchor(root) : this.editingAnchor(root);
+	}
+
+	/*
+	 * Editing and live preview: `.cm-sizer`, whose children CodeMirror leaves
+	 * alone - it virtualises inside `.cm-content`, not here - so all three places
+	 * are ordinary siblings and none of them is ever carried away.
+	 */
+	editingAnchor(root) {
+		/*
+		 * Attached as an embed, the band's place is CodeMirror's to decide - it is
+		 * a block widget inside the document, so there is nothing to insert here.
+		 */
+		if (this.plugin.settings.editAttach === 'embed' && cmView && cmState) {
+			return { widget: true };
+		}
+
+		const sizer = root.querySelector(':scope > .cm-editor > .cm-scroller > .cm-sizer');
 		if (!sizer) return null;
 
 		/*
-		 * The properties are a direct child of the sizer in live preview and are
-		 * wrapped in `.mod-header` in reading mode, so the anchor is *whichever
-		 * child of the sizer contains them* rather than the container itself.
+		 * The properties are wrapped, so the anchor is *whichever child of the
+		 * sizer contains them* rather than the container itself.
 		 */
 		const childHolding = (selector) => {
 			let node = sizer.querySelector(selector);
 			while (node && node.parentElement !== sizer) node = node.parentElement;
-			return node;
+			return node === this.el ? null : node;
 		};
 
+		const where = this.plugin.settings.editPosition;
+		if (where === 'title') return { parent: sizer, after: null };
+		if (where === 'bottom') {
+			const body = childHolding('.cm-contentContainer');
+			return body ? { parent: sizer, after: body } : { parent: sizer, append: true };
+		}
 		return {
-			sizer: sizer,
-			after: childHolding('.metadata-container')
-				|| childHolding('.inline-title')
-				|| null,
+			parent: sizer,
+			after: childHolding('.metadata-container') || childHolding('.inline-title') || null,
 		};
 	}
 
+	/*
+	 * Reading mode, where the rule is one sentence: **never a direct child of
+	 * `.markdown-preview-sizer`.**
+	 *
+	 * Those children are the preview renderer's own sections and it virtualises
+	 * them, taking them out of the document as they scroll off. Measured on his
+	 * vault: a band placed as a sibling of `.mod-header` in there was detached at
+	 * 7 of 7 scroll positions, and only our MutationObserver ever put it back -
+	 * 85 re-mounts in 7 seconds, each moving the scroll by the band's own height,
+	 * which is the jitter he reported.
+	 *
+	 * So each place is either outside the sizer entirely, or *inside* one of the
+	 * renderer's own elements rather than beside it:
+	 *
+	 * - above the file name -> first child of `.markdown-preview-view`, the
+	 *   scroller, which belongs to nobody. 0 detachments over 7 stops.
+	 * - under the properties -> **inside** `.mod-header`, which the renderer keeps
+	 *   in the document throughout (present at 13 of 13 stops) and measures live,
+	 *   so it accounts for our height instead of fighting it. 0 detachments.
+	 * - after the body text -> last child of the scroller. **This lands below the
+	 *   backlinks**, not between them and the text, because that gap is inside the
+	 *   sizer: a band inside `.mod-footer` was detached at 11 of 13 stops, and the
+	 *   footer itself was only in the document at 2 of them.
+	 */
+	readingAnchor(root) {
+		const scroller = root.querySelector(':scope > .markdown-preview-view');
+		if (!scroller) return null;
+
+		const where = this.plugin.settings.readPosition;
+		if (where === 'title') return { parent: scroller, after: null };
+		if (where === 'bottom') return { parent: scroller, append: true };
+
+		/*
+		 * The header has been there every time it was looked for; the fallback is
+		 * here so that a band never simply vanishes if it one day is not.
+		 */
+		const header = scroller.querySelector('.markdown-preview-sizer > .mod-header');
+		return header ? { parent: header, append: true } : { parent: scroller, after: null };
+	}
 	/*
 	 * Read the container live and mount on use: a view's DOM is Obsidian's, and it
 	 * is rebuilt often enough that a remembered parent goes quietly dead.
@@ -1003,31 +1261,189 @@ class EmbedBand extends Component {
 		const spot = this.anchorFor();
 		if (!spot) return false;
 
-		this.watch(spot.sizer);
+		/*
+		 * CodeMirror is holding it. Nothing to insert and nothing to watch - but
+		 * reading mode takes the element away between mode switches, and the
+		 * decoration still compares equal, so the editor has to be told to ask for
+		 * it again.
+		 */
+		if (spot.widget) {
+			this.watch(null);
+			const view = this.view;
+			const cm = view && view.editor && view.editor.cm;
+			if (cm && !cm.contentDOM.contains(this.el)) {
+				this.plugin.reclaimBands();
+				/*
+				 * Arriving back from reading mode, which is the one moment the two
+				 * modes disagree about the band: reading counts it as header, above
+				 * the first line, while the editor counts it as document. That makes
+				 * one scroll value mean two different places, and Obsidian carries a
+				 * scroll value across. So the same repair the other attachment needs
+				 * on every switch is needed here on this one.
+				 */
+				this.restoreScroll();
+			}
+			return true;
+		}
 
-		const here = spot.after ? spot.after.nextElementSibling : spot.sizer.firstElementChild;
+		/*
+		 * Coming back from the editor's own hands. In reading mode the band belongs
+		 * in `.mod-header`, but a CodeMirror widget may still be holding it and
+		 * would re-adopt it on its next render; asking for the widgets to be built
+		 * again is what makes it let go, because `toDOM` declines while the view is
+		 * in reading mode.
+		 */
+		const held = this.view && this.view.editor && this.view.editor.cm;
+		if (held && held.contentDOM.contains(this.el)) this.plugin.reclaimBands();
+
+		this.watch(spot.parent);
+
+		/* Already in the right place is the common case, and the cheapest test of
+		 * it is what would be beside us if we were. */
+		const here = spot.append ? spot.parent.lastElementChild
+			: (spot.after ? spot.after.nextElementSibling : spot.parent.firstElementChild);
 		if (here === this.el) return true;
 
-		if (spot.after) spot.after.insertAdjacentElement('afterend', this.el);
-		else spot.sizer.prepend(this.el);
+		/* Where it was, so that a *move* can be told from a first appearance. */
+		const from = this.el.parentElement;
+
+		if (spot.append) spot.parent.appendChild(this.el);
+		else if (spot.after) spot.after.insertAdjacentElement('afterend', this.el);
+		else spot.parent.prepend(this.el);
+
+		if (from && from !== spot.parent) this.restoreScroll();
 		return true;
 	}
 
 	/*
-	 * The sizer's children are not ours. CodeMirror rebuilds them, and reading mode
-	 * renders its sections as you scroll — either can carry the band away without
-	 * any workspace event firing. So the sizer is watched, and anything that
-	 * changes its children re-runs the idempotent mount.
+	 * Put the scroll back where the mode change meant to leave it.
+	 *
+	 * Obsidian restores the scroll on a mode change **before** the band has moved
+	 * into the mode being switched to, so it computes against a layout that is
+	 * missing the band and everything lands wrong by roughly its height. Caught
+	 * frame by frame: at the moment the view reports `source` again the band is
+	 * still in `mod-header` and the scroll is right (630); a few frames later the
+	 * band arrives in `.cm-sizer` and it is 313.
+	 *
+	 * `view.scroll` is the line Obsidian carried across, and it survives both
+	 * switches intact - 8.46 from beginning to end - so the repair is simply to
+	 * apply it again now that the layout is the one it was meant for.
+	 *
+	 * Only after a *move*, never after a first mount: appearing in a note is not a
+	 * mode change, and re-aiming the scroll of a note that was just opened would
+	 * undo whatever opened it - a link to a heading, a search result.
 	 */
-	watch(sizer) {
-		if (this.watched === sizer) return;
+	restoreScroll() {
+		const view = this.view;
+		const n = view && view.scroll;
+		if (typeof n !== 'number' || !Number.isFinite(n)) return;
+
+		/*
+		 * Until it sticks, rather than a fixed number of goes.
+		 *
+		 * Obsidian's own last correction lands after the first attempt, so one is
+		 * never enough; and coming back to a long note the position wanted can be
+		 * past the end of a document CodeMirror is still growing, in which case the
+		 * browser clamps and the attempt is silently lost - measured landing 1217
+		 * and 2810px short at 70% and 90% of a long note. So it retries while the
+		 * write does not take, and stops the moment it does.
+		 *
+		 * It also stands down if the position moved to somewhere it did not put it:
+		 * that is him scrolling, and his scroll outranks this repair.
+		 */
+		let tries = 0;
+		let mine = null;
+		const put = () => {
+			if (this.stale()) return;
+
+			if (view.getMode() === 'preview') {
+				/* The preview renderer's own arithmetic is exact - measured 0 drift
+				 * at every position - so there is nothing to reimplement here. */
+				if (view.currentMode && typeof view.currentMode.applyScroll === 'function') {
+					view.currentMode.applyScroll(n);
+				}
+				return;
+			}
+
+			const cm = view.editor && view.editor.cm;
+			const px = this.scrollPixelFor(cm, n);
+			if (px === null) return;
+
+			const scroller = cm.scrollDOM;
+			if (mine !== null && Math.abs(scroller.scrollTop - mine) > 4) return;
+
+			scroller.scrollTop = px;
+			mine = scroller.scrollTop;
+			if (Math.abs(scroller.scrollTop - px) > 2 && tries++ < 10) {
+				window.setTimeout(put, 60);
+			}
+		};
+		window.requestAnimationFrame(put);
+		window.setTimeout(put, 60);
+	}
+
+	/*
+	 * Which pixel of the editor's scroller shows line `n`.
+	 *
+	 * This is `MarkdownView`'s own `applyScroll` arithmetic with its gate removed.
+	 * That method takes its exact path only when the target line is **already
+	 * rendered**, and with a band above the text the top of the note maps onto the
+	 * frontmatter, which live preview never renders - so it falls back to
+	 * `scrollIntoView` and lands at "first line just visible" instead. Measured
+	 * against the position it was asked for: Obsidian is 1165px out at the top of
+	 * the note, 850 and 535 and 115 further down, and exact only once the text is
+	 * on screen; the formula below is 0 at every one of those.
+	 *
+	 * The height map answers `lineBlockAt` whether or not a line is drawn, which is
+	 * the whole reason this works where the gate does not.
+	 */
+	scrollPixelFor(cm, n) {
+		if (!cm || !cm.state || !cm.contentDOM) return null;
+		const doc = cm.state.doc;
+		let value = n;
+		if (value < 0) value = 0;
+		if (value >= doc.lines) value = doc.lines - 0.99;
+
+		const whole = Math.floor(value);
+		const fraction = value - whole;
+		const line = doc.line(whole + 1);
+		const block = cm.lineBlockAt(line.from);
+		const firstLine = doc.lineAt(block.from).number - 1;
+		const lines = doc.lineAt(block.to).number - 1 - firstLine + 1;
+
+		let top = block.top;
+		let height = block.height;
+		const above = cm.contentDOM.offsetTop;
+		/* Everything above the first line - title, properties, us - is folded into
+		 * the height of block 0, which is what makes a scroll of "line 0 and a bit"
+		 * mean a position inside it. */
+		if (firstLine === 0) height += above;
+		else top += above;
+
+		return top + (whole - firstLine + fraction) * (height / Math.max(1, lines));
+	}
+
+
+	/*
+	 * The container's children are not ours: CodeMirror rebuilds the sizer's, and a
+	 * mode change swaps the container outright, either without a workspace event.
+	 * So whatever the band is mounted in is watched, and anything that changes its
+	 * children re-runs the idempotent mount.
+	 *
+	 * This is a net rather than a motor. It used to be the *only* thing keeping the
+	 * band on screen in reading mode, where the renderer took it out again every
+	 * few frames — a loop, not a safety net. Nothing should now make it fire in a
+	 * steady state; if it does, the mount point is wrong again.
+	 */
+	watch(parent) {
+		if (this.watched === parent) return;
 
 		if (this.observer) {
 			this.observer.disconnect();
 			this.observer = null;
 		}
-		this.watched = sizer || null;
-		if (!sizer) return;
+		this.watched = parent || null;
+		if (!parent) return;
 
 		this.observer = new MutationObserver(() => {
 			if (this.remounting) return;
@@ -1037,7 +1453,7 @@ class EmbedBand extends Component {
 				if (this.el && !this.stale()) this.mount();
 			});
 		});
-		this.observer.observe(sizer, { childList: true });
+		this.observer.observe(parent, { childList: true });
 	}
 
 	stale() {
@@ -1166,7 +1582,9 @@ class EmbedBand extends Component {
 		open.addEventListener('click', (event) => {
 			event.stopPropagation();
 			const live = this.plugin.dynamicView(id);
-			if (live) this.plugin.openMenu(live, event);
+			if (!live) return;
+			const panel = this.panels.get(id);
+			this.plugin.openMenu(live, event, panel ? panel.basesOn() : []);
 		});
 
 		return { section, header, chevron, name, open, host: null, watched: false };
@@ -1391,8 +1809,8 @@ class DynamicEditor extends Component {
 		if (!oof || typeof oof.viewsFor !== 'function') {
 			root.createEl('p', {
 				cls: 'dynamic-viewer-warning',
-				text: 'OOF Class Manager is not enabled, so file.views() answers nothing. '
-					+ 'Links typed by hand still work.',
+				text: 'OOF Class Manager is not enabled, so file.views() and '
+					+ 'file.classBase() answer nothing. Links typed by hand still work.',
 			});
 		}
 	}
@@ -1584,9 +2002,24 @@ class DynamicViewerPlugin extends Plugin {
 		this.bands = new Map();
 		this.noteFile = null;
 		this.syncQueued = false;
+		/* Bumped when a band has to be adopted back into an editor. */
+		this.bandGeneration = 0;
+
 
 		/* path -> the dynamic view read out of that file. */
 		this.views = new Map();
+
+		/*
+		 * After `views`, and that ordering is load-bearing: registering the
+		 * extension reconfigures every open editor at once, the field is created
+		 * on the spot and asks for `bandHeightHint()`, which reads them.
+		 *
+		 * Registered whether or not the setting is on - the field draws nothing
+		 * while it is off - because adding or removing an extension from a live
+		 * editor is the one thing that cannot be undone by disabling the plugin
+		 * if it ever throws.
+		 */
+		this.registerEditorExtension(bandExtension(this));
 
 		this.registerView(VIEW_TYPE, (leaf) => new DynamicViewerPane(leaf, this));
 		this.registerView(FILE_VIEW_TYPE, (leaf) => new DynamicViewerFileView(leaf, this));
@@ -1683,6 +2116,57 @@ class DynamicViewerPlugin extends Plugin {
 	onunload() {
 		for (const band of this.bands.values()) this.removeChild(band);
 		this.bands.clear();
+	}
+
+
+	/*
+	 * Which band belongs to this editor. The widget is one decoration shared by
+	 * every note, so the view it is being drawn into is what says whose band it is.
+	 */
+	bandForEditor(editorView) {
+		for (const band of this.bands.values()) {
+			const view = band.view;
+			const cm = view && view.editor && view.editor.cm;
+			if (cm === editorView) return band;
+		}
+		return null;
+	}
+
+	/*
+	 * Roughly how tall a band will be, for CodeMirror to lay out with before it has
+	 * measured one. An estimate is all this is: being wrong costs a correction on
+	 * first render, where having none at all costs the layout being wrong for the
+	 * whole of the first paint - which is the race this attachment exists to avoid.
+	 */
+	bandHeightHint() {
+		/* Asked during the very reconfigure that installs the field, which can be
+		 * before the dynamic views have been read. */
+		if (!this.views) return 0;
+		let total = 0;
+		for (const dynamic of this.dynamicViews()) {
+			if (!dynamic.embed) continue;
+			total += 26 + (dynamic.collapsed ? 0 : Math.max(MIN_HEIGHT, Number(dynamic.height) || 320));
+		}
+		return total;
+	}
+
+	/*
+	 * Ask every editor to draw the band again.
+	 *
+	 * Needed because reading mode takes the element away between switches: the
+	 * decoration is still there and still compares equal, so CodeMirror keeps a
+	 * reference to a node that is now inside `mod-header` and never re-adopts it.
+	 * Bumping the generation is what makes the widgets differ so `toDOM` is asked
+	 * again.
+	 */
+	reclaimBands() {
+		this.bandGeneration++;
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			const view = leaf.view;
+			const cm = view && view.getViewType && view.getViewType() === 'markdown'
+				&& view.editor && view.editor.cm;
+			if (cm) cm.dispatch({});
+		});
 	}
 
 	async loadSettings() {
@@ -1813,8 +2297,36 @@ class DynamicViewerPlugin extends Plugin {
 
 	/* In name order, which is file order - there is no list to keep sorted. */
 	dynamicViews() {
-		return Array.from(this.views.values())
-			.sort((a, b) => a.name.localeCompare(b.name));
+		const order = Array.isArray(this.settings.order) ? this.settings.order : [];
+		const place = new Map(order.map((path, i) => [path, i]));
+		return Array.from(this.views.values()).sort((a, b) => {
+			const ia = place.has(a.path) ? place.get(a.path) : Infinity;
+			const ib = place.has(b.path) ? place.get(b.path) : Infinity;
+			/* Anything the list has not heard of goes after what it has, and among
+			 * themselves alphabetically - which is what the whole list used to be. */
+			if (ia !== ib) return ia - ib;
+			return a.name.localeCompare(b.name);
+		});
+	}
+
+	/*
+	 * Move one dynamic view up or down.
+	 *
+	 * The stored list is rebuilt from what is actually on screen rather than
+	 * edited in place, so a list carrying a deleted path or missing a new one
+	 * cannot make the move do something surprising - it is normalised by the act
+	 * of reordering.
+	 */
+	moveDynamicView(dynamic, by) {
+		const current = this.dynamicViews().map((d) => d.path);
+		const from = current.indexOf(dynamic.path);
+		const to = from + by;
+		if (from < 0 || to < 0 || to >= current.length) return false;
+		current.splice(to, 0, current.splice(from, 1)[0]);
+		this.settings.order = current;
+		this.saveSettings().catch(() => {});
+		this.syncBands(true);
+		return true;
 	}
 
 	dynamicView(path) {
@@ -1836,6 +2348,10 @@ class DynamicViewerPlugin extends Plugin {
 			delete this.settings.state[from];
 		}
 		if (this.settings.activeView === from) this.settings.activeView = to;
+		if (Array.isArray(this.settings.order)) {
+			const at = this.settings.order.indexOf(from);
+			if (at !== -1) this.settings.order[at] = to;
+		}
 	}
 
 	/* ----- making, renaming and removing one ---------------------------------- */
@@ -1879,6 +2395,18 @@ class DynamicViewerPlugin extends Plugin {
 	 * two of the same dashboard side by side is a legitimate thing to want when
 	 * one of them is following a note you are about to leave.
 	 */
+	/*
+	 * One base, in a tab of its own, at the view the tab was showing.
+	 *
+	 * `openLinkText` is the whole implementation: Obsidian resolves the `#view`
+	 * subpath of a `.base` link itself, which is the same reading that makes
+	 * `![[X.base#a view]]` work.
+	 */
+	async openBaseEntry(entry) {
+		if (!entry || !(entry.file instanceof TFile)) return;
+		await this.app.workspace.openLinkText(entry.link, entry.file.path, 'tab');
+	}
+
 	async openDynamicView(dynamic) {
 		if (!(dynamic.file instanceof TFile)) return;
 		await this.app.workspace.getLeaf('tab').openFile(dynamic.file);
@@ -2035,6 +2563,7 @@ class DynamicViewerPlugin extends Plugin {
 		const fn = functionFor(text);
 		if (!fn) return [];
 		if (fn.name === 'file.views()') return this.callViews(file);
+		if (fn.name === 'file.classBase()') return this.callClassBase(file);
 		return [];
 	}
 
@@ -2057,6 +2586,33 @@ class DynamicViewerPlugin extends Plugin {
 			return oof.viewsFor(file) || [];
 		} catch (error) {
 			console.error('dynamic-viewer: file.views() failed on ' + file.path, error);
+			return [];
+		}
+	}
+
+	/*
+	 * `file.classBase()` lives in OOF Class Manager for the same reason
+	 * `file.views()` does, and one more: which `.base` a class's is depends on
+	 * that plugin's Bases folder and Base suffix, so asking it is the only way
+	 * the answer can follow a setting he changes there.
+	 *
+	 * Returned as `Person Base.base` - a one-entry list in the spelling every
+	 * other entry here uses, extension included so `resolveBase` finds the base
+	 * rather than a note of that name. A note with no class base is an empty
+	 * list, which draws as an empty section or none at all, exactly like a note
+	 * whose classes name no views.
+	 */
+	callClassBase(file) {
+		if (!(file instanceof TFile)) return [];
+
+		const oof = this.app.plugins.plugins['oof-objects'];
+		if (!oof || typeof oof.classBaseFor !== 'function') return [];
+
+		try {
+			const base = oof.classBaseFor(file);
+			return base ? [base.name] : [];
+		} catch (error) {
+			console.error('dynamic-viewer: file.classBase() failed on ' + file.path, error);
 			return [];
 		}
 	}
@@ -2639,8 +3195,31 @@ class DynamicViewerPlugin extends Plugin {
 	 * A missing file keeps its place with the reason in the label, since a disabled
 	 * Obsidian menu item swallows its own click.
 	 */
-	openMenu(dynamic, event) {
+	openMenu(dynamic, event, bases) {
 		const menu = new Menu();
+
+		/*
+		 * The base he is looking at, first - his ask (2026-09-03), and the right
+		 * order: a band is a way of reading one base about this note, so the thing
+		 * on the screen comes before the dynamic view that assembled it.
+		 *
+		 * Opened by its link, subpath and all, because Obsidian resolves
+		 * `X.base#a view` to that base *at that view* on its own. In its own tab it
+		 * is an ordinary base again, so `this` follows the active note the way any
+		 * base does - it is not pinned to the note the band was drawn on.
+		 */
+		for (const { entry, label } of (bases || [])) {
+			const openable = entry && entry.file instanceof TFile;
+			menu.addItem((item) => item
+				.setTitle(openable
+					? 'Open ' + label + ' in a new tab'
+					: 'Open ' + label + ' — no such base')
+				.setIcon('table')
+				.setDisabled(!openable)
+				.onClick(() => this.openBaseEntry(entry)));
+		}
+
+		if (bases && bases.length) menu.addSeparator();
 
 		menu.addItem((item) => item
 			.setTitle('Open the dynamic views pane')
@@ -2649,7 +3228,9 @@ class DynamicViewerPlugin extends Plugin {
 
 		const openable = dynamic && dynamic.file instanceof TFile;
 		menu.addItem((item) => item
-			.setTitle(openable ? 'Open in a new tab' : 'Open in a new tab — no file')
+			.setTitle(openable
+				? 'Open the dynamic view in a new tab'
+				: 'Open the dynamic view — no file')
 			.setIcon('file-symlink')
 			.setDisabled(!openable)
 			.onClick(() => this.openDynamicView(dynamic)));
@@ -2728,12 +3309,83 @@ class DynamicViewerSettingTab extends PluginSettingTab {
 				+ 'Manager. One entry per line, and the + on the tab strip adds one for you.',
 		});
 
+		/*
+		 * Where a band sits, asked once per mode (his ask, 2026-09-03).
+		 *
+		 * The two modes get their own answer because they are two different DOMs:
+		 * in editing mode all three places are ordinary siblings in `.cm-sizer`,
+		 * while in reading mode the sizer's children belong to the preview
+		 * renderer and each place had to be found somewhere it is left alone.
+		 */
+		new Setting(containerEl).setName('Where a band sits in the note').setHeading();
+
+		const places = {
+			title: 'Above the file name',
+			properties: 'Under the properties',
+			bottom: 'After the body text',
+		};
+		const positionSetting = (name, desc, key) => {
+			new Setting(containerEl)
+				.setName(name)
+				.setDesc(desc)
+				.addDropdown((drop) => {
+					for (const value of Object.keys(places)) drop.addOption(value, places[value]);
+					drop
+						.setValue(this.plugin.settings[key])
+						.onChange(async (value) => {
+							this.plugin.settings[key] = value;
+							await this.plugin.saveSettings();
+							/* Every band moves at once: the anchor is read live, so a
+							 * forced sync is the whole of it. */
+							this.plugin.syncBands(true);
+						});
+				});
+		};
+
+		positionSetting('Editing and live preview',
+			'After the body text is the only one of the three that leaves Obsidian’s own '
+			+ 'scroll restoring alone. Above the text, a band the height of a screen puts the '
+			+ 'start of the note somewhere Obsidian cannot scroll back to, so switching modes '
+			+ 'lands you elsewhere in the file.',
+			'editPosition');
+
+		new Setting(containerEl)
+			.setName('How a band is attached in editing mode')
+			.setDesc('In the note’s layout puts it beside the properties, as a piece of the '
+				+ 'pane. As an embed makes it a block inside the document, exactly the way '
+				+ '![[a base]] is drawn — with nothing written into the file. The embed is '
+				+ 'the tidier of the two: the band’s height belongs to the editor rather '
+				+ 'than sitting above it, so scrolling and mode switches need no correcting. '
+				+ 'It cannot offer Above the file name, because the title and the properties '
+				+ 'are not part of the document — that choice falls back to Under the '
+				+ 'properties. Reading mode is unaffected either way.')
+			.addDropdown((drop) => {
+				drop.addOption('layout', 'In the note’s layout');
+				drop.addOption('embed', 'As an embed in the document');
+				drop
+					.setValue(this.plugin.settings.editAttach)
+					.onChange(async (value) => {
+						this.plugin.settings.editAttach = value;
+						await this.plugin.saveSettings();
+						/* Both, and in this order: the field has to be asked again
+						 * before the bands are told where they now live. */
+						this.plugin.reclaimBands();
+						this.plugin.syncBands(true);
+					});
+			});
+
+		positionSetting('Reading',
+			'After the body text lands below the backlinks here, not between them and the '
+			+ 'text: that gap belongs to Obsidian’s preview renderer, which takes anything '
+			+ 'foreign back out of it as you scroll.',
+			'readPosition');
+
 		const oof = this.app.plugins.plugins['oof-objects'];
 		if (!oof || typeof oof.viewsFor !== 'function') {
 			containerEl.createEl('p', {
 				cls: 'dynamic-viewer-warning',
-				text: 'OOF Class Manager is not enabled, so file.views() answers nothing. '
-					+ 'Links typed by hand still work.',
+				text: 'OOF Class Manager is not enabled, so file.views() and '
+					+ 'file.classBase() answer nothing. Links typed by hand still work.',
 			});
 		}
 
@@ -2746,7 +3398,7 @@ class DynamicViewerSettingTab extends PluginSettingTab {
 		const all = this.plugin.dynamicViews();
 		if (all.length) {
 			new Setting(containerEl).setName('Dynamic views').setHeading();
-			for (const dynamic of all) this.drawRow(containerEl, dynamic);
+			all.forEach((dynamic, i) => this.drawRow(containerEl, dynamic, i, all.length));
 		}
 
 		new Setting(containerEl)
@@ -2760,21 +3412,46 @@ class DynamicViewerSettingTab extends PluginSettingTab {
 	 * One line per dynamic view: what it holds, and a button that opens it. Every
 	 * control that changes one is in that file's own window.
 	 */
-	drawRow(containerEl, dynamic) {
+	drawRow(containerEl, dynamic, index, total) {
 		const boxes = dynamic.boxes.length;
 		const where = [];
 		if (dynamic.embed) where.push('at the top of every note');
 		if (dynamic.stacked) where.push('stacked');
 
-		new Setting(containerEl)
+		/*
+		 * The order lives here rather than on a pill or in the file: it is a fact
+		 * about the collection, not about any one dynamic view, and the pane and
+		 * the band both report rather than edit (his rule, 2026-09-02).
+		 *
+		 * The ends keep their buttons, greyed, so the rows do not change width as
+		 * they move - a control that disappears is one you hunt for.
+		 */
+		const setting = new Setting(containerEl)
 			.setName(dynamic.name)
 			.setDesc(boxes + (boxes === 1 ? ' box' : ' boxes')
 				+ (where.length ? ' — ' + where.join(', ') : '')
-				+ ' — ' + dynamic.path)
-			.addExtraButton((button) => button
-				.setIcon('file-symlink')
-				.setTooltip('Open it, and everything it can be changed by')
-				.onClick(() => this.plugin.openDynamicView(dynamic)));
+				+ ' — ' + dynamic.path);
+
+		const move = (icon, by, at) => setting.addExtraButton((button) => {
+			button
+				.setIcon(icon)
+				.setTooltip(at ? 'Already ' + (by < 0 ? 'first' : 'last')
+					: 'Move ' + (by < 0 ? 'up' : 'down') + ' — the order a note draws them in')
+				.onClick(() => {
+					if (at) return;
+					this.plugin.moveDynamicView(dynamic, by);
+					this.display();
+				});
+			button.extraSettingsEl.toggleClass('is-disabled', at);
+		});
+
+		move('chevron-up', -1, index === 0);
+		move('chevron-down', 1, index === total - 1);
+
+		setting.addExtraButton((button) => button
+			.setIcon('file-symlink')
+			.setTooltip('Open it, and everything it can be changed by')
+			.onClick(() => this.plugin.openDynamicView(dynamic)));
 	}
 }
 

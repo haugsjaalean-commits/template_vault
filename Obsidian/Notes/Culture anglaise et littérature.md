@@ -16,3 +16,17 @@ session: "[[Session automne 26]]"
 teacher: "[[David Turpie]]"
 ---
 
+
+
+
+
+
+## Assignments 
+
+[[Response 1]]
+
+
+
+
+
+

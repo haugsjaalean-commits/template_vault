@@ -18,7 +18,7 @@ category:
 project:
   - "[[Bases Table Kanban]]"
 subject:
-active priority:
+active priority: 10
 difficulty:
 payoff:
 activity: active

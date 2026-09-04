@@ -25,7 +25,7 @@ views:
     filters:
       and:
         - done != true
-        - abandoned != true
+        - dead != true
         - project.contains(this.file)
     groupBy:
       property: checkpoint

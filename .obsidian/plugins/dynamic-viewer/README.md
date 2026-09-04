@@ -81,10 +81,12 @@ Two ways out, one per surface:
 
 - **the pane** has a gear in its own header — Obsidian's top-right — which opens
   the plugin's settings;
-- **a band** has a ⋯ at the right of its header, which opens a menu:
-  the dynamic views pane in the sidebar, or this dynamic view's own file in a
-  new tab. Both lead to the same panel; which one you want depends on whether
-  you are keeping this note in front of you.
+- **a band** has a ⋯ at the right of its header, which opens a menu: **the base
+  it is showing**, in a tab of its own at the same view; the dynamic views pane
+  in the sidebar; or this dynamic view's own file in a new tab. Stacked, every
+  base on the screen gets its own line. A base opened this way is an ordinary
+  base again, so `this` follows the active note rather than staying pinned to the
+  note the band was drawn on.
 
 **A dynamic view's definition lives in its own file's window.** Open a `.dview`
 — from the file explorer, from *Open in a new tab*, or from *Edit its boxes…* —
@@ -181,7 +183,7 @@ order, each contributing bases in its own way:
 | box | holds | example |
 |---|---|---|
 | **List** | links, one per line | `[[Improvement Base.base#dynamic project]]` |
-| **Function** | one call | `file.views()` |
+| **Function** | one call | `file.views()`, `file.classBase()` |
 
 Add one of either from the dynamic view's menu — *Add a base…* writes into a list
 box, *Add a function…* makes a function box — or from the settings tab, which is
@@ -220,28 +222,45 @@ Boxes are written back one entry per line — that is the one spelling this plug
 
 ### Functions
 
-One so far, and it is matched by name rather than parsed: Obsidian exports no
-formula parser, and one function does not need a grammar.
+Two, both matched **by name rather than parsed**: Obsidian exports no formula
+parser, and a table of names needs no grammar.
 
 ```
-file.views()   the bases this note is looked at through, from OOF Class Manager
+file.views()      the bases this note is looked at through, from OOF Class Manager
+file.classBase()  the generated base of this note's class, from OOF Class Manager
 ```
+
+They answer two different questions about one note, which is why both are worth
+a box. `file.views()` is what a class **chose** for its instances — a list,
+often empty. `file.classBase()` is the generated base that actually **holds**
+the note: its class's `<Class> Base.base`, or the nearest one above it, with
+nothing written anywhere to make it true. So a dynamic view whose only box is
+`file.classBase()` shows the right dashboard for whatever note you are standing
+on, on every note, for ever.
+
+It contributes one entry or none — a note with no class base draws an empty
+section, or none at all with *Hide it when there is nothing to show* on.
 
 A function box holding anything else contributes nothing, and the settings tab
 says so under it rather than the pane — a typo belongs where it can be corrected.
-Adding a second function is a row in `FUNCTIONS` and nothing else.
+Spacing and case are forgiven (`file . ClassBase ( )` is the same call), but the
+name is not: the table is the whole parser. Adding a third function is a row in
+`FUNCTIONS` and a branch in `callFunction`.
 
 ---
 
-## Why `file.views()` lives in the other plugin
+## Why both functions live in the other plugin
 
-It climbs `is a` and then `type of`, and the **names** of those two properties are
-OOF Class Manager's settings. Two plugins reading one hierarchy through two
-settings free to disagree is the mistake that had Bases Is A folded into OOF in
-the first place.
+`file.views()` climbs `is a` and then `type of`, and the **names** of those two
+properties are OOF Class Manager's settings. Two plugins reading one hierarchy
+through two settings free to disagree is the mistake that had Bases Is A folded
+into OOF in the first place. `file.classBase()` adds a second reason: which
+`.base` belongs to a class is decided by that plugin's **Bases folder** and
+**Base suffix**, so asking it is the only way the answer follows a setting
+changed there.
 
-The rest of this plugin does not depend on it: a list of links typed by hand
-works with OOF disabled, and `file.views()` then quietly answers nothing.
+The rest of this plugin does not depend on either: a list of links typed by hand
+works with OOF disabled, and both functions then quietly answer nothing.
 
 ---
 
@@ -279,17 +298,165 @@ different answer for each note, so the tabs are recomputed each time; when the
 answer is unchanged the embed is kept and merely told which note it is now about.
 Rebuilding would throw away scroll position, sort and search on every click.
 
-**The band lives in CodeMirror's DOM, and survives there by never trusting it.**
-It is inserted into the sizer — `.cm-sizer` in live preview and source,
-`.markdown-preview-sizer` in reading mode — after whichever child of it holds
-`.metadata-container`, so "under the properties" is one rule for all three modes.
+**The order the pinned dynamic views are drawn in lives in the settings**, as one
+list of paths, with ↑↓ beside each row of the settings tab. Not as an `order:`
+number inside each `.dview`, which was the first design: a number per file can
+collide, and two files both claiming to be second is a state with no right answer.
+The deeper reason is the same in another form — **an order is a property of the
+collection, not of any member**. Which comes first is not a fact about
+`Base.dview`; a number inside it would be that file making a claim about an
+arrangement it cannot see.
+
+The cost is real and worth naming: unlike `boxes` and the three switches, the
+order does not travel with the files. A dynamic view the list has never heard of
+goes at the end, sorted alphabetically among its kind — which is what the whole
+list used to be — so a file copied in from elsewhere is placed rather than lost.
+Reordering rebuilds the list from what is actually on screen, so a stale path or a
+missing one is normalised by the act of moving something.
+
+**How the band is attached in editing mode is a setting too**, and a separate
+question from where it sits. *As an embed in the document* (the default) makes it
+a CodeMirror **block widget** — the same mechanism Obsidian uses to draw
+`![[a base]]`, with nothing written into the file. *In the note's layout* is the
+older attachment, a plain element beside the properties.
+
+The embed is the tidier of the two, and the difference is in kind rather than in
+degree. Its height belongs to CodeMirror's height map, so `contentDOM.offsetTop`
+does not grow, every scroll position corresponds to a real document position, and
+Obsidian's untouched `getScroll`/`applyScroll` are simply accurate. Measured:
+`offsetTop` 1582 → **1073**, `docHeight` 480 → **962** (the band's 482px is now
+inside it), and a round trip through Obsidian's own unhelped `applyScroll` of
+**79 / 0 / 0 / 0 / 0** px — the 79 being what a note with properties and no band
+does anyway. A mode switch measures **0 / −470 / 0**, which is *identical to the
+same note with the band hidden entirely*: attached this way the band contributes
+nothing to it at all, and what is left is Obsidian's own.
+
+**A block decoration must come from a StateField, never a `ViewPlugin`** —
+CodeMirror throws *"Block decorations may not be specified via plugins"* — and
+that rule is exactly why this works: heights have to be known to the state before
+the view renders, which is also what removes the race described below. CodeMirror
+marks the widget `contenteditable="false"` itself, so the band is not editable
+text; the base's toolbar, search field and drag grips are all present inside it.
+
+**The editor only owns the band while the editor is the one being looked at.**
+There is one band element per note and reading mode needs it inside `.mod-header`,
+so a widget that hands it over would take it straight back on its next render —
+which is what happened: the band ended up in the hidden editor's `.cm-content` at
+zero height and reading mode had none at all. `toDOM` therefore returns a
+placeholder whenever its view reports `preview`, and `mount()` asks for the
+widgets to be rebuilt when it finds the band still inside `contentDOM`, which is
+what makes CodeMirror let go.
+
+**And the switch back restores the scroll.** The two modes disagree about the band
+in this attachment — reading counts it as header, above the first line, while the
+editor counts it as document — so one scroll value means two different places and
+Obsidian carries a scroll value across. `restoreScroll` therefore runs on the
+editing side of a switch too, retrying **until the write takes** rather than a
+fixed number of times, because coming back to a long note the position wanted can
+briefly be past the end of a document CodeMirror is still growing. It stands down
+the moment the position moves to somewhere it did not put it: that is you
+scrolling, and your scroll outranks the repair. Measured over a round trip at 10,
+30 and 50% of a long note: **0 / 0 / 0**.
+
+**What it cannot restore is a position below the end of the text.** Obsidian's
+scroll value is a line number, and on a note with `embedded-backlinks` taller than
+the note itself (4567px against 3289px on `Class Manager`) everything past the last
+line saturates at that line — `view.scroll` reads 68.5 of 69 lines whether you are
+just past the text or four thousand pixels into the backlinks. No line number
+names those positions, in either attachment or with no plugin at all.
+
+Two costs. *Above the file name* cannot be expressed this way — the title and the
+properties are not part of the document — so it falls back to *under the
+properties*, which as a widget means the start of the first body line. And
+`registerEditorExtension` must come **after** `this.views` is built in `onload`:
+registering reconfigures every open editor on the spot, the field is created
+immediately and asks for `bandHeightHint()`, which reads them.
+
+**Where the band sits is a setting, one per mode**, with three places each: above
+the file name, under the properties, or after the body text. Two settings rather
+than one, because the two modes are two different DOMs with different rules about
+what may live where.
+
+**Editing and live preview** — all three are ordinary siblings in `.cm-sizer`.
+CodeMirror virtualises inside `.cm-content`, not here, so nothing is ever carried
+away. *After the body text* is the one that matters beyond taste: it is the only
+place that does not sit between the top of the scroller and the first line, and
+Obsidian's own scroll ↔ line mapping (`getScroll`/`applyScroll`) cannot represent
+positions in that stretch — it falls back to `scrollIntoView` and lands at *first
+line just visible*. Measured round-trip drift: **1165px** above the text, **79px**
+below it, and 79px is what a note with properties and no band does anyway.
+
+**Reading mode** — the rule is one sentence: **never a direct child of
+`.markdown-preview-sizer`.** Those children are the preview renderer's own
+sections and it virtualises them, taking them out of the document as they scroll
+off. A band placed as a sibling of `.mod-header` in there was detached at **7 of
+7** scroll positions, and only the observer below ever put it back — 85 re-mounts
+in 7 seconds, each moving the scroll by the band's own height. So each place is
+either outside the sizer, or *inside* one of the renderer's own elements rather
+than beside it:
+
+- *above the file name* → first child of `.markdown-preview-view`, the scroller,
+  which belongs to nobody.
+- *under the properties* → **inside** `.mod-header`, which the renderer keeps in
+  the document throughout (present at 13 of 13 stops) and measures live, so it
+  accounts for the band instead of fighting it.
+- *after the body text* → last child of the scroller, which **lands below the
+  backlinks**, not between them and the text: that gap is inside the sizer, and a
+  band inside `.mod-footer` was detached at 11 of 13 stops with the footer itself
+  in the document at only 2 of them.
+
+All six combinations measure 0 detachments, 0 scroll corrections and 0 reading-mode
+round-trip drift. Outside the sizer the band restates the width the sizer would
+have given it (`max-width: var(--file-line-width)`, auto margins), measured
+identical to the sizer's own box.
+
 Both modes are in the document at once, one hidden, so the band follows the mode
 the view reports and only one base query is ever live per note.
 
 `anchorFor()` re-reads the tree every time, `mount()` is idempotent by
-construction rather than by a flag, and a `MutationObserver` on the sizer puts
-the band back when CodeMirror rebuilds or reading mode re-renders its sections —
-neither of which fires a workspace event.
+construction rather than by a flag, and a `MutationObserver` on whatever the band
+is mounted in puts it back when CodeMirror rebuilds or a mode change swaps the
+container — neither of which fires a workspace event. That observer is a **net,
+not a motor**: if it fires steadily while nothing is happening, the mount point
+is wrong again.
+
+**A mode change puts the scroll back itself.** Obsidian restores the scroll on a
+mode switch *before* the band has moved into the mode being switched to, so it
+computes against a layout missing the band and lands wrong by roughly its height
+— caught frame by frame: at the moment the view reports `source` again the band
+is still in `mod-header` and the position is right, and a few frames later the
+band arrives and it is not. `view.scroll` is the line Obsidian carried across and
+it survives both switches intact, so `restoreScroll()` applies it again once the
+layout is the one it was meant for — twice, on the next frame and 60ms later,
+because Obsidian's own last correction would otherwise land after ours.
+
+In editing mode it is applied by arithmetic (`scrollPixelFor`) rather than by
+`MarkdownView.applyScroll`, because that method takes its exact path only when
+the target line is **already rendered**: with a band above the text the top of the
+note maps onto the frontmatter, which live preview never renders, so it falls
+back to `scrollIntoView`. Measured against the position asked for, Obsidian is
+1165 / 850 / 535 / 115 px out down the note and exact only once the text is on
+screen; the formula — Obsidian's own, with the gate removed — is 0 at every one.
+The height map answers `lineBlockAt` whether or not a line is drawn, which is the
+whole reason it works where the gate does not. In reading mode the renderer's own
+`applyScroll` is exact already, so it is simply called again.
+
+Measured round trip through reading mode and back, at 15%, 50% and 90% of the
+note:
+
+| editing / reading | before | after |
+|---|---|---|
+| under the properties (default) | 1165 / 850 / 115 px out | **0 / 0 / 0** |
+| above the file name | — | **0 / 0 / 0** |
+| after the body text | — | 0 / −735 / −433 |
+| *no band at all — Obsidian alone* | — | *0 / −355 / 0* |
+
+With the band above the text in both modes the switch is now exact, which is
+better than Obsidian manages on an ordinary note. *After the body text* leaves the
+two modes with different amounts above the first line — in reading mode that place
+is below the backlinks — and a scroll value is a line number, which cannot tell
+two such layouts apart; the last row is there to show that some of that is
+Obsidian's own.
 
 **The pane follows the note, not the active leaf.** A sidebar leaf becomes active
 the moment you click a tab in one; `isNoteLeaf()` requires a `TFile` and

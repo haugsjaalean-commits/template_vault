@@ -26,10 +26,6 @@ what to do:
 checkpoint: reached
 ---
 
-![[Improvement Base.base#dynamic project]]
-
-
-
 
 # Bases drag and drop plugin
 

@@ -1,8 +1,192 @@
 {
   "recentFiles": [
     {
+      "basename": "Response 1",
+      "path": "Obsidian/Notes/Response 1.md"
+    },
+    {
+      "basename": "rotated_90_clockwise",
+      "path": "Attachments/rotated_90_clockwise.pdf"
+    },
+    {
+      "basename": "Culture anglaise et littérature",
+      "path": "Obsidian/Notes/Culture anglaise et littérature.md"
+    },
+    {
+      "basename": "Cours Base",
+      "path": "Obsidian/Bases/Class Bases/Cours Base.base"
+    },
+    {
+      "basename": "Bases Highlight",
+      "path": "Obsidian/Notes/Bases Highlight.md"
+    },
+    {
+      "basename": "Compressed wires",
+      "path": "Obsidian/Notes/Compressed wires.md"
+    },
+    {
+      "basename": "Class Manager",
+      "path": "Obsidian/Notes/Class Manager.md"
+    },
+    {
+      "basename": "Littérature et imaginaire",
+      "path": "Obsidian/Notes/Littérature et imaginaire.md"
+    },
+    {
+      "basename": "Dynamic Viewer",
+      "path": "Obsidian/Notes/Dynamic Viewer.md"
+    },
+    {
+      "basename": "Arrows not being displayed in the middle of edges",
+      "path": "Obsidian/Notes/Arrows not being displayed in the middle of edges.md"
+    },
+    {
+      "basename": "UML view for classes",
+      "path": "Obsidian/Notes/UML view for classes.md"
+    },
+    {
+      "basename": "Bases Table Kanban",
+      "path": "Obsidian/Notes/Bases Table Kanban.md"
+    },
+    {
+      "basename": "Suggestions for values of properties are buggy",
+      "path": "Obsidian/Notes/Suggestions for values of properties are buggy.md"
+    },
+    {
+      "basename": "jittering up when file opened",
+      "path": "Obsidian/Notes/jittering up when file opened.md"
+    },
+    {
+      "basename": "Discrepancies from errors vs changes",
+      "path": "Obsidian/Notes/Discrepancies from errors vs changes.md"
+    },
+    {
+      "basename": "shift or ctrl click to select classes is inconsistent",
+      "path": "Obsidian/Notes/shift or ctrl click to select classes is inconsistent.md"
+    },
+    {
+      "basename": "Obsidian Plugin Base",
+      "path": "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base"
+    },
+    {
+      "basename": "Base",
+      "path": "Obsidian/Dynamic Views/Base.dview"
+    },
+    {
+      "basename": "Dynamic Sticky Notes",
+      "path": "Obsidian/Notes/Dynamic Sticky Notes.md"
+    },
+    {
+      "basename": "Dynamic veiws",
+      "path": "Obsidian/Dynamic Views/Dynamic veiws.dview"
+    },
+    {
+      "basename": "get rid of base view and replace with button (link)",
+      "path": "Obsidian/Notes/get rid of base view and replace with button (link).md"
+    },
+    {
+      "basename": "Bases and Dynamic Sticky Notes",
+      "path": "Obsidian/Notes/Bases and Dynamic Sticky Notes.md"
+    },
+    {
+      "basename": "Restructuring the plugin interface - adding a new file type",
+      "path": "Obsidian/Notes/Restructuring the plugin interface - adding a new file type.md"
+    },
+    {
+      "basename": "Automatically creating files in the imbedded view is mostly broken",
+      "path": "Obsidian/Notes/Automatically creating files in the imbedded view is mostly broken.md"
+    },
+    {
+      "basename": "Simplifying dynamic views",
+      "path": "Obsidian/Notes/Simplifying dynamic views.md"
+    },
+    {
+      "basename": "Drag and drop doesn't work when the group is non changeable",
+      "path": "Obsidian/Notes/Drag and drop doesn't work when the group is non changeable.md"
+    },
+    {
+      "basename": "Obsidian Plugin",
+      "path": "Obsidian/Notes/Obsidian Plugin.md"
+    },
+    {
+      "basename": "How views work in Dynamic Viewer and for Class Manager",
+      "path": "Obsidian/Notes/How views work in Dynamic Viewer and for Class Manager.md"
+    },
+    {
+      "basename": "Backlink Base",
+      "path": "Obsidian/Bases/Backlink Base.base"
+    },
+    {
+      "basename": "The user should not be able to add or delete base characteristics",
+      "path": "Obsidian/Notes/The user should not be able to add or delete base characteristics.md"
+    },
+    {
+      "basename": "Jittering in the file when I place my cursor",
+      "path": "Obsidian/Notes/Jittering in the file when I place my cursor.md"
+    },
+    {
+      "basename": "Thought Base",
+      "path": "Obsidian/Bases/Class Bases/Thought Base.base"
+    },
+    {
+      "basename": "Class Note",
+      "path": "Obsidian/Notes/Class Note.md"
+    },
+    {
+      "basename": "2026-08-25 Tuesday — 09.38.21",
+      "path": "Obsidian/Notes/2026-08-25 Tuesday — 09.38.21.md"
+    },
+    {
+      "basename": "Thoughts on multi-level organization",
+      "path": "Obsidian/Notes/Thoughts on multi-level organization.md"
+    },
+    {
+      "basename": "Thought",
+      "path": "Obsidian/Notes/Thought.md"
+    },
+    {
+      "basename": "O",
+      "path": "O.md"
+    },
+    {
+      "basename": "Components",
+      "path": "Obsidian/Notes/Components.md"
+    },
+    {
+      "basename": "Necessary fields",
+      "path": "Obsidian/Notes/Necessary fields.md"
+    },
+    {
+      "basename": "Three types of discrepancies",
+      "path": "Obsidian/Notes/Three types of discrepancies.md"
+    },
+    {
+      "basename": "Prompting the user",
+      "path": "Obsidian/Notes/Prompting the user.md"
+    },
+    {
+      "basename": "Company",
+      "path": "Obsidian/Notes/Company.md"
+    },
+    {
+      "basename": "Automatically dealing with unsolvable discrepancies",
+      "path": "Obsidian/Notes/Automatically dealing with unsolvable discrepancies.md"
+    },
+    {
+      "basename": "Improvement",
+      "path": "Obsidian/Notes/Improvement.md"
+    },
+    {
+      "basename": "How to classify Projects",
+      "path": "Obsidian/Notes/How to classify Projects.md"
+    },
+    {
       "basename": "Automatic imbedded dynamic view size",
       "path": "Obsidian/Notes/Automatic imbedded dynamic view size.md"
+    },
+    {
+      "basename": "Improvement Base",
+      "path": "Obsidian/Bases/Class Bases/Improvement Base.base"
     },
     {
       "basename": "2026-09-02 Wednesday — 08.07.47",
@@ -13,192 +197,8 @@
       "path": "Obsidian/Bases/Class Bases/Class Note Base.base"
     },
     {
-      "basename": "2026-08-25 Tuesday — 09.38.21",
-      "path": "Obsidian/Notes/2026-08-25 Tuesday — 09.38.21.md"
-    },
-    {
       "basename": "Three modes of creation in Obsidian",
       "path": "Obsidian/Notes/Three modes of creation in Obsidian.md"
-    },
-    {
-      "basename": "∘ code proj",
-      "path": "Obsidian/Characteristics/∘ code proj.md"
-    },
-    {
-      "basename": "Restructuring the plugin interface - adding a new file type",
-      "path": "Obsidian/Notes/Restructuring the plugin interface - adding a new file type.md"
-    },
-    {
-      "basename": "∘ category",
-      "path": "Obsidian/Characteristics/∘ category.md"
-    },
-    {
-      "basename": "formal rename prompt",
-      "path": "Obsidian/Notes/formal rename prompt.md"
-    },
-    {
-      "basename": "Class Manager",
-      "path": "Obsidian/Notes/Class Manager.md"
-    },
-    {
-      "basename": "Improvement Base",
-      "path": "Obsidian/Bases/Class Bases/Improvement Base.base"
-    },
-    {
-      "basename": "Dynamic Viewer",
-      "path": "Obsidian/Notes/Dynamic Viewer.md"
-    },
-    {
-      "basename": "Dynamic veiws",
-      "path": "Obsidian/Dynamic Views/Dynamic veiws.dview"
-    },
-    {
-      "basename": "Making dynamic views act more like bases",
-      "path": "Obsidian/Notes/Making dynamic views act more like bases.md"
-    },
-    {
-      "basename": "Stenopaper",
-      "path": "Obsidian/Notes/Stenopaper.md"
-    },
-    {
-      "basename": "Add option to get rid of annoying message",
-      "path": "Obsidian/Notes/Add option to get rid of annoying message.md"
-    },
-    {
-      "basename": "Simplifying dynamic views",
-      "path": "Obsidian/Notes/Simplifying dynamic views.md"
-    },
-    {
-      "basename": "Obsidian Plugin Base",
-      "path": "Obsidian/Bases/Class Bases/Obsidian Plugin Base.base"
-    },
-    {
-      "basename": "Dynamic Bases",
-      "path": "Obsidian/Notes/Dynamic Bases.md"
-    },
-    {
-      "basename": "O",
-      "path": "O.md"
-    },
-    {
-      "basename": "dunder call (functar)",
-      "path": "Obsidian/Notes/dunder call (functar).md"
-    },
-    {
-      "basename": "lambda",
-      "path": "Obsidian/Notes/lambda.md"
-    },
-    {
-      "basename": "buttons",
-      "path": "Obsidian/Notes/buttons.md"
-    },
-    {
-      "basename": "improve imbedded dynamic views",
-      "path": "Obsidian/Notes/improve imbedded dynamic views.md"
-    },
-    {
-      "basename": "Démarche et efficacité en badminton",
-      "path": "Obsidian/Notes/Démarche et efficacité en badminton.md"
-    },
-    {
-      "basename": "Cours Base",
-      "path": "Obsidian/Bases/Class Bases/Cours Base.base"
-    },
-    {
-      "basename": "Work Station",
-      "path": "Obsidian/Notes/Work Station.md"
-    },
-    {
-      "basename": "Connection Detector",
-      "path": "Obsidian/Notes/Connection Detector.md"
-    },
-    {
-      "basename": "Local Graph Base",
-      "path": "Obsidian/Bases/Local Graph Base.base"
-    },
-    {
-      "basename": "Dynamic Sticky Notes",
-      "path": "Obsidian/Notes/Dynamic Sticky Notes.md"
-    },
-    {
-      "basename": "Display Characteristics for Bases",
-      "path": "Obsidian/Notes/Display Characteristics for Bases.md"
-    },
-    {
-      "basename": "Project",
-      "path": "Obsidian/Notes/Project.md"
-    },
-    {
-      "basename": "Art Base",
-      "path": "Obsidian/Bases/Class Bases/Art Base.base"
-    },
-    {
-      "basename": "get rid of base view and replace with button (link)",
-      "path": "Obsidian/Notes/get rid of base view and replace with button (link).md"
-    },
-    {
-      "basename": "Backlink Base",
-      "path": "Obsidian/Bases/Backlink Base.base"
-    },
-    {
-      "basename": "Bases Table Kanban",
-      "path": "Obsidian/Notes/Bases Table Kanban.md"
-    },
-    {
-      "basename": "Quote Base",
-      "path": "Obsidian/Bases/Class Bases/Quote Base.base"
-    },
-    {
-      "basename": "How to prompt - what I've learned from vibe coding",
-      "path": "Obsidian/Notes/How to prompt - what I've learned from vibe coding.md"
-    },
-    {
-      "basename": "Bases and Dynamic Sticky Notes",
-      "path": "Obsidian/Notes/Bases and Dynamic Sticky Notes.md"
-    },
-    {
-      "basename": "How views work in Dynamic Viewer and for Class Manager",
-      "path": "Obsidian/Notes/How views work in Dynamic Viewer and for Class Manager.md"
-    },
-    {
-      "basename": "Sticky Note Base",
-      "path": "Obsidian/Bases/Class Bases/Sticky Note Base.base"
-    },
-    {
-      "basename": "Types of organization",
-      "path": "Obsidian/Notes/Types of organization.md"
-    },
-    {
-      "basename": "Using dynamic bases",
-      "path": "Obsidian/Notes/Using dynamic bases.md"
-    },
-    {
-      "basename": "The user should not be able to add or delete base characteristics",
-      "path": "Obsidian/Notes/The user should not be able to add or delete base characteristics.md"
-    },
-    {
-      "basename": "Purisme in organization",
-      "path": "Obsidian/Notes/Purisme in organization.md"
-    },
-    {
-      "basename": "The base definition of organization",
-      "path": "Obsidian/Notes/The base definition of organization.md"
-    },
-    {
-      "basename": "Thoughts are fleeting",
-      "path": "Obsidian/Notes/Thoughts are fleeting.md"
-    },
-    {
-      "basename": "Thoughts on multi-level organization",
-      "path": "Obsidian/Notes/Thoughts on multi-level organization.md"
-    },
-    {
-      "basename": "irregular organization",
-      "path": "Obsidian/Notes/irregular organization.md"
-    },
-    {
-      "basename": "uniform organization",
-      "path": "Obsidian/Notes/uniform organization.md"
     }
   ],
   "omittedPaths": [],

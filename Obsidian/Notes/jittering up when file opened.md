@@ -4,7 +4,7 @@ is a:
 characteristics:
 type of:
 views:
-created: 2026-09-03 06:53
+created: 2026-09-03 18:20
 ext links:
 related:
 note rating:
@@ -15,9 +15,8 @@ life stage: current
 dead: false
 category:
 project:
-  - "[[Dynamic Viewer]]"
 subject:
-active priority: 8
+active priority:
 difficulty:
 payoff:
 activity: simmering
@@ -29,9 +28,5 @@ checkpoint: mapped
 
 
 
-
-
-Currently, dynamic views do not act very similarly to any native Obsidian feature. This isn't necessarily a bad thing, but there are definitely arguments that it disturbs cohesion.  
-
-
+When I first open a file and start scrolling down, it will jitter up once (because of the imbedded dynamic views). I assume this has to do with discrepancies in the load times of the different elements of the view.
 

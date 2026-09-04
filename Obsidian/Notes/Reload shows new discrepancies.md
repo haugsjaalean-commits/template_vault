@@ -18,7 +18,7 @@ project:
   - "[[Class Manager]]"
 subject:
   - bug
-active priority: 0.5
+active priority: 6.6
 difficulty: 5
 payoff: 4
 activity: sleeping

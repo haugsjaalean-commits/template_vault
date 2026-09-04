@@ -1,3 +1,10 @@
+/* A move button at the end of the list keeps its place, faint, so the rows do
+ * not change width as they are reordered. */
+.dynamic-viewer-settings .extra-setting-button.is-disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
 /*
  * Dynamic Viewer
  *
@@ -276,6 +283,19 @@
 	cursor: default;
 	-webkit-user-select: auto;
 	user-select: auto;
+}
+
+/*
+ * Reading mode: the band is a child of the scroller, not of the sizer, because
+ * the sizer's children belong to the preview renderer and it takes them out of
+ * the document as they scroll off. So it has to be given the width the sizer
+ * would have given it.
+ */
+.markdown-preview-view > .dynamic-viewer-band {
+	width: 100%;
+	max-width: var(--file-line-width);
+	margin-left: auto;
+	margin-right: auto;
 }
 
 .dynamic-viewer-band.is-empty {

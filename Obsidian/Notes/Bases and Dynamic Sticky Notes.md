@@ -20,11 +20,11 @@ subject:
 active priority:
 difficulty:
 payoff:
-activity:
+activity: sleeping
 done: false
 urgency:
 what to do:
-checkpoint:
+checkpoint: seen
 ---
 
 

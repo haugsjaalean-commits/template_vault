@@ -17,7 +17,7 @@ category:
 project:
   - "[[Class Manager]]"
 subject:
-active priority: 0
+active priority: 0.9
 difficulty: 8
 payoff: 8
 activity: sleeping

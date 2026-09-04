@@ -19,7 +19,7 @@ subject:
 active priority: 10
 difficulty:
 payoff:
-activity: active
+activity: simmering
 done: false
 urgency:
 what to do:

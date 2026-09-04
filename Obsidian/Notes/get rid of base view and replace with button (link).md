@@ -17,14 +17,14 @@ category:
 project:
   - "[[Dynamic Sticky Notes]]"
 subject:
-active priority:
+active priority: 0
 difficulty:
 payoff:
-activity:
+activity: sleeping
 done: false
 urgency:
 what to do:
-checkpoint:
+checkpoint: mapped
 ---
 
 

@@ -114,6 +114,18 @@ const DEFAULT_SETTINGS = {
 	 */
 	viewsProperty: 'views',
 	/*
+	 * Which end of the inheritance chain `file.views()` answers with first.
+	 *
+	 * On: the furthest class first, so a note's own `views:` and its nearest class
+	 * come last. Off: nearest first, which is the order it always had.
+	 *
+	 * It lives here rather than in Dynamic Viewer, and that is his correction
+	 * (2026-09-03): a dynamic view shows the list the function gives it, in the
+	 * order it gives it, and does not sort. What is being ordered is this
+	 * function's answer, so the choice belongs to whoever answers.
+	 */
+	viewsFurthestFirst: true,
+	/*
 	 * A characteristic note's file name begins with this; the characteristic's
 	 * name, and so the property key, never does. Emptying it turns the whole
 	 * convention off.
@@ -152,8 +164,10 @@ const DEFAULT_SETTINGS = {
 	/*
 	 * How the panel lays the classes out.
 	 *
-	 *   'list'  one after another, sorted — what it has always done
-	 *   'tree'  a git graph of the `type of` chains, one class per row
+	 *   'list'        one after another, sorted — what it has always done
+	 *   'brackets'    every node in one column, a lane per connexion
+	 *   'compressed'  the same, with the wires out of one class sharing a lane
+	 *   'tree'        a git graph of the `type of` chains, one class per row
 	 */
 	classLayout: 'list',
 
@@ -4314,8 +4328,10 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/*
-	 * A lane per edge, reused wherever two do not overlap — the one piece of
-	 * arithmetic both drawings need, so it lives in one place.
+	 * A lane per span, reused wherever two do not overlap — the one piece of
+	 * arithmetic every drawing here needs, so it lives in one place. The spans are
+	 * single edges in the lane graph and in the plain bracket drawing, and whole
+	 * bundles of them in the compressed one; nothing below cares which.
 	 *
 	 * **Shortest first**, which is what nests them. Assigning in row order gave
 	 * the enclosing span the inner lane and the span inside it the outer one, so
@@ -4370,10 +4386,14 @@ class OofClassesPlugin extends Plugin {
 	 *   straight   the child is the row directly below: a plain vertical
 	 *   bracket    anything else: out, down its lane, and back in
 	 *
-	 * Returns `{ rows, brackets, lanes }`, where each row gains `straightFrom`
-	 * (drawn from the row above) and `straightTo` (carries on to the row below).
+	 * `compressed` bundles the wires that leave the same node into one trunk —
+	 * see below, at the bundling itself.
+	 *
+	 * Returns `{ rows, brackets, bundles, lanes }`, where each row gains
+	 * `straightFrom` (drawn from the row above) and `straightTo` (carries on to
+	 * the row below). `brackets` is every wire, `bundles` is how they are drawn.
 	 */
-	classBrackets(objects, drafts) {
+	classBrackets(objects, drafts, compressed) {
 		const tree = this.classTree(objects, drafts);
 		const rows = tree.rows.map((row) => Object.assign({}, row));
 		const at = new Map(rows.map((row, index) => [row.name, index]));
@@ -4414,11 +4434,62 @@ class OofClassesPlugin extends Plugin {
 			}
 		});
 
-		/* A lane per bracket, reused where two do not overlap. Shared with the
-		 * lane graph, which allots its second-parent wires the same way. */
-		const lanes = this.assignLanes(edges);
+		/*
+		 * The wires bundled by where they leave — his `Compressed wires.md`.
+		 *
+		 * Uncompressed, a lane belongs to one wire, so a class with ten children
+		 * spends ten lanes on ten lines that leave the same node and run down
+		 * beside each other. Past forty classes that band is wider than the cards
+		 * next to it, and nearly all of its width is copies.
+		 *
+		 * Compressed, the wires out of **one node** are drawn as one trunk with a
+		 * branch turning in at each child. No precision is lost by it: they leave
+		 * the same node, so they were already lying on top of one another at the
+		 * only point where they could have been told apart — the compression stops
+		 * paying for a distinction the drawing never made.
+		 *
+		 * Two things are never bundled, because overlapping them *would* lose
+		 * something. Wires from **different** nodes: where a wire comes from is the
+		 * whole of what it says, and two origins on one line say neither. And a
+		 * second-parent wire is kept apart from a descent even out of the same node
+		 * — the two are drawn differently, dashed and solid, and one line cannot be
+		 * both.
+		 */
+		const bundles = [];
+		const byOrigin = new Map();
+		for (const edge of edges) {
+			const key = compressed
+				? edge.from + (edge.merge ? ':wire' : ':descent') : null;
+			let bundle = key === null ? null : byOrigin.get(key);
+			if (!bundle) {
+				bundle = {
+					from: edge.from, to: edge.to, parent: edge.parent,
+					merge: !!edge.merge, edges: [],
+				};
+				bundles.push(bundle);
+				if (key !== null) byOrigin.set(key, bundle);
+			}
+			bundle.edges.push(edge);
+			/* The trunk runs as far as the furthest child hanging off it. */
+			bundle.to = Math.max(bundle.to, edge.to);
+		}
 
-		return { rows: rows, brackets: edges, lanes: lanes };
+		/*
+		 * A lane per bundle, reused where two do not overlap. Shared with the lane
+		 * graph, which allots its second-parent wires the same way.
+		 *
+		 * Handed to the **bundles** and not to the wires, which is the whole reason
+		 * the bundling happens before the allotment rather than after it: a lane
+		 * has to be reserved for a trunk's entire reach, or a short first branch
+		 * would claim an inner lane and the rest of the trunk would then grow out
+		 * through whatever had nested itself inside it.
+		 */
+		const lanes = this.assignLanes(bundles);
+		for (const bundle of bundles) {
+			for (const edge of bundle.edges) edge.lane = bundle.lane;
+		}
+
+		return { rows: rows, brackets: edges, bundles: bundles, lanes: lanes };
 	}
 
 	/*
@@ -4993,6 +5064,24 @@ class OofClassesPlugin extends Plugin {
 				(entry) => new obsidian.LinkValue(this.app, entry.link, file.path, null))),
 		));
 
+		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
+			this, 'classBase',
+			'The generated base this note is seen through: its own when it is a class '
+				+ 'that has one, otherwise the nearest class above it that does.',
+			[self],
+			(file) => {
+				const base = this.classBaseFor(file);
+				/*
+				 * Linked as `Artist Base.base` - the spelling a `views` row uses, and
+				 * the one that resolves: a bare wikilink would find a note of that name
+				 * before the base beside it.
+				 */
+				return base
+					? new obsidian.LinkValue(this.app, base.name, file.path, null)
+					: obsidian.NullValue.value;
+			},
+		));
+
 		return true;
 	}
 
@@ -5228,6 +5317,22 @@ class OofClassesPlugin extends Plugin {
 			if (key.charAt(0) !== 'f') continue;
 			const source = this.app.vault.getAbstractFileByPath(key.slice(2));
 			if (source instanceof TFile) read(source, closure.distance.get(key));
+		}
+
+		/*
+		 * Furthest class first, when that is what he asked for.
+		 *
+		 * A **stable sort on the distance alone**, not a reversal of the array: the
+		 * order in which one note or class writes its own `views:` is his, and
+		 * reversing everything would turn that round as well. This turns only the
+		 * chain round and leaves each source's own list exactly as written.
+		 *
+		 * A link named by two classes at different distances is still collected
+		 * once, at the nearer of the two - the dedupe happens as they are read - so
+		 * it is placed by that distance either way.
+		 */
+		if (this.settings.viewsFurthestFirst) {
+			entries.sort((a, b) => b.distance - a.distance);
 		}
 
 		return entries;
@@ -6790,6 +6895,56 @@ class OofClassesPlugin extends Plugin {
 
 	basePathFor(name) {
 		return this.settings.basesFolder + '/' + name + this.settings.baseSuffix + '.base';
+	}
+
+	/*
+	 * The generated base a note is *seen through*: its own when it is a class that
+	 * has one, otherwise the nearest class above it that does. What
+	 * `file.classBase()` answers.
+	 *
+	 * Existence at the path this plugin would generate is the whole test - the
+	 * same one `classForBase` makes, and the same reason: a base of his own that
+	 * happens to end in " Base" must never be mistaken for a class's, and the
+	 * dynamic base belongs to a selection rather than to a class. A class whose
+	 * base he has trashed simply hands the question up to its parent.
+	 *
+	 * The `is a` closure first, nearest first - the walk `views` makes, and for
+	 * the same reason: an instance is looked at through its class's base.
+	 *
+	 * Then the `type of` chain, which is not the same question and is the whole
+	 * reason there are two walks here. A class seeds `isAClosure` with its `is a`,
+	 * and a class has none - so a subclass whose base has been trashed would
+	 * otherwise answer nothing at all, when the base of the class it is a type of
+	 * is exactly what it should fall back to.
+	 *
+	 * One base, not a list. A note with two classes at the same distance takes the
+	 * first its `is a` names, because "the base of this note" is one thing to open.
+	 */
+	classBaseFor(file) {
+		if (!(file instanceof TFile)) return null;
+
+		const generated = (name) => {
+			if (!name) return null;
+			const path = this.basePathFor(name);
+			if (path === this.dynamicBasePath()) return null;
+			const base = this.app.vault.getFileByPath(path);
+			return base instanceof TFile ? base : null;
+		};
+
+		const own = generated(file.basename);
+		if (own) return own;
+
+		for (const closure of [this.isAClosure(file), this.inheritsClosure(file)]) {
+			const keys = Array.from(closure.distance.keys())
+				.sort((a, b) => closure.distance.get(a) - closure.distance.get(b));
+
+			for (const key of keys) {
+				const base = generated(closure.name.get(key));
+				if (base) return base;
+			}
+		}
+
+		return null;
 	}
 
 	/*
@@ -11906,8 +12061,11 @@ class ClassesView extends ItemView {
 		 */
 		this.flatList = plugin.settings.classLayout === 'list' || !!filter;
 
-		if (plugin.settings.classLayout === 'brackets' && !filter) {
-			this.renderClassBrackets(list, names, objects, drafts, characteristics);
+		const brackets = plugin.settings.classLayout === 'brackets'
+			|| plugin.settings.classLayout === 'compressed';
+		if (brackets && !filter) {
+			this.renderClassBrackets(list, names, objects, drafts, characteristics,
+				plugin.settings.classLayout === 'compressed');
 		} else if (plugin.settings.classLayout === 'tree' && !filter) {
 			this.renderClassTree(list, names, objects, drafts, characteristics);
 		} else {
@@ -12259,13 +12417,18 @@ class ClassesView extends ItemView {
 		 */
 		const searching = !!String(this.filter || '').trim();
 		/*
-		 * Three layouts now, so the button steps round them rather than flipping.
+		 * Four layouts now, so the button steps round them rather than flipping.
 		 * Each still shows what it will give you next, which is what a two-state
 		 * toggle got for free and a cycle has to be told to do.
+		 *
+		 * The compressed tree sits next to the tree it compresses, so the step
+		 * between them is the one that changes least.
 		 */
 		const LAYOUTS = [
 			{ id: 'list', icon: 'list', glyph: '≡', name: 'a list' },
 			{ id: 'brackets', icon: 'git-fork', glyph: '⑂', name: 'a tree' },
+			{ id: 'compressed', icon: 'git-merge', glyph: '⑃',
+				name: 'a compressed tree' },
 			{ id: 'tree', icon: 'git-branch', glyph: '⑄', name: 'a graph' },
 		];
 		const here = Math.max(0, LAYOUTS.findIndex(
@@ -13332,10 +13495,15 @@ class ClassesView extends ItemView {
 	 * The column nearest the cards is the nodes'; the lanes to its left carry
 	 * brackets, the outermost lane the longest reach. Mirrored bodily when the
 	 * rails run down the right.
+	 *
+	 * `compressed` draws the same picture with the wires out of one class sharing
+	 * a lane — one trunk, a branch per child. It is not a second renderer: the
+	 * plain drawing is the compressed one with every bundle holding a single wire,
+	 * and everything below is written in terms of bundles for that reason.
 	 */
-	renderClassBrackets(container, names, objects, drafts, characteristics) {
+	renderClassBrackets(container, names, objects, drafts, characteristics, compressed) {
 		const plugin = this.plugin;
-		const layout = plugin.classBrackets(objects, drafts);
+		const layout = plugin.classBrackets(objects, drafts, compressed);
 		const shown = new Set(names);
 		const lit = plugin.litBrackets(layout, this.active || new Set());
 
@@ -13344,7 +13512,9 @@ class ClassesView extends ItemView {
 
 		const onRight = plugin.settings.treeRailSide === 'right';
 		const tree_el = container.createDiv({
-			cls: 'oof-tree oof-tree-brackets' + (onRight ? ' is-right' : '')
+			cls: 'oof-tree oof-tree-brackets'
+				+ (compressed ? ' is-compressed' : '')
+				+ (onRight ? ' is-right' : '')
 				+ (plugin.settings.treeDotTone === 'strong' ? '' : ' is-quiet-dots')
 				+ (plugin.settings.treeDotFill === 'solid' ? '' : ' is-hollow-dots')
 				+ (plugin.settings.treeCorners === 'square' ? ' is-square-corners' : '')
@@ -13385,7 +13555,14 @@ class ClassesView extends ItemView {
 			this.watchHover(line, row.name);
 			const rail = line.createDiv({ cls: 'oof-tree-rail' });
 
-			const vertical = (col, kind, on, merge) => {
+			/*
+			 * `turn` says this piece of line **ends** where it is drawn to, at the
+			 * arc it makes towards a node — which is what pulls it back by the
+			 * corner's radius. A half that is only half because the run is being
+			 * lit in two pieces is not a turn: it carries straight on, and pulling
+			 * it back would open a gap in a lane that never stops.
+			 */
+			const vertical = (col, kind, on, merge, turn) => {
 				const atNode = col === nodeColumn;
 				const el = rail.createDiv({
 					cls: 'oof-tree-line oof-tree-line-' + kind
@@ -13394,7 +13571,7 @@ class ClassesView extends ItemView {
 						 * makes towards one, which is a corner rather than a node.
 						 */
 						+ (atNode ? ' oof-tree-at-node'
-							: (kind === 'full' ? '' : ' oof-tree-at-corner'))
+							: (turn ? ' oof-tree-at-corner' : ''))
 						+ (merge ? ' oof-tree-wire-merge' : '')
 						+ (on ? ' is-lit' : ''),
 				});
@@ -13432,9 +13609,9 @@ class ClassesView extends ItemView {
 			 * corner's height above the elbows and one that starts here begins a
 			 * corner's height below them, so neither is anywhere near.
 			 */
-			const crossing = layout.brackets
-				.filter((edge) => edge.from < index && index < edge.to)
-				.map((edge) => column(laneColumn(edge.lane)));
+			const crossing = layout.bundles
+				.filter((bundle) => bundle.from < index && index < bundle.to)
+				.map((bundle) => column(laneColumn(bundle.lane)));
 
 			/*
 			 * The straight part of the turn: from the arc across to the node. Short
@@ -13468,23 +13645,91 @@ class ClassesView extends ItemView {
 					vertical(nodeColumn, 'bottom', lit.straight.has(index + 1)));
 			}
 
-			/* Every bracket that touches this row. */
-			for (const edge of layout.brackets) {
-				if (index < edge.from || index > edge.to) continue;
-				const col = laneColumn(edge.lane);
-				const key = 'bracket:' + edge.lane + ':' + edge.to;
-				const on = lit.brackets.has(edge.lane + ':' + edge.to);
-				const kind = index === edge.from ? 'bottom'
-					: (index === edge.to ? 'top' : 'full');
-				const label = edge.name + ' is a type of ' + edge.parent;
-				const rail_el = this.fileHover(key, vertical(col, kind, on, edge.merge));
-				rail_el.setAttr('title', label);
-				/* Out at the parent, back in at the child, turning at each. */
-				if (index === edge.from || index === edge.to) {
-					this.fileHover(key,
-						corner(col, index === edge.from ? 'down' : 'up', on, edge.merge));
+			/*
+			 * Every bundle of wires that touches this row: one trunk down its lane,
+			 * one turn out of the parent at the top of it, and a turn back in at
+			 * each child hanging off it. Uncompressed a bundle holds one wire and
+			 * the two turns are its two ends, which is exactly the old drawing.
+			 */
+			for (const bundle of layout.bundles) {
+				if (index < bundle.from || index > bundle.to) continue;
+				const col = laneColumn(bundle.lane);
+				const keyOf = (edge) => 'bracket:' + bundle.lane + ':' + edge.to;
+				const onEdge = (edge) => lit.brackets.has(bundle.lane + ':' + edge.to);
+
+				/*
+				 * Named for what it is: one wire names its child, a trunk names the
+				 * parent they all leave, and the branches name themselves below.
+				 */
+				const trunkLabel = bundle.edges.length === 1
+					? bundle.edges[0].name + ' is a type of ' + bundle.parent
+					: bundle.edges.length + ' classes are a type of ' + bundle.parent;
+
+				/*
+				 * The trunk, in the pieces this row needs it in.
+				 *
+				 * It is one line standing for several wires, so it lights for any of
+				 * them it is still carrying **here** — and where a branch turns off,
+				 * what it carries changes part way down the row. Drawn as a single
+				 * `full` line it could only be all lit or all grey, so the highlight
+				 * leading to a class ran on past the elbow it ends at.
+				 *
+				 * So a branch row is **two lines, one over the other**, and they are
+				 * not two halves: the run that carries on is drawn `full`, for the
+				 * whole row, and the piece that ends here is laid over its top and
+				 * **stops at the arc** like every other turn in the drawing. Halving
+				 * it at the node's line instead left the lit line overshooting the
+				 * curve by the corner's radius — his *"it is still spilling over
+				 * because of the rounded corners"* — because the arc leaves the lane
+				 * six pixels above the line it was cut at.
+				 *
+				 * Order is load-bearing, and it is safe: the piece on top carries
+				 * everything the one beneath it carries and the wire that ends here
+				 * as well, so it is lit whenever the line under it is, and painting
+				 * it second can only ever add.
+				 *
+				 * `first` is the earliest child a piece still carries.
+				 */
+				const branch = bundle.edges.some((edge) => edge.to === index);
+				const anyLit = bundle.edges.some(onEdge);
+				const pieces = [];
+				if (index === bundle.from) pieces.push(['bottom', true, index + 1]);
+				else if (index === bundle.to) pieces.push(['top', true, index]);
+				else if (branch) {
+					pieces.push(['full', false, index + 1]);
+					pieces.push(['top', true, index]);
+				} else pieces.push(['full', false, index]);
+
+				for (const [kind, turn, first] of pieces) {
+					const carried = bundle.edges.filter((edge) => edge.to >= first);
+					const rail_el = vertical(col, kind,
+						carried.some(onEdge), bundle.merge, turn);
+					rail_el.setAttr('title', trunkLabel);
+					for (const edge of carried) this.fileHover(keyOf(edge), rail_el);
+				}
+				/* Out of the parent, once, at the top of the trunk. */
+				if (index === bundle.from) {
+					const arc = corner(col, 'down', anyLit, bundle.merge);
+					for (const edge of bundle.edges) this.fileHover(keyOf(edge), arc);
 					/* One run, but several pieces where it had to give way. */
-					for (const part of horizontal(col, nodeColumn, on, edge.merge)) {
+					for (const part of horizontal(col, nodeColumn, anyLit, bundle.merge)) {
+						part.setAttr('title', trunkLabel);
+						for (const edge of bundle.edges) this.fileHover(keyOf(edge), part);
+					}
+				}
+
+				/*
+				 * And back in at each child. A child part-way down the trunk is a
+				 * branch off a line that carries on below it, so the turn is drawn
+				 * over a lane still running — which is what a branch looks like.
+				 */
+				for (const edge of bundle.edges) {
+					if (edge.to !== index) continue;
+					const key = keyOf(edge);
+					const hot = onEdge(edge);
+					const label = edge.name + ' is a type of ' + edge.parent;
+					this.fileHover(key, corner(col, 'up', hot, bundle.merge));
+					for (const part of horizontal(col, nodeColumn, hot, bundle.merge)) {
 						this.fileHover(key, part);
 						part.setAttr('title', label);
 					}
@@ -15981,12 +16226,17 @@ class OofClassesSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Class layout')
-			.setDesc('A list, or a graph of the `type of` chains with one class per row. '
-				+ 'Searching falls back to the list either way, because a filtered tree '
-				+ 'has holes in it and its lines would run to classes that are not there.')
+			.setDesc('A list, or a drawing of the `type of` chains with one class per '
+				+ 'row. The compressed tree is the tree with the wires that leave one '
+				+ 'class drawn as a single trunk, which is most of the width back at '
+				+ 'forty classes and more. Searching falls back to the list whichever '
+				+ 'is on, because a filtered tree has holes in it and its lines would '
+				+ 'run to classes that are not there.')
 			.addDropdown((dropdown) => dropdown
 				.addOption('list', 'A list, sorted')
 				.addOption('brackets', 'A tree — classes aligned, connexions drawn out')
+				.addOption('compressed',
+					'A compressed tree — one lane for all the wires out of a class')
 				.addOption('tree', 'A graph — a lane per branch, like a commit graph')
 				.setValue(this.plugin.settings.classLayout)
 				.onChange(async (value) => {
@@ -16298,8 +16548,8 @@ class OofClassesSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('p', {
 			text: 'file.isA("Person"), file.inheritsFrom("Person"), file.ancestors(), '
-				+ 'file.isADistance("Person") and file.views() are available in any base '
-				+ 'formula, filter or sort. '
+				+ 'file.isADistance("Person"), file.views() and file.classBase() are '
+				+ 'available in any base formula, filter or sort. '
 				+ 'They read the same properties as the panel, so they can never disagree with it. '
 				+ 'file.isADistance("Person") == 1 is "named Person in its own is a", which is '
 				+ 'what the Class base menu\'s exact-matches switch writes.',
@@ -16322,6 +16572,19 @@ class OofClassesSettingTab extends PluginSettingTab {
 		this.addText(containerEl, 'Characteristics property', 'Lists what an object\'s instances carry.', 'characteristicsProperty');
 		this.addText(containerEl, 'Views property', 'Names the bases an object\'s instances '
 			+ 'are looked at through. Read by file.views(); emptying it turns that off.', 'viewsProperty');
+
+		new Setting(containerEl)
+			.setName('Views from the furthest class first')
+			.setDesc('The order file.views() answers in, and so the order a dynamic view '
+				+ 'draws its tabs in — it shows them as they are given, it does not sort. '
+				+ 'On: the widest class comes first and a note carries its own views: last. '
+				+ 'Off: nearest first, which is the order this always had.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.viewsFurthestFirst)
+				.onChange(async (value) => {
+					this.plugin.settings.viewsFurthestFirst = value;
+					await this.plugin.saveSettings();
+				}));
 
 		new Setting(containerEl)
 			.setName('Hide the "Add property" button')

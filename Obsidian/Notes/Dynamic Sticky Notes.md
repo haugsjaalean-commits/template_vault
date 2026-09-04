@@ -16,14 +16,14 @@ dead: false
 category:
 project:
 subject:
-active priority:
+active priority: 6
 difficulty:
 payoff:
-activity:
+activity: simmering
 done: false
 urgency:
 what to do:
-checkpoint:
+checkpoint: reached
 ---
 
 

@@ -17,7 +17,7 @@ category:
 project:
   - "[[Class Manager]]"
 subject:
-active priority: 9
+active priority: 6
 difficulty:
 payoff:
 activity: simmering

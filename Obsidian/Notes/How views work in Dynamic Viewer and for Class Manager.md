@@ -12,7 +12,7 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-dead: false
+dead: true
 category:
 project:
   - "[[Dynamic Viewer]]"

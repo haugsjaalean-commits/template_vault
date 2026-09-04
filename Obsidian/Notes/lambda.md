@@ -19,7 +19,7 @@ subject:
 active priority:
 difficulty:
 payoff:
-activity:
+activity: active
 done: false
 urgency:
 what to do:

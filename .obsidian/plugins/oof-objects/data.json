@@ -7,6 +7,7 @@
     "isAProperty": "is a",
     "characteristicsProperty": "characteristics",
     "viewsProperty": "views",
+    "viewsFurthestFirst": true,
     "characteristicPrefix": "∘ ",
     "ignoredProperties": [
       "tags",
@@ -19,7 +20,7 @@
     ],
     "classTag": "class",
     "sortClasses": "name",
-    "classLayout": "brackets",
+    "classLayout": "compressed",
     "treeRailSide": "left",
     "treeDotTone": "line",
     "treeDotFill": "transparent",
@@ -76,11 +77,7 @@
     "Issue": "lucide:flag-triangle-right",
     "Family": "lucide:code-2"
   },
-  "expanded": [
-    "Notepad",
-    "::discrepancies",
-    "Doc"
-  ],
+  "expanded": [],
   "dismissed": [
     "conflict::Obsidian Note",
     "conflict::Base Formulas Plugin",

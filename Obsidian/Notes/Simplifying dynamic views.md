@@ -21,7 +21,7 @@ active priority:
 difficulty:
 payoff:
 activity:
-done: false
+done: true
 urgency:
 what to do:
 checkpoint:

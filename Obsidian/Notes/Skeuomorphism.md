@@ -22,7 +22,7 @@ subject:
 active priority:
 difficulty:
 payoff:
-activity:
+activity: simmering
 done: false
 urgency:
 what to do:

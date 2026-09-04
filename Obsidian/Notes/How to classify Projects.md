@@ -27,7 +27,7 @@ activity: sleeping
 checkpoint: reached
 ---
 
-
+## Ideas for the naming of the different pipelines
 
 
 checkpoint:
@@ -51,6 +51,13 @@ activity:
 3. sleeping
 
 
-## New
+## Another idea for structering things
 
 ![[Pasted image 20260831091023.png]]
+
+
+
+## Separating sub-projects from projects
+
+In my template vault, I have an `Improvement` class. This class has a characteristic called `project` which allows it to point to a higher up improvement. This means that every project has the chance to be a sub project. This isn't bad on the face of it, but feels to me that it removes a certain element of clarity in the semantics of my classes. The point of the classes isn't only to introduce inheritance: it is also to clarify which notes serve which purposes. If I rename `Improvement` as `Priority` and then make `Improvement` a sub class of `Priority`, then I will have succeeded in making sub classes explicite. Only priorities inheriting from `Improvement` would have the `project` field. 
+
