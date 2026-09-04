@@ -8,6 +8,7 @@
     "characteristicsProperty": "characteristics",
     "viewsProperty": "views",
     "viewsFurthestFirst": true,
+    "componentsProperty": "component fields",
     "characteristicPrefix": "∘ ",
     "ignoredProperties": [
       "tags",
@@ -46,7 +47,8 @@
       "is a",
       "characteristics",
       "type of",
-      "views"
+      "views",
+      "component fields"
     ],
     "retiredLogicProperties": [],
     "templateSuffix": " Template",

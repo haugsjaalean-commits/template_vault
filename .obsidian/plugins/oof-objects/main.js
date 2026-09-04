@@ -93,10 +93,13 @@ const TRASH_KINDS = ['trash-characteristic', 'trash-template', 'trash-base'];
  *
  * The three anchors carry meaning to the engine and are named by settings of
  * their own (`isAProperty`, `characteristicsProperty`, `inheritsProperty`);
- * `views` is read by `file.views()` through `viewsProperty`. Any entry here that
- * no setting names would be stored and edited faithfully but inherit nothing.
+ * `views` is read by `file.views()` through `viewsProperty`, and
+ * `component fields` by `file.hasA()` through `componentsProperty`. Any entry
+ * here that no setting names would be stored and edited faithfully but inherit
+ * nothing.
  */
-const BASE_CHARACTERISTICS = ['is a', 'characteristics', 'type of', 'views'];
+const BASE_CHARACTERISTICS = ['is a', 'characteristics', 'type of', 'views',
+	'component fields'];
 
 const DEFAULT_SETTINGS = {
 	notesFolder: 'Obsidian/Notes',
@@ -125,6 +128,25 @@ const DEFAULT_SETTINGS = {
 	 * function's answer, so the choice belongs to whoever answers.
 	 */
 	viewsFurthestFirst: true,
+	/*
+	 * The property listing a class's **component fields**.
+	 *
+	 * A base characteristic like the four above, and the same *shape* as
+	 * `characteristics`: a list of characteristic links, `[[∘ type]]`. The
+	 * difference is what a value in one of those fields means. An ordinary
+	 * characteristic holds a subject — a word, a number, a date. A component field
+	 * holds a **class**, and the note carrying it takes on that class's
+	 * characteristics.
+	 *
+	 * From his note `Components` (2026-09-03): *"is a is no longer the only way in
+	 * which a note's metadata can be changed … I am opening the door for `is a`
+	 * relationships going through different streams."* A component field is that
+	 * stream, and it is named — `type: [[Effort]]` says which door the
+	 * characteristics came through, where a second `is a` would not.
+	 *
+	 * Emptying this turns file.hasA() off.
+	 */
+	componentsProperty: 'component fields',
 	/*
 	 * A characteristic note's file name begins with this; the characteristic's
 	 * name, and so the property key, never does. Emptying it turns the whole
@@ -2549,6 +2571,12 @@ class OofClassesPlugin extends Plugin {
 	 * drawing them as chips.
 	 *
 	 *   characteristic  a property name, written `[[∘ domain]]`, shown as `domain`
+	 *   component       the same spelling — a property name — but the property it
+	 *                   names holds a *class* rather than a subject, so the row is
+	 *                   read and written like `characteristics` and means something
+	 *                   else entirely. Its own kind rather than a flag, because the
+	 *                   panel draws a different row under it and `possible values`
+	 *                   is read differently there.
 	 *   class           a class name, canonicalised so `[[note]]` and `[[Note]]`
 	 *                   are one class
 	 *   view            a base, and past a `#` one view inside it
@@ -2563,8 +2591,14 @@ class OofClassesPlugin extends Plugin {
 	 */
 	logicValueKind(property) {
 		if (property === this.settings.characteristicsProperty) return 'characteristic';
+		if (property && property === this.settings.componentsProperty) return 'component';
 		if (property && property === this.settings.viewsProperty) return 'view';
 		return 'class';
+	}
+
+	/* Both kinds whose values are characteristic names, so spelled `[[∘ x]]`. */
+	namesCharacteristic(kind) {
+		return kind === 'characteristic' || kind === 'component';
 	}
 
 	/* Read every base characteristic off one note's frontmatter. */
@@ -2585,7 +2619,7 @@ class OofClassesPlugin extends Plugin {
 				 */
 				.map((name) => (kind === 'view' ? name : this.canonicalName(name)))
 				/* `[[∘ domain]]` names the characteristic `domain`. */
-				.map((name) => (kind === 'characteristic'
+				.map((name) => (this.namesCharacteristic(kind)
 					? stripPrefix(name, this.settings.characteristicPrefix) : name));
 		}
 
@@ -3770,6 +3804,7 @@ class OofClassesPlugin extends Plugin {
 			object.frontmatter = fm;
 			object.values = this.readLogicValues(fm);
 			object.characteristics = object.values[this.settings.characteristicsProperty] || [];
+			object.componentFields = object.values[this.settings.componentsProperty] || [];
 			object.parents = object.values[this.settings.inheritsProperty] || [];
 			object.keys = new Set(Object.keys(fm));
 			object.tagged = this.hasClassTag(file);
@@ -3868,8 +3903,9 @@ class OofClassesPlugin extends Plugin {
 			file: object.file,
 			values: values,
 			symbol: symbol,
-			/* Named aliases for the two the engine reasons with. */
+			/* Named aliases for the three the engine reasons with. */
 			characteristics: values[this.settings.characteristicsProperty] || [],
+			componentFields: values[this.settings.componentsProperty] || [],
 			parents: values[this.settings.inheritsProperty] || [],
 			isNew: !object.file,
 		};
@@ -4808,6 +4844,175 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/*
+	 * The component fields an instance of this class carries: its own, and every
+	 * ancestor's, nearest first, de-duplicated.
+	 *
+	 * Deliberately the same walk as `effectiveCharacteristics`, over the other
+	 * list. His note says component fields are *"inherited much like
+	 * characteristics and views"*, and the cheapest way to keep that promise is
+	 * not to have a second idea of what inheritance is — `ancestorsOf` answers for
+	 * both, so a class cannot inherit its parent's characteristics and miss its
+	 * parent's component fields.
+	 */
+	effectiveComponentFields(name, objects, drafts) {
+		const out = [];
+		const seen = new Set();
+
+		const add = (list) => {
+			for (const field of list || []) {
+				if (!field || seen.has(field)) continue;
+				seen.add(field);
+				out.push(field);
+			}
+		};
+
+		const self = drafts.get(name);
+		if (self) add(self.componentFields);
+
+		for (const ancestor of this.ancestorsOf(name, objects, drafts)) {
+			const draft = drafts.get(ancestor);
+			if (draft) add(draft.componentFields);
+		}
+
+		return out;
+	}
+
+	/*
+	 * Every property key a note should carry because of the classes it names, and
+	 * where each one came from.
+	 *
+	 *   { keys, fields, targets, owner }
+	 *
+	 * Three things arrive together, and they have to, because the third is a
+	 * consequence of the second:
+	 *
+	 *   1. the characteristics those classes declare  (effectiveCharacteristics)
+	 *   2. the component *fields* they declare        (effectiveComponentFields)
+	 *   3. for every component field this note has actually **filled** with a
+	 *      class, everything that class brings — its characteristics, and its own
+	 *      component fields, which this note may then fill in turn
+	 *
+	 * That third step is the whole feature: *"when the user inputs a class … then
+	 * the current class will take all of the characteristics of the component
+	 * class."* It reads the note's own frontmatter, so unlike (1) and (2) it is a
+	 * fact about this note rather than about its class — which is why a template
+	 * gets the empty fields and only a filled-in note gets what they lead to.
+	 *
+	 * It is a **fixed point, not one pass**. A component class may declare
+	 * component fields of its own, and those become fields on this note, and this
+	 * note may already have filled one. Depth-capped and guarded by `seen`, the
+	 * way every other walk here is: a cycle through component fields is far easier
+	 * to write by accident than a cycle through `type of`.
+	 *
+	 * `frontmatter` may be null — a class that exists only as a draft, a template
+	 * that has not been written yet — and then steps (1) and (2) still answer.
+	 */
+	carriedKeys(classNames, frontmatter, objects, drafts) {
+		const keys = [];
+		const seenKey = new Set();
+		const owner = new Map();
+		const fields = [];
+		const seenField = new Set();
+		const targets = [];
+		const seenTarget = new Set();
+
+		const add = (key, from) => {
+			if (!key) return;
+			if (!owner.has(key) && from) owner.set(key, from);
+			if (seenKey.has(key)) return;
+			seenKey.add(key);
+			keys.push(key);
+		};
+
+		let frontier = [];
+		const addField = (field, from) => {
+			if (!field || seenField.has(field)) return;
+			seenField.add(field);
+			fields.push(field);
+			add(field, from);
+			frontier.push(field);
+		};
+
+		for (const className of toArray(classNames)) {
+			if (!drafts.has(className)) continue;
+			for (const characteristic of this.effectiveCharacteristics(className, objects, drafts)) {
+				add(characteristic, className);
+			}
+			for (const field of this.effectiveComponentFields(className, objects, drafts)) {
+				addField(field, className);
+			}
+		}
+
+		let depth = 0;
+		while (frontier.length > 0 && depth < MAX_DEPTH) {
+			const wave = frontier;
+			frontier = [];
+			if (!frontmatter) break;
+
+			for (const field of wave) {
+				for (const className of this.componentTargets(frontmatter, field)) {
+					if (!drafts.has(className) || seenTarget.has(className)) continue;
+					seenTarget.add(className);
+					targets.push({ field: field, name: className });
+
+					for (const characteristic of
+						this.effectiveCharacteristics(className, objects, drafts)) {
+						add(characteristic, className);
+					}
+					for (const nested of
+						this.effectiveComponentFields(className, objects, drafts)) {
+						addField(nested, className);
+					}
+				}
+			}
+			depth++;
+		}
+
+		return { keys: keys, fields: fields, targets: targets, owner: owner };
+	}
+
+	/*
+	 * The classes one component field on one note names. A bare name and a
+	 * `[[link]]` both count, and both are canonicalised, so `[[goal]]` and
+	 * `[[Goal]]` are one class — the same rule `is a` follows.
+	 */
+	componentTargets(frontmatter, field) {
+		if (!frontmatter || !field) return [];
+		return toArray(frontmatter[field])
+			.map((entry) => linkName(entry))
+			.filter(Boolean)
+			.map((name) => this.canonicalName(name));
+	}
+
+	/*
+	 * Every property that some class in the vault declares as a component field.
+	 *
+	 * `file.hasA()` needs to know which of a note's keys are component fields
+	 * without first working out which classes the note belongs to, and this is the
+	 * honest answer to that: a component field is a property some class declared
+	 * as one. Cached with the closures, so any edit to the hierarchy drops it.
+	 */
+	componentProperties() {
+		if (this.componentFieldCache) return this.componentFieldCache;
+
+		const found = new Set();
+		const property = String(this.settings.componentsProperty || '').trim();
+		if (property) {
+			for (const file of this.filesIn(this.settings.notesFolder)) {
+				const frontmatter = this.frontmatterOf(file);
+				if (!frontmatter || !(property in frontmatter)) continue;
+				for (const entry of toArray(frontmatter[property])) {
+					const name = stripPrefix(linkName(entry), this.settings.characteristicPrefix);
+					if (name) found.add(name);
+				}
+			}
+		}
+
+		this.componentFieldCache = found;
+		return found;
+	}
+
+	/*
 	 * How much a class actually adds.
 	 *
 	 *   { added, redeclared, carried, own }
@@ -4835,7 +5040,14 @@ class OofClassesPlugin extends Plugin {
 
 		const own = [];
 		const seen = new Set();
-		for (const characteristic of draft.characteristics || []) {
+		/*
+		 * Component fields count. The question is *how much new metadata does this
+		 * class add*, and a component field is a property every instance carries —
+		 * one it did not have before this class declared it. Leaving them out would
+		 * rate his `Goal` at +0 for the three fields that are the entire class.
+		 */
+		for (const characteristic of (draft.characteristics || [])
+			.concat(draft.componentFields || [])) {
 			if (!characteristic || base.has(characteristic)) continue;
 			if (seen.has(characteristic)) continue;
 			seen.add(characteristic);
@@ -4847,9 +5059,10 @@ class OofClassesPlugin extends Plugin {
 			const parent = drafts.get(ancestor);
 			if (!parent) continue;
 			for (const characteristic of parent.characteristics || []) above.add(characteristic);
+			for (const field of parent.componentFields || []) above.add(field);
 		}
 
-		const carried = this.effectiveCharacteristics(name, objects, drafts)
+		const carried = this.carriedKeys([name], null, objects, drafts).keys
 			.filter((characteristic) => !base.has(characteristic));
 
 		return {
@@ -5023,6 +5236,32 @@ class OofClassesPlugin extends Plugin {
 		));
 
 		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
+			this, 'hasA',
+			'True when the note reaches the given class through one of its component '
+				+ 'fields, following that link and then the "type of" chain above it.',
+			[self, target],
+			(file, args) => {
+				const key = this.targetKey(args[0], file.path);
+				if (key === null) return new obsidian.BooleanValue(false);
+				return new obsidian.BooleanValue(this.hasAClosure(file).distance.has(key));
+			},
+		));
+
+		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
+			this, 'hasADistance',
+			'How many hops away the given class is through this note\'s component '
+				+ 'fields, 1 when a field names it directly, or null.',
+			[self, target],
+			(file, args) => {
+				const key = this.targetKey(args[0], file.path);
+				if (key === null) return obsidian.NullValue.value;
+				const distance = this.hasAClosure(file).distance.get(key);
+				return distance === undefined
+					? obsidian.NullValue.value : new obsidian.NumberValue(distance);
+			},
+		));
+
+		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
 			this, 'inheritsFrom',
 			'True when the note is a subclass of the given class, following "type of" only.',
 			[self, target],
@@ -5161,6 +5400,56 @@ class OofClassesPlugin extends Plugin {
 			this.seedsWithRoot(file, this.linkedParents(file, this.settings.isAProperty)),
 			this.instanceClimb());
 		this.isACache.set(file.path, closure);
+		return closure;
+	}
+
+	/*
+	 * The other stream. `hasA` is `isA` with a different set of seeds: the classes
+	 * this note names in its **component fields**, then every class those are a
+	 * type of.
+	 *
+	 * *"Instead of isA('...'), component connections will be queried with
+	 * hasA('...'). This will work the same way as isA, just through a different
+	 * pipeline."* — so it is literally `climb` again, with `instanceClimb()` above
+	 * the seeds, and a component field's target sits at distance 1 exactly as an
+	 * `is a` target does. `hasADistance(X) == 1` therefore means *a field names X
+	 * itself*, which is the same reading `isADistance` has and the one a base
+	 * filter will want.
+	 *
+	 * **The root is not seeded here.** Everything is implicitly a root note, and
+	 * nothing implicitly *has* one — an unfilled component field means the note
+	 * does not have that component, which is his `is sub goal` left empty.
+	 *
+	 * Which of a note's keys are component fields comes from
+	 * `componentProperties()`: the properties some class declared as one. Asking
+	 * the note's own classes instead would be circular in the awkward case that
+	 * matters — a note whose class it can only work out by walking.
+	 */
+	hasAClosure(file) {
+		const hit = this.hasACache.get(file.path);
+		if (hit) return hit;
+
+		const fields = this.componentProperties();
+		const seeds = [];
+		if (fields.size > 0) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			const frontmatter = (cache && cache.frontmatter) || {};
+			for (const field of Object.keys(frontmatter)) {
+				if (!fields.has(field)) continue;
+				for (const entry of toArray(frontmatter[field])) {
+					const name = linkName(entry);
+					if (!name) continue;
+					const dest = this.app.metadataCache.getFirstLinkpathDest(name, file.path);
+					seeds.push({
+						file: dest instanceof TFile ? dest : null,
+						name: dest instanceof TFile ? dest.basename : name,
+					});
+				}
+			}
+		}
+
+		const closure = this.climb(file, seeds, this.instanceClimb());
+		this.hasACache.set(file.path, closure);
 		return closure;
 	}
 
@@ -5393,8 +5682,15 @@ class OofClassesPlugin extends Plugin {
 	invalidateClosures() {
 		this.isACache = new Map();
 		this.inheritsCache = new Map();
+		this.hasACache = new Map();
 		/* Built out of those walks, so it cannot outlive them. */
 		this.instanceCache = new Map();
+		/*
+		 * Which properties are component fields is read off the class notes, so a
+		 * class gaining or losing one changes the answer — and every `hasA` walk is
+		 * seeded from it.
+		 */
+		this.componentFieldCache = null;
 	}
 
 	/* ----- Obsidian's own property-type registry ---------------------------- */
@@ -5516,31 +5812,27 @@ class OofClassesPlugin extends Plugin {
 			 * laid out is by type then name, the same everywhere.
 			 */
 			klass.effective = this.canonicalOrder(
-				this.effectiveCharacteristics(name, classes, drafts), characteristics,
+				this.carriedKeys([name], null, classes, drafts).keys, characteristics,
 				{ classes: [name], objects: classes, drafts: drafts });
 			klass.instances = [];
 		}
 
 		const instances = new Map();
 		for (const found of this.scanInstances(classes)) {
-			const expected = [];
-			const seen = new Set();
 			for (const className of found.classes) {
 				const klass = classes.get(className);
 				if (klass) klass.instances.push(found.file.basename);
-				for (const characteristic of this.effectiveCharacteristics(className, classes, drafts)) {
-					if (seen.has(characteristic)) continue;
-					seen.add(characteristic);
-					expected.push(characteristic);
-				}
 			}
+			const expected = this.carriedKeys(
+				found.classes, found.frontmatter, classes, drafts).keys;
 
 			instances.set(found.file.path, {
 				name: found.file.basename,
 				file: found.file,
 				classes: found.classes,
 				expected: this.canonicalOrder(expected, characteristics,
-					{ classes: found.classes, objects: classes, drafts: drafts }),
+					{ classes: found.classes, objects: classes, drafts: drafts,
+						frontmatter: found.frontmatter }),
 				values: found.frontmatter,
 				keys: new Set(Object.keys(found.frontmatter)),
 			});
@@ -5584,11 +5876,24 @@ class OofClassesPlugin extends Plugin {
 			});
 		}
 
+		/*
+		 * Which characteristics are component fields, read off the drafts so the
+		 * panel's unsaved edits count. `constraintsFor` needs it: a class in
+		 * `possible values` means something different on a component field, and
+		 * the characteristic note itself does not say which kind it is — the
+		 * classes that list it do.
+		 */
+		const componentFields = new Set();
+		for (const draft of drafts.values()) {
+			for (const field of draft.componentFields || []) componentFields.add(field);
+		}
+
 		return {
 			notes: notes,
 			characteristics: characteristics,
 			classes: classes,
 			instances: instances,
+			componentFields: componentFields,
 			drafts: drafts,
 			edits: this.drafts,
 		};
@@ -5735,9 +6040,31 @@ class OofClassesPlugin extends Plugin {
 			const canonical = this.canonicalName(name);
 
 			if (picture && picture.classes && isWikiLink(entry) && picture.classes.has(canonical)) {
+				/*
+				 * **On a component field a class means something else**, and this is
+				 * the one place the two readings meet.
+				 *
+				 * An ordinary characteristic holds a subject, so `[[Person]]` there
+				 * asks for *an instance of* Person — a note whose `is a` reaches it.
+				 * A component field holds a **class**, so `[[Coding]]` there asks for
+				 * Coding itself or any class that is a `type of` it. His own example
+				 * is the proof: `subject` may hold `Coding`, and *"multiple other
+				 * classes would inherit from Coding such as Bug or Obsidian Plugin"*
+				 * — under the instance reading every one of those is refused, because
+				 * `Bug` is a subclass of Coding and not one of its instances.
+				 *
+				 * Which reading applies is decided by the classes that list the
+				 * characteristic, not by the characteristic note, because that is
+				 * where a component field is declared.
+				 */
+				const component = !!(picture.componentFields
+					&& picture.componentFields.has(characteristic.name));
 				constraints.push({
-					kind: 'class', name: canonical,
-					text: 'instances of ' + canonical, entry: entry,
+					kind: 'class', name: canonical, component: component,
+					text: component
+						? canonical + ' or a type of it'
+						: 'instances of ' + canonical,
+					entry: entry,
 				});
 				continue;
 			}
@@ -5776,12 +6103,48 @@ class OofClassesPlugin extends Plugin {
 		const dest = this.app.metadataCache.getFirstLinkpathDest(name, sourcePath || '');
 		if (!(dest instanceof TFile)) return false;
 		const key = this.keyForName(constraint.name, sourcePath);
+		/*
+		 * A component field's value *is* a class, so the walk is `type of` and the
+		 * class itself counts — unconditionally, not through
+		 * `classIsItsOwnInstance`, which answers a different question (whether a
+		 * class is one of its own instances). `Coding` in a field that permits
+		 * `Coding` is not a borderline case.
+		 */
+		if (constraint.component) {
+			return nodeKey(dest, dest.basename) === key
+				|| this.inheritsClosure(dest).distance.has(key);
+		}
 		return this.matchesSelf(dest, key) || this.isAClosure(dest).distance.has(key);
 	}
 
 	/* Everything in this value that no constraint admits, said in one sentence. */
 	valueComplaint(characteristic, value, picture, sourcePath, skip) {
 		const constraints = this.constraintsFor(characteristic, picture);
+
+		/*
+		 * A component field holds a class, and that is true whether or not its
+		 * `possible values` narrows *which* class. So an unconstrained one is not
+		 * unconstrained after all: `type: soon` is wrong in a way `category: soon`
+		 * is not, and saying so is worth more here than anywhere else, because a
+		 * value that names nothing quietly hands the note no characteristics and
+		 * looks exactly like a component that was never filled in.
+		 */
+		const isComponent = !!(picture && picture.componentFields
+			&& picture.componentFields.has(characteristic.name));
+		if (isComponent && !constraints.some((c) => c.kind === 'class')) {
+			const strays = [];
+			for (const entry of toArray(value)) {
+				if (isEmptyValue(entry)) continue;
+				const name = linkName(typeof entry === 'string' ? entry : String(entry));
+				const canonical = name ? this.canonicalName(name) : '';
+				if (canonical && picture.classes && picture.classes.has(canonical)) continue;
+				strays.push(name || String(entry));
+			}
+			if (strays.length === 0) return null;
+			return strays.join(', ') + ' — ' + characteristic.name
+				+ ' is a component field, so its value has to name a class.';
+		}
+
 		if (constraints.length === 0) return null;
 
 		const wantsClass = constraints.some((c) => c.kind === 'class');
@@ -5830,17 +6193,18 @@ class OofClassesPlugin extends Plugin {
 		const draft = drafts.get(name);
 		if (!draft) return [];
 
-		const carried = [];
-		const seen = new Set();
-		for (const className of draft.values[this.settings.isAProperty] || []) {
-			if (className === name || !drafts.has(className)) continue;
-			for (const characteristic of this.effectiveCharacteristics(className, objects, drafts)) {
-				if (seen.has(characteristic)) continue;
-				seen.add(characteristic);
-				carried.push(characteristic);
-			}
-		}
-		return carried;
+		const classes = (draft.values[this.settings.isAProperty] || [])
+			.filter((className) => className !== name && drafts.has(className));
+		if (classes.length === 0) return [];
+
+		/*
+		 * Through `carriedKeys`, so a class note gets the component fields its own
+		 * `is a` gives it — and, where it has filled one in, what that leads to.
+		 * A class note is an ordinary note in this respect: nothing about being a
+		 * class stops it being a Goal whose `type` is Effort.
+		 */
+		const frontmatter = draft.file ? this.frontmatterOf(draft.file) : null;
+		return this.carriedKeys(classes, frontmatter, objects, drafts).keys;
 	}
 
 	/* ----- the canonical property order ------------------------------------ */
@@ -5876,14 +6240,38 @@ class OofClassesPlugin extends Plugin {
 			for (const characteristic of (draft && draft.characteristics) || []) {
 				if (!owner.has(characteristic)) owner.set(characteristic, className);
 			}
+			/*
+			 * A component field is credited to the class that *declares* it, not to
+			 * the class it points at — the same distinction drawn everywhere else
+			 * here. `Goal` owns `type`; `Effort` owns what filling it brings.
+			 */
+			for (const field of (draft && draft.componentFields) || []) {
+				if (!owner.has(field)) owner.set(field, className);
+			}
 		};
 
-		for (const className of toArray(context.classes)) {
+		const walk = (className) => {
 			meet(className);
 			for (const ancestor of this.ancestorsOf(className, context.objects, context.drafts)) {
 				meet(ancestor);
 			}
+		};
+
+		for (const className of toArray(context.classes)) walk(className);
+
+		/*
+		 * Then the classes this note reaches through its own component fields,
+		 * **after** the ones it says it is. A property that arrived through `type:
+		 * [[Effort]]` groups under Effort, and the group sits below the note's own
+		 * class — which is the order the note reads in: what it is, then what it
+		 * has.
+		 */
+		if (context.frontmatter) {
+			const reach = this.carriedKeys(context.classes, context.frontmatter,
+				context.objects, context.drafts);
+			for (const target of reach.targets) walk(target.name);
 		}
+
 		return { rank, owner };
 	}
 
@@ -6097,6 +6485,29 @@ class OofClassesPlugin extends Plugin {
 			 * exists rather than the behaviour simply being gone.
 			 */
 			if (constraint.kind === 'class') {
+				/*
+				 * **A component field is the exception to *don't enumerate a type*,
+				 * and it is the exception for the reason that rule was made.**
+				 *
+				 * That rule (2026-08-30) says a class in `possible values` names a
+				 * type, and enumerating a type answers a question the field did not
+				 * ask: `project` naming `[[Project]]` offered 84 notes where the
+				 * vault held 8 values, and `[[` already reaches every note anyway.
+				 *
+				 * Both halves fail here, in the opposite direction. A component
+				 * field's answer set is not the instances but the **subclasses** —
+				 * closed, small, and exactly what he means by *"if the class is
+				 * accepted by the possible values"*. And `[[` does not stand in for
+				 * it: it reaches every note in the vault, where two or three of them
+				 * are legal answers. So this list is strictly better than Obsidian's
+				 * and there is nothing to weigh, which is why it needs no setting.
+				 */
+				if (constraint.component) {
+					for (const name of this.subclassesOf(constraint.name)) {
+						offer('[[' + name + ']]');
+					}
+					continue;
+				}
 				if (!this.settings.suggestClassInstances) continue;
 				for (const name of this.instancesOf(constraint.name)) {
 					offer('[[' + name + ']]');
@@ -6135,6 +6546,36 @@ class OofClassesPlugin extends Plugin {
 	 * Cached, because the suggester asks again on every keystroke. It is emptied
 	 * with the closures it is built out of, so any edit to the hierarchy drops it.
 	 */
+	/*
+	 * A class and every class below it, the class itself first and the rest
+	 * alphabetically — what a component field permitting that class will accept.
+	 *
+	 * `inheritsClosure`, not `isAClosure`: subclassing, strictly. Read off the
+	 * notes rather than off the panel's drafts, because it answers a live
+	 * suggester and the vault is what the value will be checked against. Shares
+	 * `instanceCache` — both are dropped by `invalidateClosures`, and the keys
+	 * cannot collide because this one is prefixed.
+	 */
+	subclassesOf(className) {
+		const cacheKey = 'sub:' + className;
+		const hit = this.instanceCache.get(cacheKey);
+		if (hit) return hit;
+
+		const key = this.keyForName(className, '');
+		const below = this.filesIn(this.settings.notesFolder)
+			.filter((file) => !this.isTemplateFile(file))
+			.filter((file) => nodeKey(file, file.basename) !== key)
+			.filter((file) => this.hasClassTag(file))
+			.filter((file) => this.inheritsClosure(file).distance.has(key))
+			.map((file) => file.basename)
+			.sort((a, b) => a.localeCompare(b));
+
+		const named = this.canonicalName(className);
+		const names = [named].concat(below.filter((name) => name !== named));
+		this.instanceCache.set(cacheKey, names);
+		return names;
+	}
+
 	instancesOf(className) {
 		const hit = this.instanceCache.get(className);
 		if (hit) return hit;
@@ -6461,7 +6902,8 @@ class OofClassesPlugin extends Plugin {
 			const drafts = this.allDrafts(objects);
 			const characteristics = this.scanCharacteristics();
 			const { owner } = this.provenanceOf(
-				{ classes: classes, objects: objects, drafts: drafts });
+				{ classes: classes, objects: objects, drafts: drafts,
+					frontmatter: frontmatter });
 
 			/*
 			 * The label for a row, or null where a heading would be noise.
@@ -6953,9 +7395,17 @@ class OofClassesPlugin extends Plugin {
 	 * like the bases he writes by hand.
 	 */
 	baseColumnsFor(name, objects, drafts) {
-		return this.settings.baseColumns === 'own'
-			? ((drafts.get(name) || { characteristics: [] }).characteristics || [])
-			: this.effectiveCharacteristics(name, objects, drafts);
+		if (this.settings.baseColumns === 'own') {
+			const draft = drafts.get(name) || {};
+			/* Its own component fields are its own columns, for the same reason. */
+			return (draft.characteristics || []).concat(draft.componentFields || []);
+		}
+		/*
+		 * `carriedKeys` with no frontmatter: the characteristics and the component
+		 * fields, and nothing a component *leads to* — a base is about the class,
+		 * and what a given instance's `type` brings is a fact about that instance.
+		 */
+		return this.carriedKeys([name], null, objects, drafts).keys;
 	}
 
 	/*
@@ -8166,15 +8616,14 @@ class OofClassesPlugin extends Plugin {
 			const ownClasses = (draft.values[this.settings.isAProperty] || [])
 				.concat(this.rootAbove(name))
 				.filter((className) => drafts.has(className));
-			const inherited = [];
-			const seenInherited = new Set();
-			for (const className of ownClasses) {
-				for (const characteristic of this.effectiveCharacteristics(className, objects, drafts)) {
-					if (seenInherited.has(characteristic)) continue;
-					seenInherited.add(characteristic);
-					inherited.push(characteristic);
-				}
-			}
+			/*
+			 * `carriedKeys` again: a class note is an ordinary note in this respect.
+			 * If what it is a declares component fields, the class note carries them
+			 * too, and filling one brings the rest.
+			 */
+			const inherited = this.carriedKeys(
+				ownClasses, object.frontmatter, objects, drafts).keys;
+			const seenInherited = new Set(inherited);
 
 			const foreignToClass = Array.from(object.keys).filter((key) => {
 				if (this.settings.logicProperties.includes(key)) return false;
@@ -8238,7 +8687,8 @@ class OofClassesPlugin extends Plugin {
 			 * for its instances.
 			 */
 			const canonical = this.canonicalOrder(managedAfter, characteristics,
-				{ classes: ownClasses, objects: objects, drafts: drafts });
+				{ classes: ownClasses, objects: objects, drafts: drafts,
+					frontmatter: object.frontmatter });
 
 			/*
 			 * `reorderFrontMatter` lays a note out as *everything unmanaged, then the
@@ -8410,10 +8860,21 @@ class OofClassesPlugin extends Plugin {
 
 		/* 3. one template per class, carrying the flattened characteristics */
 		for (const [name, draft] of drafts) {
-			const expected = this.effectiveCharacteristics(name, objects, drafts);
 			const path = this.templatePathFor(name);
 			const file = this.app.vault.getFileByPath(path);
 			const current = file instanceof TFile ? this.frontmatterOf(file) : null;
+			/*
+			 * The component *fields* belong in a template, empty — they are what a
+			 * new note is asked to fill in. What filling one leads to does not,
+			 * because nothing has been filled in yet: a template is the shape of an
+			 * instance before any of its components have been chosen.
+			 *
+			 * The template's own frontmatter is passed all the same, so a template
+			 * he has given a standing component value — `type: [[Effort]]` on
+			 * `Sub Goal Template.md` — carries what that brings, the same as any
+			 * other note. Ordinarily it is empty and this changes nothing.
+			 */
+			const expected = this.carriedKeys([name], current, objects, drafts).keys;
 
 			/*
 			 * A base characteristic belongs in a template only when it is being
@@ -8454,7 +8915,8 @@ class OofClassesPlugin extends Plugin {
 					.concat(expected.filter((c) => c !== this.settings.isAProperty
 						&& templateBase.indexOf(c) === -1)),
 				characteristics,
-				{ classes: [name], objects: objects, drafts: drafts });
+				{ classes: [name], objects: objects, drafts: drafts,
+					frontmatter: current });
 
 			/*
 			 * Only keys with a characteristic note behind them, or that are base
@@ -8739,12 +9201,20 @@ class OofClassesPlugin extends Plugin {
 					expected.push(base);
 				}
 			}
-			for (const className of instance.classes) {
-				for (const characteristic of this.effectiveCharacteristics(className, objects, drafts)) {
-					if (seen.has(characteristic)) continue;
-					seen.add(characteristic);
-					expected.push(characteristic);
-				}
+			/*
+			 * `carriedKeys`, not `effectiveCharacteristics`: an instance carries the
+			 * component *fields* its classes declare as well, and — where it has
+			 * filled one — everything the class it named brings with it. That last
+			 * part reads this note's own frontmatter, so two notes of the same class
+			 * legitimately expect different keys, which is the point of the feature
+			 * and is new here.
+			 */
+			const carried = this.carriedKeys(
+				instance.classes, instance.frontmatter, objects, drafts);
+			for (const characteristic of carried.keys) {
+				if (seen.has(characteristic)) continue;
+				seen.add(characteristic);
+				expected.push(characteristic);
 			}
 
 			const present = Object.keys(instance.frontmatter);
@@ -8831,15 +9301,44 @@ class OofClassesPlugin extends Plugin {
 			const managedAfter = keysAfter.filter(
 				(key) => this.isManagedProperty(key, characteristics));
 			const canonical = this.canonicalOrder(managedAfter, characteristics,
-				{ classes: instance.classes, objects: objects, drafts: drafts });
+				{ classes: instance.classes, objects: objects, drafts: drafts,
+					frontmatter: instance.frontmatter });
 			const misordered = !sameNameList(managedAfter, canonical);
 
 			if (missing.length === 0 && removable.length === 0 && !misordered) continue;
 
 			const detail = [];
 			if (missing.length > 0) {
-				detail.push('Add, empty: ' + missing.join(', ')
-					+ ' — carried by ' + instance.classes.join(', ') + '.');
+				/*
+				 * Which component brought it, where one did. "carried by Goal" is
+				 * true of `checkpoint` here only in the sense that Goal let him ask
+				 * for it; what actually put it on this note is `type: [[Effort]]`,
+				 * and that is the line he needs in order to undo it.
+				 */
+				const viaComponent = new Map();
+				for (const target of carried.targets) {
+					for (const key of missing) {
+						if (viaComponent.has(key)) continue;
+						if (carried.owner.get(key) === target.name) {
+							viaComponent.set(key, target);
+						}
+					}
+				}
+				const direct = missing.filter((key) => !viaComponent.has(key));
+				if (direct.length > 0) {
+					detail.push('Add, empty: ' + direct.join(', ')
+						+ ' — carried by ' + instance.classes.join(', ') + '.');
+				}
+				const byTarget = new Map();
+				for (const [key, target] of viaComponent) {
+					const label = target.field + ': ' + target.name;
+					if (!byTarget.has(label)) byTarget.set(label, []);
+					byTarget.get(label).push(key);
+				}
+				for (const [label, keys] of byTarget) {
+					detail.push('Add, empty: ' + keys.join(', ')
+						+ ' — brought in through ' + label + '.');
+				}
 			}
 			if (removable.length > 0) {
 				const base = removable.filter((key) => blankBase.includes(key));
@@ -10992,7 +11491,7 @@ class OofClassesPlugin extends Plugin {
 		for (const property of action.write || []) {
 			const values = action.values[property] || [];
 			/* A characteristic is linked by its file name, prefix and all. */
-			const link = property === this.settings.characteristicsProperty
+			const link = this.namesCharacteristic(this.logicValueKind(property))
 				? (name) => asLink(this.characteristicFileName(name))
 				: asLink;
 			frontmatter[property] = values.length > 0 ? values.map(link) : null;
@@ -13060,6 +13559,7 @@ class ClassesView extends ItemView {
 			return 'used by the engine';
 		}
 		if (name === settings.viewsProperty) return 'read by file.views()';
+		if (name === settings.componentsProperty) return 'read by file.hasA()';
 		return 'stored and editable, no inheritance';
 	}
 
@@ -14491,10 +14991,17 @@ class ClassesView extends ItemView {
 		for (const property of plugin.settings.logicProperties) {
 			const kind = plugin.logicValueKind(property);
 			const isCharacteristics = kind === 'characteristic';
+			const isComponents = kind === 'component';
 			const isViews = kind === 'view';
+			/*
+			 * Both name characteristics, so both rows suggest, open, grey and
+			 * right-click the same way. What they *mean* differs, and that is said
+			 * in the tooltip and in the row drawn underneath — not here.
+			 */
+			const namesCharacteristic = isCharacteristics || isComponents;
 
 			/*
-			 * Three kinds of value, three sets of answers. A `views` row names bases
+			 * Four kinds of value, four sets of answers. A `views` row names bases
 			 * rather than classes, so every one of these would otherwise be wrong:
 			 * it would suggest class names, grey the chip for having no note, offer
 			 * to open a class that does not exist, and show `Improvement Base` where
@@ -14502,29 +15009,31 @@ class ClassesView extends ItemView {
 			 */
 			this.renderChipRow(body, property, draft.values[property] || [], {
 				owner: draft.name,
-				suggestions: isCharacteristics
+				suggestions: namesCharacteristic
 					? Array.from(characteristics.keys())
 					: (isViews ? [] : objectNames),
 				pick: isViews
 					? (taken, add) => plugin.promptForView(taken, add)
 					: null,
 				onChange: (next) => { this.setDraftValue(draft, property, next); },
-				onOpen: isCharacteristics
+				onOpen: namesCharacteristic
 					? openCharacteristic
 					: (isViews ? openView : openObject),
 				label: isViews ? (name) => plugin.viewLabel(name) : null,
-				tooltip: isCharacteristics ? characteristicTooltip : (isViews
-					? (name) => plugin.viewTooltip(name)
-					: (name) => {
-						const object = objects.get(name);
-						return object && object.file ? name : name + ' — no note yet';
-					}),
-				menu: isCharacteristics
+				tooltip: isComponents
+					? (name) => this.componentTooltip(name, characteristics)
+					: (isCharacteristics ? characteristicTooltip : (isViews
+						? (name) => plugin.viewTooltip(name)
+						: (name) => {
+							const object = objects.get(name);
+							return object && object.file ? name : name + ' — no note yet';
+						})),
+				menu: namesCharacteristic
 					? (name, event) => {
 						if (characteristics.has(name)) this.characteristicMenu(name, event);
 					}
 					: null,
-				missing: isCharacteristics
+				missing: namesCharacteristic
 					? (name) => !characteristics.has(name)
 					: (isViews
 						? (name) => !plugin.viewResolves(name)
@@ -14533,6 +15042,31 @@ class ClassesView extends ItemView {
 							return (!object || !object.file) && !characteristics.has(name);
 						}),
 			});
+
+			/*
+			 * The component fields this class inherits, under the row that extends
+			 * them — the same shape as `inherited` under `characteristics`, because
+			 * it is the same walk and the same reason to show it: they are fields
+			 * instances of this class carry, and they belong to a parent.
+			 */
+			if (isComponents) {
+				const ownFields = new Set(draft.componentFields);
+				const inheritedFields = plugin
+					.effectiveComponentFields(draft.name, objects, drafts)
+					.filter((field) => !ownFields.has(field));
+
+				if (inheritedFields.length > 0) {
+					this.renderChipRow(body, 'inherited components', inheritedFields, {
+						onOpen: openCharacteristic,
+						tooltip: (name) => this.componentTooltip(name, characteristics),
+						missing: (name) => !characteristics.has(name),
+						menu: (name, event) => {
+							if (characteristics.has(name)) this.characteristicMenu(name, event);
+						},
+						muted: true,
+					});
+				}
+			}
 
 			/*
 			 * What this note carries *itself* because of what it is a. Shown under
@@ -14562,6 +15096,10 @@ class ClassesView extends ItemView {
 			 * Inherited characteristics cannot be edited here - they belong to
 			 * the parent - but they still open their note, which is half the
 			 * reason to look at them. Shown directly under the row they extend.
+			 *
+			 * `isCharacteristics`, not `namesCharacteristic`: everything below is
+			 * about the `characteristics` list, and a component-fields row has had
+			 * its own inherited row drawn above.
 			 */
 			if (!isCharacteristics) continue;
 
@@ -14607,6 +15145,38 @@ class ClassesView extends ItemView {
 				muted: true,
 			});
 		}
+	}
+
+	/*
+	 * What a component field's chip says on hover: which classes it will accept.
+	 *
+	 * That is the useful thing to know about one, and it is not on the class note
+	 * — it is in the characteristic's `possible values`, one file away. A field
+	 * that names none accepts any class, which is said rather than left blank,
+	 * because an empty tooltip reads as "nothing known" and this is a decision.
+	 *
+	 * Read through `constraintsFor`, so what the tooltip promises and what the
+	 * plan accepts are the same sentence — `constraint.text` is literally the
+	 * phrase the complaint would use.
+	 */
+	componentTooltip(name, characteristics) {
+		const plugin = this.plugin;
+		const characteristic = characteristics.get(name);
+		if (!characteristic) return name + ' — no note yet';
+
+		const parts = [];
+		if (characteristic.meaning) parts.push(characteristic.meaning);
+
+		let constraints = [];
+		try {
+			constraints = plugin.constraintsFor(characteristic, plugin.picture());
+		} catch (error) { constraints = []; }
+
+		const classes = constraints.filter((constraint) => constraint.kind === 'class');
+		parts.push(classes.length > 0
+			? 'takes ' + classes.map((constraint) => constraint.text).join(', ')
+			: 'takes any class — ' + name + ' names no possible values');
+		return parts.join(' — ');
 	}
 
 	/*
@@ -16572,6 +17142,10 @@ class OofClassesSettingTab extends PluginSettingTab {
 		this.addText(containerEl, 'Characteristics property', 'Lists what an object\'s instances carry.', 'characteristicsProperty');
 		this.addText(containerEl, 'Views property', 'Names the bases an object\'s instances '
 			+ 'are looked at through. Read by file.views(); emptying it turns that off.', 'viewsProperty');
+		this.addText(containerEl, 'Component fields property', 'Lists the fields that '
+			+ 'instances of a class fill with a class of their own. Filling one hands the '
+			+ 'note every characteristic of the class it names; read by file.hasA(), and '
+			+ 'emptying it turns that off.', 'componentsProperty');
 
 		new Setting(containerEl)
 			.setName('Views from the furthest class first')

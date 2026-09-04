@@ -2269,6 +2269,97 @@ extension is tried as a fallback — a note of that name never wins over a base.
 The property is named by **Settings → Views property**; emptying it turns
 `file.views()` off.
 
+## `component fields` — the other stream
+
+`is a` is one way a note gets its metadata. A **component field** is another, and
+it is named.
+
+A class's `component fields:` lists characteristics the way `characteristics:`
+does — same spelling, `[[∘ type]]` — but the properties it names hold a **class**
+rather than a subject. Fill one in, and the note takes on everything that class
+carries.
+
+```yaml
+# Goal.md
+characteristics:
+  - "[[∘ active priority]]"
+component fields:
+  - "[[∘ type]]"
+  - "[[∘ subject]]"
+  - "[[∘ is sub goal]]"
+```
+
+```yaml
+# Write the parser.md
+is a: "[[Goal]]"
+active priority: 10
+type: "[[Effort]]"          # -> now carries checkpoint, everything Effort carries
+subject: "[[Obsidian Plugin]]"   # -> and language, repo, …
+is sub goal:                # left empty: it is not one
+```
+
+The point is what it replaces. Without it, "an effort about coding" has to be a
+class — `Coding Effort` — and every combination of two axes is a class, so the
+tree grows by multiplication. With it there is one `Goal`, and the axes are
+fields.
+
+### What is inherited, and what is not
+
+**The fields are inherited; the values are not.** A subclass of Goal carries all
+three fields, exactly as it carries Goal's characteristics — same walk, same
+rule. What filling one *leads to* is a fact about the note, not about its class,
+so two instances of one class legitimately expect different properties. That is
+the only place in this plugin where that is true, and it is the feature.
+
+A template therefore carries the fields, **empty**, and nothing they lead to: a
+template is the shape of an instance before any of its components have been
+chosen.
+
+The walk is a **fixed point, not one pass**. A component class may declare
+component fields of its own, and those become fields on the note, which the note
+may fill in turn.
+
+### `possible values` means something else here
+
+On an ordinary characteristic, a class in `possible values` asks for **an
+instance of** it. On a component field it asks for **that class or any `type of`
+it**, because the value *is* a class:
+
+```yaml
+# ∘ subject.md
+possible values:
+  - "[[Coding]]"       # accepts Coding, Bug, Obsidian Plugin, …
+```
+
+Which reading applies is decided by the classes that list the characteristic —
+that is where a component field is declared — so one characteristic note needs to
+say nothing about it.
+
+Two consequences follow. The value field **offers the subclasses**, which is the
+documented exception to [don't enumerate a type](#possible-values): a component
+field's answer set is closed and small, and `[[` does not stand in for it. And a
+component field with **no** `possible values` still demands a class — a value
+naming nothing hands the note no characteristics and looks exactly like a field
+that was never filled in, so it is reported.
+
+### `file.hasA()`
+
+The two streams are queried separately, and neither can see the other:
+
+```
+file.isA("Effort")        # its `is a`, then the `type of` chain above it
+file.hasA("Effort")       # its component fields, then the `type of` chain
+file.hasADistance("Coding") == 1   # a field names Coding itself
+```
+
+`hasA` is `isA` with a different set of seeds and nothing else changed, so a
+distance of 1 means the same thing in both. **The root is not seeded here**:
+everything is implicitly a root note, and nothing implicitly *has* one — an empty
+component field means the note does not have that component.
+
+The property is named by **Settings → Component fields property**; emptying it
+turns `file.hasA()` off.
+
 ## `file.classBase()` — the base a note is seen through
 
 `views` says which bases a class *chooses* for its instances. `file.classBase()`
@@ -2445,8 +2536,9 @@ nothing.
 ## Settings
 
 Folders (`Obsidian/Notes`, `Obsidian/Characteristics`, `Obsidian/Templates`),
-the template suffix (` Template`), the **characteristic prefix** (`∘ `), the four
-property names (**Inheritance**, **Instance**, **Characteristics**, **Views**),
+the template suffix (` Template`), the **characteristic prefix** (`∘ `), the five
+property names (**Inheritance**, **Instance**, **Characteristics**, **Views**,
+**Component fields**),
 the bases options above, and **A class is its own instance** for the base
 functions. The base characteristics themselves are
 [not a setting](#class).

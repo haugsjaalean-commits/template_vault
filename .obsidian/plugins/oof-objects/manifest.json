@@ -1,9 +1,9 @@
 {
   "id": "oof-objects",
   "name": "OOF Class Manager",
-  "version": "2.86.2",
+  "version": "2.87.0",
   "minAppVersion": "1.10.0",
-  "description": "A panel over the vault's classes: edit a class's characteristics and parents in one place, and push the consequences to the notes, templates and characteristic notes. Adds file.isA(), file.inheritsFrom(), file.ancestors(), file.isADistance(), file.views() and file.classBase() to bases.",
+  "description": "A panel over the vault's classes: edit a class's characteristics, component fields and parents in one place, and push the consequences to the notes, templates and characteristic notes. Adds file.isA(), file.hasA(), file.inheritsFrom(), file.ancestors(), file.isADistance(), file.hasADistance(), file.views() and file.classBase() to bases.",
   "author": "Claude",
   "isDesktopOnly": false
 }

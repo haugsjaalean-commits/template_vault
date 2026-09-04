@@ -1,8 +1,48 @@
 {
   "recentFiles": [
     {
+      "basename": "Space Lion",
+      "path": "Obsidian/Notes/Space Lion.md"
+    },
+    {
+      "basename": "Cowboy Bebop",
+      "path": "Obsidian/Notes/Cowboy Bebop.md"
+    },
+    {
+      "basename": "Nathan",
+      "path": "Obsidian/Notes/Nathan.md"
+    },
+    {
+      "basename": "Improvement Base",
+      "path": "Obsidian/Bases/Class Bases/Improvement Base.base"
+    },
+    {
+      "basename": "Components",
+      "path": "Obsidian/Notes/Components.md"
+    },
+    {
+      "basename": "Class Manager",
+      "path": "Obsidian/Notes/Class Manager.md"
+    },
+    {
+      "basename": "Bases Highlight",
+      "path": "Obsidian/Notes/Bases Highlight.md"
+    },
+    {
+      "basename": "Culture anglaise et littérature",
+      "path": "Obsidian/Notes/Culture anglaise et littérature.md"
+    },
+    {
       "basename": "Response 1",
       "path": "Obsidian/Notes/Response 1.md"
+    },
+    {
+      "basename": "2026-09-04 Friday — 14.29.02",
+      "path": "Obsidian/Notes/2026-09-04 Friday — 14.29.02.md"
+    },
+    {
+      "basename": "2026-09-02 Wednesday — 08.07.47",
+      "path": "Obsidian/Notes/2026-09-02 Wednesday — 08.07.47.md"
     },
     {
       "basename": "2026-09-04 Friday — 11.52.03",
@@ -29,10 +69,6 @@
       "path": "Obsidian/Notes/Zooming messes up wire size.md"
     },
     {
-      "basename": "Culture anglaise et littérature",
-      "path": "Obsidian/Notes/Culture anglaise et littérature.md"
-    },
-    {
       "basename": "presentness",
       "path": "Obsidian/Notes/presentness.md"
     },
@@ -45,16 +81,8 @@
       "path": "Obsidian/Bases/Class Bases/Cours Base.base"
     },
     {
-      "basename": "Bases Highlight",
-      "path": "Obsidian/Notes/Bases Highlight.md"
-    },
-    {
       "basename": "Compressed wires",
       "path": "Obsidian/Notes/Compressed wires.md"
-    },
-    {
-      "basename": "Class Manager",
-      "path": "Obsidian/Notes/Class Manager.md"
     },
     {
       "basename": "Littérature et imaginaire",
@@ -169,32 +197,8 @@
       "path": "O.md"
     },
     {
-      "basename": "Components",
-      "path": "Obsidian/Notes/Components.md"
-    },
-    {
       "basename": "Necessary fields",
       "path": "Obsidian/Notes/Necessary fields.md"
-    },
-    {
-      "basename": "Three types of discrepancies",
-      "path": "Obsidian/Notes/Three types of discrepancies.md"
-    },
-    {
-      "basename": "Prompting the user",
-      "path": "Obsidian/Notes/Prompting the user.md"
-    },
-    {
-      "basename": "Company",
-      "path": "Obsidian/Notes/Company.md"
-    },
-    {
-      "basename": "Automatically dealing with unsolvable discrepancies",
-      "path": "Obsidian/Notes/Automatically dealing with unsolvable discrepancies.md"
-    },
-    {
-      "basename": "Improvement",
-      "path": "Obsidian/Notes/Improvement.md"
     }
   ],
   "omittedPaths": [],
