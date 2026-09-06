@@ -24,13 +24,9 @@ views:
     name: Table
     order:
       - file.name
-      - color
-      - file
-      - related
-      - note rating
-      - rating
-      - created
-      - garden
-      - life stage
-      - ext links
-      - evolution
+      - attached to
+    sort:
+      - property: file.name
+        direction: ASC
+    columnSize:
+      file.name: 235

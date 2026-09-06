@@ -4,6 +4,8 @@ tags:
 symbol: lucide:keyboard
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Object]]"
 views:

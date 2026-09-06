@@ -57,6 +57,47 @@ const getIconIds = obsidian.getIconIds;
 const VIEW_TYPE = 'oof-objects-panel';
 
 /*
+ * The class diagram's own tab. A second view type rather than a second panel:
+ * the panel is a list you edit down the side, and a diagram is a thing you look
+ * at across a screen, so it opens in the main area like a note does.
+ */
+const UML_VIEW_TYPE = 'oof-uml-diagram';
+
+/*
+ * The diagram's geometry, in the one place a change to it is one edit. Every
+ * number here is in the SVG's own units, which the view then pans and zooms —
+ * so nothing below ever asks how big the pane is.
+ *
+ * `charWidth` is the one estimate. There is no measuring pass: a box is sized
+ * from its longest line before anything is drawn, which is what lets the layout
+ * be a pure function the test suite can run with no DOM at all. It is set for
+ * the interface font at `fontSize`, and generously — a box a few pixels wide of
+ * its text reads as a box, where one a few pixels short reads as a bug.
+ */
+const UML = {
+	minWidth: 168,
+	maxWidth: 320,
+	charWidth: 6.7,
+	fontSize: 11.5,
+	padX: 11,
+	headerHeight: 30,
+	rowHeight: 17,
+	compartmentPad: 6,
+	footerHeight: 16,
+	hGap: 34,
+	vGap: 76,
+	margin: 40,
+	/*
+	 * A class's Lucide symbol, drawn beside its name. 14 rather than the 12.5 of
+	 * the title text: an outline icon reads a size smaller than a letterform of
+	 * the same box, which is why Obsidian's own toolbars set icons above their
+	 * label size too.
+	 */
+	iconSize: 14,
+	iconGap: 5,
+};
+
+/*
  * The ignore list as it shipped in 2.3.0, kept only so a stored copy of it can be
  * recognised and replaced. See `loadSettings`.
  */
@@ -93,13 +134,47 @@ const TRASH_KINDS = ['trash-characteristic', 'trash-template', 'trash-base'];
  *
  * The three anchors carry meaning to the engine and are named by settings of
  * their own (`isAProperty`, `characteristicsProperty`, `inheritsProperty`);
- * `views` is read by `file.views()` through `viewsProperty`, and
- * `component fields` by `file.hasA()` through `componentsProperty`. Any entry
- * here that no setting names would be stored and edited faithfully but inherit
- * nothing.
+ * `views` and `class views` are read by `file.views()` through `viewsProperty`
+ * and `classViewsProperty`, and `component fields` by `file.hasA()` through
+ * `componentsProperty`. Any entry here that no setting names would be stored and
+ * edited faithfully but inherit nothing.
  */
 const BASE_CHARACTERISTICS = ['is a', 'characteristics', 'type of', 'views',
-	'component fields'];
+	'class views', 'component fields'];
+
+/*
+ * The three streams a class base can be read through - his note
+ * `Improvements to Class Bases`, 2026-09-05.
+ *
+ *   is a     an instance of the class, or of any class below it
+ *   has a    a note naming the class in one of its component fields
+ *   type of  the class itself and every class below it
+ *
+ * A table rather than three branches, for the reason `FUNCTIONS` is one in
+ * Dynamic Viewer: a fourth stream would join by adding a row. The order here is
+ * the order they are written in and the order they are drawn in, so a reading
+ * has one spelling and two bases carrying the same one are byte-identical.
+ *
+ * `fn` names the base function each stream already had. **No stream needed a new
+ * one**, and only `inheritsFromDistance` had to be added for the exact reading -
+ * which is `isADistance` and `hasADistance`'s own definition applied to the
+ * third relation, not a new idea.
+ */
+const BASE_STREAMS = [
+	{ id: 'is a', fn: 'isA', label: 'is a', icon: 'git-branch' },
+	{ id: 'has a', fn: 'hasA', label: 'has a', icon: 'git-branch-plus' },
+	{ id: 'type of', fn: 'inheritsFrom', label: 'type of', icon: 'git-merge' },
+];
+
+/*
+ * A YAML scalar in single quotes, which is what a generated base already uses
+ * for `'!file.inFolder("...")'` - a leading `!` is a tag indicator, and single
+ * quotes leave the double quotes inside the expression alone.
+ */
+function yamlSingleQuoted(value) {
+	return "'" + String(value === null || value === undefined ? '' : value)
+		.replace(/'/g, "''") + "'";
+}
 
 const DEFAULT_SETTINGS = {
 	notesFolder: 'Obsidian/Notes',
@@ -111,11 +186,32 @@ const DEFAULT_SETTINGS = {
 	/* The property on a class listing what its instances carry. */
 	characteristicsProperty: 'characteristics',
 	/*
-	 * The property naming the bases a class's instances are looked at through.
+	 * The property naming the bases a class's **instances** are looked at through.
 	 * A base characteristic like the three above: inherited by the walk and never
-	 * written into an instance. Emptying it turns file.views() off.
+	 * written into an instance. Emptying it turns this half of file.views() off.
 	 */
 	viewsProperty: 'views',
+	/*
+	 * The other half: the bases a class's **subtypes** are looked at through.
+	 *
+	 * The two-stream split (2026-09-05, his note `Class inheritance vs instance
+	 * inheritance`, second proposal): *"If a view is given in `dviews` then the
+	 * instances of this class will have that view in the `views` field; similarly,
+	 * if a view is given in `class dviews`, then any sub type of that class will
+	 * have that view."* Two audiences, two lists — the same decision as
+	 * `characteristics` against `component fields`, and as `isA` against `hasA`:
+	 * one declaration list per stream, never one list with a flag on each entry.
+	 *
+	 * His two reasons, both of which need the split rather than a cleverer walk:
+	 * *"I want to avoid classes containing views that are only meant for their
+	 * instances, and I want to be able to give special views to classes that won't
+	 * appear in anything instantiating that class."*
+	 *
+	 * **He decided against renaming `views`** ("do the two stream split, but leave
+	 * out the rename"), so the instance stream keeps the name it had — which also
+	 * means the 3 notes already carrying one stay exactly where they are.
+	 */
+	classViewsProperty: 'class views',
 	/*
 	 * Which end of the inheritance chain `file.views()` answers with first.
 	 *
@@ -174,8 +270,39 @@ const DEFAULT_SETTINGS = {
 	 */
 	ignoredProperties: ['tags', 'aliases', 'cssclasses', 'cssclass', 'publish',
 		'permalink', 'cover image'],
-	/* The tag that flags a note as a class. */
+	/*
+	 * The two tags a class note wears, exactly one of them — his note
+	 * `Difference between classes and components`, 2026-09-05: *"a new tag be
+	 * added, `#component`, and that this tag be used for all components."*
+	 *
+	 * A component is a class in every respect but one: it is never instantiated,
+	 * so it has no template. Both tags therefore make a note a class note, and
+	 * which one it wears is **derived, not read** — the same rule as
+	 * `#characteristic` / `#componentfield` a day earlier, for the same reason.
+	 * A class is a component because a component field permits it; the tag
+	 * reports that. Read the other way round it would be a second declaration,
+	 * free to disagree with the field that declares it.
+	 *
+	 * Emptying either turns that half of the enforcement off.
+	 */
 	classTag: 'class',
+	componentTag: 'component',
+	/*
+	 * The tags on a characteristic note, which are the whole of what distinguishes
+	 * the two kinds — his sentence, 2026-09-04: *"at the base component fields and
+	 * characteristics are treated and created in the same way besides the tags."*
+	 *
+	 * So a characteristic note carries exactly one of them, and which one is not
+	 * written on the note by hand: it is decided by whether some class lists it
+	 * under `component fields`, and Update swaps it when that changes. **Reading
+	 * them the other way round would be the mistake** — the tag would then be a
+	 * second place a component field is declared, free to disagree with the class
+	 * that declares it.
+	 *
+	 * Emptying one turns that half of the enforcement off.
+	 */
+	characteristicTag: 'characteristic',
+	componentFieldTag: 'componentfield',
 	/*
 	 * How the panel orders its classes. 'descent' puts a class below everything
 	 * it descends from, then sorts alphabetically within a generation; 'name'
@@ -468,8 +595,9 @@ const DEFAULT_SETTINGS = {
 
 	/*
 	 * The **Class base** button in Obsidian's own base toolbar, on a base this
-	 * plugin generated: what a class base is, the *exact matches only* switch,
-	 * and the reset.
+	 * plugin generated: what a class base is, the three streams that say which
+	 * notes it holds and which classes each one drops, *exact matches only*, and
+	 * the reset.
 	 *
 	 * On, because it is the feature. A switch rather than always-on for the same
 	 * reason the value rename has one: this puts a control of ours inside one of
@@ -477,6 +605,23 @@ const DEFAULT_SETTINGS = {
 	 * rather than an implementation detail.
 	 */
 	classBaseToolbar: true,
+
+	/*
+	 * His option, in his own words: *there should be an option in the settings to
+	 * make it so that only one can be on at a time*.
+	 *
+	 * **Off**, which is the one place a setting of his ships disabled, and it is
+	 * because he said so: the sentence the note spends its first paragraph on is
+	 * *they can all be on at once*, and this is named as the restriction on top of
+	 * it. On, turning a stream on turns the others off, so the three read as a
+	 * choice of one rather than as three switches.
+	 *
+	 * Either way a base keeps **at least one** stream: the last one on cannot be
+	 * turned off. A reading with no streams is not a base about nothing - it is a
+	 * clause this plugin can no longer recognise, and the way back would be the
+	 * reset.
+	 */
+	oneStreamAtATime: false,
 
 	/*
 	 * A third sort direction in any base: the order a characteristic note lists
@@ -621,6 +766,24 @@ const DEFAULT_SETTINGS = {
 	 * does, and Update then takes the blocks back out again.
 	 */
 	uniqueNameFormat: 'YYYY-MM-DD dddd — HH.mm.ss',
+
+	/*
+	 * What the class diagram draws. Five flat keys rather than one nested object,
+	 * because `loadSettings` merges with `Object.assign`: a stored object would
+	 * replace this one wholesale, and a key added later would arrive already
+	 * missing from every vault that had ever opened the tab.
+	 *
+	 * The defaults are what the diagram is *for*. Inherited rows and component
+	 * edges are on because a class you cannot see the consequences of is a name in
+	 * a box; the implicit root edge is off because it is true of every class at
+	 * once and drawing it says nothing; following is off because the tab opens to
+	 * the whole vault, which is the view you asked for by opening it.
+	 */
+	umlShowInherited: true,
+	umlShowComponents: true,
+	umlShowCounts: true,
+	umlShowRoot: false,
+	umlFollowActiveNote: false,
 };
 
 const MAX_DEPTH = 64;
@@ -647,6 +810,22 @@ const RETIRED_NATIVE_LABEL = 'Nothing to do with classes';
 function toArray(value) {
 	if (value === null || value === undefined) return [];
 	return Array.isArray(value) ? value : [value];
+}
+
+/*
+ * One row of a class box: `name : type`, which is UML's own spelling of an
+ * attribute, with the type left off when the characteristic note does not give
+ * one — an empty `property type` means "no constraint", so `name :` would be
+ * asserting something the vault does not say.
+ *
+ * The diamond is what tells a component field from a characteristic inside the
+ * compartment. It is the same mark the composition edge carries, so a field with
+ * no `possible values` — a row with no edge — still reads as the same kind of
+ * thing as one that has them.
+ */
+function umlRowText(row) {
+	const lead = row.kind === 'component' ? '◆ ' : '';
+	return lead + row.name + (row.type ? ' : ' + row.type : '');
 }
 
 /* Reduce a frontmatter entry to the note name it refers to. */
@@ -971,6 +1150,20 @@ function intervalAdmits(interval, value) {
 function yamlScalar(value) {
 	if (/^[A-Za-z0-9][A-Za-z0-9 _\-.]*$/.test(value)) return value;
 	return '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+}
+
+/*
+ * The other direction, for reading a scalar back off a line the file already
+ * has — a view's `name:`. Only the two quotings `yamlScalar` can write are
+ * undone, because this is used to *label* a view and never to write one back.
+ */
+function unquoteScalar(value) {
+	const text = String(value === null || value === undefined ? '' : value).trim();
+	const quoted = /^(['"])([\s\S]*)\1$/.exec(text);
+	if (!quoted) return text;
+	return quoted[1] === '"'
+		? quoted[2].replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+		: quoted[2].replace(/''/g, "'");
 }
 
 function sameNameList(a, b) {
@@ -2267,6 +2460,20 @@ class OofClassesPlugin extends Plugin {
 		 */
 		this.baseViews = new Map();
 
+		/*
+		 * base path -> its text, from that same read.
+		 *
+		 * Kept because a class card says how many notes its base holds, and *how
+		 * many* depends on what the base is **reading** — which stream, how far,
+		 * and what it drops. That is a fact about the file, so the only honest
+		 * source for it is the file. Reading it again would be a second read of
+		 * something already in hand, and doing it lazily would be an asynchronous
+		 * read behind a synchronous card.
+		 *
+		 * A whole `.base` is a few kilobytes and his vault has fifty-one of them.
+		 */
+		this.baseTexts = new Map();
+
 		/* What Obsidian currently thinks each property's type is. */
 		this.registeredTypes = {};
 		/* Memoised inheritance walks, for the Bases formula functions. */
@@ -2332,6 +2539,7 @@ class OofClassesPlugin extends Plugin {
 				this.defaultsRows.delete(file.path);
 				this.templateRenames.delete(file.path);
 				this.baseViews.delete(file.path);
+				this.baseTexts.delete(file.path);
 			}
 			touched(file);
 		}));
@@ -2345,6 +2553,7 @@ class OofClassesPlugin extends Plugin {
 				this.defaultsRows.delete(oldPath);
 				this.templateRenames.delete(oldPath);
 				this.baseViews.delete(oldPath);
+				this.baseTexts.delete(oldPath);
 			}
 			if (isBaseFile(file) || (typeof oldPath === 'string'
 				&& oldPath.slice(-5) === '.base')) {
@@ -2362,7 +2571,23 @@ class OofClassesPlugin extends Plugin {
 
 		this.registerView(VIEW_TYPE, (leaf) => new ClassesView(leaf, this));
 
+		this.registerView(UML_VIEW_TYPE, (leaf) => new UmlView(leaf, this));
+
+		this.addCommand({
+			id: 'open-class-diagram',
+			name: 'Open the class diagram',
+			callback: () => { this.activateUmlView(); },
+		});
+
 		this.addRibbonIcon('boxes', 'OOF Class Manager', () => { this.activateView(); });
+
+		/*
+		 * A second icon rather than a menu on the first. The panel and the diagram
+		 * are two places you go, not two things you do to one place — and an icon
+		 * that opens a menu costs a click on every single use to save one row of a
+		 * ribbon you have already decided to keep.
+		 */
+		this.addRibbonIcon('workflow', 'Class diagram', () => { this.activateUmlView(); });
 
 		this.addCommand({
 			id: 'open-classes-panel',
@@ -2468,6 +2693,13 @@ class OofClassesPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => this.queueBaseToolbars(true));
 
 		/*
+		 * The per-view half of the same reading, drawn onto Obsidian's own
+		 * Configure view card - his N.B. One observer for the whole app, since the
+		 * card is rebuilt every time it opens and again on every layout change.
+		 */
+		this.registerViewConfigCard();
+
+		/*
 		 * The defaults tables. Not awaited: the panel is useful before they arrive,
 		 * and the read invalidates the picture itself when it finds anything.
 		 */
@@ -2502,6 +2734,24 @@ class OofClassesPlugin extends Plugin {
 		this.app.workspace.revealLeaf(leaf);
 	}
 
+	/*
+	 * The diagram opens in the main area, not the sidebar — it is a thing you look
+	 * at across a screen rather than a list you edit down the side — and a second
+	 * call reveals the tab that is already open rather than making another.
+	 */
+	async activateUmlView() {
+		const existing = this.app.workspace.getLeavesOfType(UML_VIEW_TYPE);
+		if (existing.length > 0) {
+			this.app.workspace.revealLeaf(existing[0]);
+			return;
+		}
+
+		const leaf = this.app.workspace.getLeaf(true);
+		if (!leaf) return;
+		await leaf.setViewState({ type: UML_VIEW_TYPE, active: true });
+		this.app.workspace.revealLeaf(leaf);
+	}
+
 	/* ------------------------------------------------------------- scanning */
 
 	frontmatterOf(file) {
@@ -2529,15 +2779,50 @@ class OofClassesPlugin extends Plugin {
 	/*
 	 * The tag that says "this note is a class". Read through metadataCache's own
 	 * tag list, so `tags:` in frontmatter and `#class` in the body both count.
+	 *
+	 * **Either tag.** A component is a class — "components will work the same as
+	 * classes except that they won't have templates" — so a note wearing only
+	 * `#component` is found here exactly as one wearing `#class` is. Which of the
+	 * two it should wear is `classTagFor`'s question, and it is asked once, in the
+	 * plan.
 	 */
 	hasClassTag(file) {
-		const tag = this.settings.classTag;
-		if (!tag) return false;
+		return this.classTags().some((tag) => this.hasTag(file, tag));
+	}
+
+	/*
+	 * Which tag a class note should carry: the component one where the class is a
+	 * component, the plain one otherwise.
+	 *
+	 * `components` is that set, passed in rather than read here, for the same
+	 * reason `characteristicTagFor` takes its own: the plan works on **drafts**,
+	 * so a component field typed into a card and not yet written has to count.
+	 */
+	classTagFor(name, components) {
+		return (components && components.has(name))
+			? String(this.settings.componentTag || '')
+			: String(this.settings.classTag || '');
+	}
+
+	/* Both of them, so the wrong one can be taken off. */
+	classTags() {
+		return [this.settings.classTag, this.settings.componentTag]
+			.map((tag) => String(tag || '').replace(/^#/, ''))
+			.filter(Boolean);
+	}
+
+	/*
+	 * The same question for any tag. Read through metadataCache's own tag list, so
+	 * `tags:` in frontmatter and `#class` in the body both count — one note may
+	 * say it either way and mean the same thing.
+	 */
+	hasTag(file, tag) {
+		if (!tag || !file) return false;
 
 		const cache = this.app.metadataCache.getFileCache(file);
 		if (!cache) return false;
 
-		const wanted = '#' + tag.replace(/^#/, '');
+		const wanted = '#' + String(tag).replace(/^#/, '');
 		for (const entry of toArray(cache.tags)) {
 			if (entry && entry.tag === wanted) return true;
 		}
@@ -2547,6 +2832,243 @@ class OofClassesPlugin extends Plugin {
 			if (typeof entry === 'string' && '#' + entry.replace(/^#/, '') === wanted) return true;
 		}
 		return false;
+	}
+
+	/*
+	 * Which tag a characteristic note should carry: the component-field one where
+	 * some class lists it under `component fields`, the plain one otherwise.
+	 *
+	 * `fields` is that set, passed in rather than read here, because the plan
+	 * works on **drafts** — a component field added in the panel and not yet
+	 * written has to count, or Update would create the note with the wrong tag and
+	 * immediately want to change it.
+	 */
+	characteristicTagFor(name, fields) {
+		return (fields && fields.has(name))
+			? String(this.settings.componentFieldTag || '')
+			: String(this.settings.characteristicTag || '');
+	}
+
+	/* Both of them, so the wrong one can be taken off. */
+	characteristicTags() {
+		return [this.settings.characteristicTag, this.settings.componentFieldTag]
+			.map((tag) => String(tag || '').replace(/^#/, ''))
+			.filter(Boolean);
+	}
+
+	/*
+	 * Every characteristic some class declares as a component field, off the
+	 * drafts. The panel's unsaved edits count — see `characteristicTagFor`.
+	 */
+	componentFieldNames(drafts) {
+		const found = new Set();
+		for (const draft of drafts.values()) {
+			for (const field of draft.componentFields || []) {
+				if (field) found.add(field);
+			}
+		}
+		return found;
+	}
+
+	/*
+	 * Which classes are **components** — the classes that are composed into other
+	 * notes rather than instantiated. His note `Difference between classes and
+	 * components`, 2026-09-05: *"a new tag be added, `#component`, and that this
+	 * tag be used for all components."*
+	 *
+	 * **The tag is the declaration.** A class is a component because its note says
+	 * so, and for no other reason. That is the plain reading of his sentence, and
+	 * it is also the only version he can *see*: the answer is written on the note
+	 * he is looking at, in one word, and changing it changes the answer.
+	 *
+	 * **This is a correction of what I built first.** v3.0.0 derived it instead —
+	 * from the `possible values` of the characteristics some class lists under
+	 * `component fields` — and wrote the tag as a *report* of that, the way
+	 * `#componentfield` reports which of a class's two lists a characteristic sits
+	 * in. The argument was that the vault already said it and a hand-written tag
+	 * would be a second declaration free to disagree. Two things are wrong with
+	 * that, and he found both within the hour:
+	 *
+	 *   1. **the input was invisible.** `#componentfield` is derived from a row on
+	 *      the class card, one line, in front of you. This was derived from the
+	 *      frontmatter of a characteristic note one indirection away, plus a
+	 *      transitive closure — *"I don't understand how the program decides what
+	 *      is a component and what is a class."* A derivation nobody can run in
+	 *      their head is not a derivation, it is a verdict.
+	 *   2. **he had already used the tag as an input.** He put `#component` on
+	 *      `Calendar Event` by hand and nothing happened, because no component
+	 *      field points at it — the plan was in fact going to take the tag back off
+	 *      and write `#class` over it.
+	 *
+	 * So: read, never derived.
+	 *
+	 * **It travels down `type of`**, because his fourth rule leaves no choice —
+	 * *"it is impossible for a class to be a type of a component and vice versa"* —
+	 * and a subclass of a component is the thing that actually gets written into a
+	 * component field. Update writes the tag onto those too, so *"used for all
+	 * components"* holds literally and a search for `#component` finds the whole
+	 * tree. That is one hop of inheritance off a value you can read, which is the
+	 * same shape as `symbol:` and is small enough to hold in your head.
+	 *
+	 * The other direction cannot be settled here and is not guessed at: a class
+	 * tagged `#component` whose parent is a plain class is the one violation left,
+	 * and `structuralDiscrepancies` reports it while `componentDisputes` keeps
+	 * everything from acting on it.
+	 *
+	 * Pure over its argument, with no cache: the picture and the plan build their
+	 * own `drafts` and both call this, so there is one answer rather than two.
+	 *
+	 * Returns a Map from the class name to how it got here, so everything that
+	 * turns on this can say why in words.
+	 */
+	componentClasses(drafts) {
+		const found = new Map();
+		if (!drafts || !this.settings.componentTag) return found;
+
+		/* Declared: the note carries the tag. Nothing else makes a root. */
+		for (const [name, draft] of drafts) {
+			if (!draft.file) continue;
+			if (this.hasTag(draft.file, this.settings.componentTag)) {
+				found.set(name, { root: name, declared: true, via: null });
+			}
+		}
+
+		if (found.size === 0) return found;
+
+		/* And down through `type of`, off the drafts so unsaved edits count. */
+		const children = new Map();
+		for (const [name, draft] of drafts) {
+			for (const parent of (draft.values
+				&& draft.values[this.settings.inheritsProperty]) || []) {
+				if (!children.has(parent)) children.set(parent, []);
+				children.get(parent).push(name);
+			}
+		}
+
+		let frontier = Array.from(found.keys());
+		let depth = 0;
+		while (frontier.length > 0 && depth < MAX_DEPTH) {
+			const next = [];
+			for (const name of frontier) {
+				for (const child of children.get(name) || []) {
+					/*
+					 * A class that says so itself keeps saying so: its own tag is a
+					 * statement, and being reached from above as well changes nothing
+					 * about it. Only a class that has *not* declared is described here
+					 * as inheriting, which is what the reason has to get right.
+					 */
+					if (found.has(child)) continue;
+					const from = found.get(name);
+					found.set(child, { root: from.root, declared: false, via: name });
+					next.push(child);
+				}
+			}
+			frontier = next;
+			depth += 1;
+		}
+
+		return found;
+	}
+
+	/*
+	 * Why this class is a component, in one sentence. Two answers, because there
+	 * are exactly two ways to be one and they are not the same fact: one is
+	 * something the note says, the other is something it inherits.
+	 */
+	componentReason(name, components) {
+		const entry = components && components.get(name);
+		if (!entry) return '';
+
+		const tag = '#' + String(this.settings.componentTag || 'component');
+		if (entry.declared) {
+			return name + ' is tagged ' + tag + ', so it is filled into a component '
+				+ 'field rather than instantiated.';
+		}
+		return name + ' is a ' + this.settings.inheritsProperty + ' ' + entry.via
+			+ ', and ' + entry.root + ' is tagged ' + tag + ' — and a '
+			+ this.settings.inheritsProperty + ' a component is a component.';
+	}
+
+	/*
+	 * Classes whose kind is in dispute: a component that is *also* a
+	 * `type of` a plain class. His fourth rule — *"it is impossible for a class
+	 * to be a type of a component and vice versa"* — is true downward by
+	 * construction, so this is the only shape it can be broken in, and it is
+	 * reached from the component's side because that is the side that knows.
+	 *
+	 * **Nothing acts on one of these.** The plan leaves the class's tag and its
+	 * template exactly as they are, and `structuralDiscrepancies` reports it
+	 * instead. That is the plugin's oldest discipline applied to a derivation
+	 * rather than to a value: where the model contradicts itself the answer is
+	 * his, and trashing a template on the strength of a derivation the plugin is
+	 * simultaneously calling broken is the worst of both — he resolves it the
+	 * other way and the file has already gone.
+	 *
+	 * One helper for both readers, so the plan and the discrepancy list cannot
+	 * come to disagree about which classes are in dispute.
+	 */
+	componentDisputes(drafts, components) {
+		const found = new Map();
+		if (!drafts || !components) return found;
+
+		for (const [name, entry] of components) {
+			if (!entry) continue;
+			const draft = drafts.get(name);
+			if (!draft) continue;
+			const strangers = (draft.values
+				&& draft.values[this.settings.inheritsProperty] || [])
+				.filter((parent) => drafts.has(parent) && !components.has(parent));
+			if (strangers.length > 0) found.set(name, strangers);
+		}
+		return found;
+	}
+
+	/*
+	 * The same question asked of the picture, for everything that draws rather
+	 * than plans: the panel's cards, its buttons and its menus all have a name and
+	 * no `drafts` to hand.
+	 */
+	isComponent(name) {
+		const picture = this.picture();
+		return !!(picture.componentClasses && picture.componentClasses.has(name));
+	}
+
+	/*
+	 * And whether its kind is in dispute rather than settled. The panel needs the
+	 * two apart: it will not *make* an instance of a class whose kind it cannot
+	 * state, but it will not hide a template the plan has deliberately kept.
+	 */
+	isDisputedComponent(name) {
+		const picture = this.picture();
+		return !!(picture.componentDisputes && picture.componentDisputes.has(name));
+	}
+
+	/*
+	 * Why an instance of this class is refused, in the shape a Notice wants. One
+	 * sentence in two versions, so every route out of the plugin — the panel's
+	 * buttons, the menu, the command palette — refuses in the same words, and a
+	 * class whose kind is unsettled is never told it has no template when its
+	 * template is on disk.
+	 */
+	componentRefusal(names) {
+		const list = toArray(names).filter((name) => this.isComponent(name));
+		if (list.length === 0) return '';
+
+		const disputed = list.filter((name) => this.isDisputedComponent(name));
+		if (disputed.length > 0) {
+			return andList(disputed) + ' is a component by one parent and a class by '
+				+ 'another, so its kind is unsettled. Settle that first — the '
+				+ 'discrepancy list names the parents.';
+		}
+		/*
+		 * The property is named in backticks rather than read as a verb: with
+		 * `is a` as its name, "nothing is is a it" is what the obvious sentence
+		 * produces.
+		 */
+		return andList(list) + ' ' + (list.length === 1 ? 'is a component' : 'are components')
+			+ ': filled into a component field rather than instantiated, so no note '
+			+ 'should name ' + (list.length === 1 ? 'it' : 'them') + ' under `'
+			+ this.settings.isAProperty + '`.';
 	}
 
 	/*
@@ -2592,8 +3114,22 @@ class OofClassesPlugin extends Plugin {
 	logicValueKind(property) {
 		if (property === this.settings.characteristicsProperty) return 'characteristic';
 		if (property && property === this.settings.componentsProperty) return 'component';
-		if (property && property === this.settings.viewsProperty) return 'view';
+		if (this.isViewProperty(property)) return 'view';
 		return 'class';
+	}
+
+	/*
+	 * Both view streams, in one predicate. They differ only in *who receives* a
+	 * view — instances against subtypes — and in nothing else: both hold
+	 * `[[Some Base.base#a view]]`, so both rows suggest bases, keep the subpath,
+	 * grey on a missing base, and open one. Every caller that used to compare
+	 * against `viewsProperty` asks this instead, which is what makes the second
+	 * row cost no rendering code at all.
+	 */
+	isViewProperty(property) {
+		if (!property) return false;
+		return property === this.settings.viewsProperty
+			|| property === this.settings.classViewsProperty;
 	}
 
 	/* Both kinds whose values are characteristic names, so spelled `[[∘ x]]`. */
@@ -3372,7 +3908,11 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		for (const path of Array.from(this.baseViews.keys())) {
-			if (!seen.has(path)) { this.baseViews.delete(path); changed = true; }
+			if (!seen.has(path)) {
+				this.baseViews.delete(path);
+				this.baseTexts.delete(path);
+				changed = true;
+			}
 		}
 
 		if (changed) this.refreshViews();
@@ -3396,10 +3936,18 @@ class OofClassesPlugin extends Plugin {
 			names = [];
 		}
 
+		/*
+		 * The text counts as a change as much as the view names do, because a class
+		 * card reads its base's *reading* out of it: throwing the stream switch edits
+		 * no view and would otherwise leave every count on the screen saying what the
+		 * base held a moment ago.
+		 */
 		const before = this.baseViews.get(file.path);
-		if (before && before.join(' ') === names.join(' ')) return false;
+		const same = before && before.join(' ') === names.join(' ')
+			&& this.baseTexts.get(file.path) === text;
 		this.baseViews.set(file.path, names);
-		return true;
+		this.baseTexts.set(file.path, text);
+		return !same;
 	}
 
 	/*
@@ -3911,6 +4459,40 @@ class OofClassesPlugin extends Plugin {
 		};
 	}
 
+	/*
+	 * Which rows of this draft the vault has not been told about, and what each
+	 * one would become — `[{ property, from, to }]`, empty when the draft says
+	 * nothing new.
+	 *
+	 * The card needs the *list*, not the yes/no `draftDiffers` gives, because the
+	 * whole point of marking a card is to say what is pending on it. An empty row
+	 * is exactly what a class with nothing declared also looks like, so a card
+	 * carrying an unapplied clearing is indistinguishable from an honest one
+	 * until something says so out loud. That is how `Sub Goal` sat empty for a
+	 * day before an unrelated Update wrote it out.
+	 */
+	pendingRows(draft, object) {
+		const stored = (object && object.values) || this.emptyLogicValues();
+		const rows = [];
+		for (const property of this.settings.logicProperties) {
+			const to = draft.values[property] || [];
+			const from = stored[property] || [];
+			if (!sameNameList(to, from)) rows.push({ property: property, from: from, to: to });
+		}
+		return rows;
+	}
+
+	/* The card's tooltip: every pending row, as `property: vault → panel`. */
+	pendingTooltip(name, rows, symbol) {
+		const show = (list) => (list.length > 0 ? list.join(', ') : 'empty');
+		const lines = rows.map((row) => row.property + ': '
+			+ show(row.from) + '  →  ' + show(row.to));
+		if (symbol) lines.push(symbol);
+		return 'Edited in the panel, not yet written to ' + name + '’s note:\n'
+			+ lines.join('\n')
+			+ '\n\nUpdate writes this; Discard throws it away.';
+	}
+
 	/* Does this draft say anything the vault does not already say? */
 	draftDiffers(draft, object) {
 		const stored = (object && object.values) || this.emptyLogicValues();
@@ -4090,11 +4672,19 @@ class OofClassesPlugin extends Plugin {
 	 *
 	 * Pure, and the whole of the layout: the renderer only draws what this says.
 	 */
-	classTree(objects, drafts) {
+	/*
+	 * `type of` read both ways round, alphabetically so the shape is stable.
+	 *
+	 * Extracted out of `classTree` 2026-09-05, because the class base's exclusion
+	 * lists ask the same question the tree drawing does and must get the same
+	 * answer: the classes a stream reaches are the classes drawn *under* the one
+	 * the base is about, root edge and all. Two walks over one hierarchy is
+	 * exactly the drift `file.isA()` was folded into this plugin to end.
+	 */
+	classParentage(drafts) {
 		const names = Array.from(drafts.keys());
 		const known = new Set(names);
 
-		/* `type of`, both ways round, alphabetically so the shape is stable. */
 		const parentsOf = new Map();
 		const childrenOf = new Map();
 		const rootName = names.find((name) => this.isRootClass(name)) || null;
@@ -4121,6 +4711,40 @@ class OofClassesPlugin extends Plugin {
 				childrenOf.get(parent).push(name);
 			}
 		}
+		return { names: names, parentsOf: parentsOf, childrenOf: childrenOf, rootName: rootName };
+	}
+
+	/*
+	 * The classes a stream aimed at `name` can be asked to drop: everything below
+	 * it, depth-first, each with how far down it sits so the menu can indent it.
+	 *
+	 * The class itself is **not** in the list. Excluding it would empty the stream
+	 * outright, which is what turning the stream off already says - and a control
+	 * that duplicates the one above it is a second way to reach a state, not a
+	 * second state.
+	 */
+	excludableClasses(name, drafts) {
+		const parentage = this.classParentage(drafts);
+		const rows = [];
+		const seen = new Set([name]);
+
+		const walk = (parent, depth) => {
+			for (const child of parentage.childrenOf.get(parent) || []) {
+				if (seen.has(child)) continue;
+				seen.add(child);
+				rows.push({ name: child, depth: depth, parents: parentage.parentsOf.get(child) || [] });
+				walk(child, depth + 1);
+			}
+		};
+		walk(name, 0);
+		return rows;
+	}
+
+	classTree(objects, drafts) {
+		const parentage = this.classParentage(drafts);
+		const names = parentage.names;
+		const parentsOf = parentage.parentsOf;
+		const childrenOf = parentage.childrenOf;
 
 		/*
 		 * Where the tree hangs from: classes with no parent. The root class first
@@ -5219,7 +5843,14 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		const self = { name: 'self', type: [obsidian.FileValue] };
-		const target = { name: 'type', type: [obsidian.StringValue, obsidian.LinkValue] };
+		/*
+		 * A class can be named as a word, as a link, or handed over as a **file** -
+		 * the last so that `this.file` can be the target of one of these in a base
+		 * that is being read against a note.
+		 */
+		const target = { name: 'type', type: obsidian.FileValue
+			? [obsidian.StringValue, obsidian.LinkValue, obsidian.FileValue]
+			: [obsidian.StringValue, obsidian.LinkValue] };
 
 		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
 			this, 'isA',
@@ -5273,6 +5904,31 @@ class OofClassesPlugin extends Plugin {
 			},
 		));
 
+		/*
+		 * The exact reading of the `type of` stream, added 2026-09-05 with the
+		 * three-stream class base. Not a new idea: `isADistance` and `hasADistance`
+		 * are the same sentence about the other two relations - a note whose *own*
+		 * property names the class sits at 1, and every hop above adds one - and
+		 * without it the third stream had no exact reading to offer.
+		 *
+		 * Distance 0 is the class itself, which is what `inheritsFrom` already says
+		 * by answering true for it.
+		 */
+		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
+			this, 'inheritsFromDistance',
+			'How many hops away the given class is along the "type of" chain, 0 for '
+				+ 'the class itself, 1 when its own "type of" names it, or null.',
+			[self, target],
+			(file, args) => {
+				const key = this.targetKey(args[0], file.path);
+				if (key === null) return obsidian.NullValue.value;
+				if (this.matchesSelf(file, key)) return new obsidian.NumberValue(0);
+				const distance = this.inheritsClosure(file).distance.get(key);
+				return distance === undefined
+					? obsidian.NullValue.value : new obsidian.NumberValue(distance);
+			},
+		));
+
 		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
 			this, 'ancestors',
 			'Everything above this note by either relation, nearest first.',
@@ -5296,8 +5952,9 @@ class OofClassesPlugin extends Plugin {
 
 		this.registerInstanceFunc(obsidian.FileValue, new BasesFunction(
 			this, 'views',
-			'The bases this note is looked at through: its own "views", then the ones '
-				+ 'its class declares and every class above that, nearest first.',
+			'The bases this note is looked at through, from two streams: the "views" '
+				+ 'its class declares and every class above that, plus the "class views" '
+				+ 'of the note itself and every class it is a type of.',
 			[self],
 			(file) => new obsidian.ListValue(this.viewEntriesFor(file).map(
 				(entry) => new obsidian.LinkValue(this.app, entry.link, file.path, null))),
@@ -5550,27 +6207,58 @@ class OofClassesPlugin extends Plugin {
 	 * "the plugin will understand that they inherit that view, but it will not be
 	 * specifically listed anywhere in the frontmatter."
 	 *
-	 * Which notes a view reaches is the `is a` question and not the `type of` one:
-	 * "a file only receives a view if the relationship is `is a`. Otherwise, if
-	 * the connection is `type of` then it simply stores the view." That sentence
-	 * is `isAClosure` exactly - instantiate once, then climb the subclass chain -
-	 * so a view put on Person is on every Artist note without Artist listing it,
-	 * while Artist itself only stores it.
+	 * **There are two streams, and they differ by one edge** (2026-09-05, his note
+	 * `Class inheritance vs instance inheritance`):
 	 *
-	 * A note's own `views:` is its own. One rule, no special case for a class, and
-	 * it is what lets a dashboard be pinned to a single note.
+	 *   `views`        from note X: cross X's `is a`, then climb `type of`.
+	 *                  **X itself is not in the set.**
+	 *   `class views`  from note X: climb X's own `type of`, reflexively.
+	 *                  **X itself is in the set.**
 	 *
-	 * Nearest first, deduplicated on the link as written: two classes naming one
-	 * view is one view, and the nearer one is the one that says where it came from.
+	 * He described `class views` as *"a hidden `is a` being added"*. It is the
+	 * opposite, and that is what makes it cheap: it is the ordinary `is a` being
+	 * **dropped**. Both exclusions he wanted then fall out of the vault's own
+	 * shape, with no clause stating either:
+	 *
+	 *   - a class note has an empty `is a:`, so it receives nothing from the
+	 *     instance stream — *"I want to avoid classes containing views that are
+	 *     only meant for their instances"*;
+	 *   - an instance has an empty `type of:`, so it receives nothing from the
+	 *     class stream.
+	 *
+	 * The asymmetry in reflexivity is not a choice either: `type of` is reflexive
+	 * by nature — a class is a kind of itself — while `is a` is not, since a class
+	 * is not an instance of itself. It is the same reading `climb` already has,
+	 * where a seed sits at distance 1 and the note itself is never in `distance`.
+	 *
+	 * A generated template still receives the instance views, because it really
+	 * does carry `is a: [[Class]]` — which is right: a template should show what
+	 * the notes made from it will show.
+	 *
+	 * **What the split gives up, and gives back.** `views` used to be read off the
+	 * note itself at distance 0, which is what let a dashboard be pinned to one
+	 * note. That is gone from this stream by design. It survives spelled
+	 * `class views`: a plain note has no subtypes, so a `class views` on it
+	 * reaches exactly itself.
+	 *
+	 * Nearest first, deduplicated on the link as written, **keeping the smallest
+	 * distance across both streams**: two classes naming one view is one view, and
+	 * the nearer one is the one that says where it came from. Reading each stream
+	 * in ascending order and keeping the first would let a far entry from the
+	 * stream read first beat a near one from the other.
 	 */
 	viewEntriesFor(file) {
-		const property = String(this.settings.viewsProperty || '').trim();
-		if (!property || !(file instanceof TFile)) return [];
+		if (!(file instanceof TFile)) return [];
+
+		const instanceProperty = String(this.settings.viewsProperty || '').trim();
+		const classProperty = String(this.settings.classViewsProperty || '').trim();
+		if (!instanceProperty && !classProperty) return [];
 
 		const entries = [];
-		const seen = new Set();
+		const found = new Map();
 
-		const read = (source, distance) => {
+		const read = (source, property, distance) => {
+			if (!property) return;
 			const cache = this.app.metadataCache.getFileCache(source);
 			const frontmatter = (cache && cache.frontmatter) || null;
 			if (!frontmatter) return;
@@ -5580,49 +6268,75 @@ class OofClassesPlugin extends Plugin {
 				if (!link) continue;
 
 				const key = link.toLowerCase();
-				if (seen.has(key)) continue;
-				seen.add(key);
+				const known = found.get(key);
+				if (known) {
+					/* One view named twice is one view, placed by the nearer naming. */
+					if (distance < known.distance) {
+						known.distance = distance;
+						known.from = source.basename;
+						known.stream = property === classProperty ? 'class' : 'instance';
+					}
+					continue;
+				}
 
 				const parts = splitViewLink(link);
-				entries.push({
+				const entry = {
 					link: link,
 					target: parts.target,
 					view: parts.view,
 					file: this.resolveBase(parts.target, source.path),
 					from: source.basename,
+					stream: property === classProperty ? 'class' : 'instance',
 					distance: distance,
-				});
+				};
+				found.set(key, entry);
+				entries.push(entry);
 			}
 		};
 
-		read(file, 0);
+		/*
+		 * Walk one closure, reading one property off every real note in it. A class
+		 * named but never written is a virtual node and has no frontmatter to read.
+		 */
+		const walk = (closure, property) => {
+			if (!property) return;
+			const keys = Array.from(closure.distance.keys())
+				.sort((a, b) => closure.distance.get(a) - closure.distance.get(b));
 
-		const closure = this.isAClosure(file);
-		const keys = Array.from(closure.distance.keys())
-			.sort((a, b) => closure.distance.get(a) - closure.distance.get(b));
+			for (const key of keys) {
+				if (key.charAt(0) !== 'f') continue;
+				const source = this.app.vault.getAbstractFileByPath(key.slice(2));
+				if (source instanceof TFile) read(source, property, closure.distance.get(key));
+			}
+		};
 
-		for (const key of keys) {
-			/* A class named but never written is a virtual node: no frontmatter. */
-			if (key.charAt(0) !== 'f') continue;
-			const source = this.app.vault.getAbstractFileByPath(key.slice(2));
-			if (source instanceof TFile) read(source, closure.distance.get(key));
-		}
+		/* The instance stream: `is a` first, and never the note itself. */
+		walk(this.isAClosure(file), instanceProperty);
+
+		/* The class stream: the note's own, then straight up `type of`. */
+		read(file, classProperty, 0);
+		walk(this.inheritsClosure(file), classProperty);
 
 		/*
-		 * Furthest class first, when that is what he asked for.
+		 * Nearest first, or furthest first when that is what he asked for.
 		 *
 		 * A **stable sort on the distance alone**, not a reversal of the array: the
-		 * order in which one note or class writes its own `views:` is his, and
+		 * order in which one note or class writes its own list is his, and
 		 * reversing everything would turn that round as well. This turns only the
 		 * chain round and leaves each source's own list exactly as written.
 		 *
-		 * A link named by two classes at different distances is still collected
-		 * once, at the nearer of the two - the dedupe happens as they are read - so
-		 * it is placed by that distance either way.
+		 * The nearest-first sort is new and is the price of two streams. With one
+		 * walk the push order *was* ascending distance, so nothing had to be done;
+		 * two walks interleave, and a class view at distance 0 would otherwise sit
+		 * behind the whole instance chain.
+		 *
+		 * A link named twice is still collected once, at the nearer of the two
+		 * namings - the dedupe keeps the smaller distance as they are read - so it
+		 * is placed by that distance either way.
 		 */
-		if (this.settings.viewsFurthestFirst) {
-			entries.sort((a, b) => b.distance - a.distance);
-		}
+		entries.sort((a, b) => (this.settings.viewsFurthestFirst
+			? b.distance - a.distance
+			: a.distance - b.distance));
 
 		return entries;
 	}
@@ -5664,6 +6378,32 @@ class OofClassesPlugin extends Plugin {
 		if (obsidian.LinkValue && value instanceof obsidian.LinkValue) {
 			const resolved = typeof value.resolve === 'function' ? value.resolve() : null;
 			if (resolved instanceof TFile) return 'f:' + resolved.path;
+		}
+
+		/*
+		 * A **file** as the target, which is what `this.file` is - so
+		 * `file.hasA(this.file)` reads as "reaches the note I am looking at
+		 * through a component field", and `file.isA(this.file)` likewise.
+		 *
+		 * Added 2026-09-05, and the reason is worth keeping: he set a view of
+		 * `Goal Base` to *has a* expecting exactly that sentence, got an empty
+		 * view, and read it as `hasA()` being broken. It was not - the switch says
+		 * *has a **Goal***, and nothing reaches Goal through a component field.
+		 * But the sentence he wanted had no way to be written at all: handed
+		 * `this.file`, this fell through to `String(value.data)`, which for a file
+		 * is `[object Object]`, and answered a name no note has. Silently false.
+		 *
+		 * Read off whichever shape the value carries rather than one of them, since
+		 * a Bases value class is internal and none of this is documented.
+		 */
+		const file = value instanceof TFile ? value
+			: (value.data instanceof TFile ? value.data
+				: (value.file instanceof TFile ? value.file : null));
+		if (file) return 'f:' + file.path;
+		if (typeof value.path === 'string' && value.path
+			&& typeof this.app.vault.getAbstractFileByPath === 'function') {
+			const found = this.app.vault.getAbstractFileByPath(value.path);
+			if (found instanceof TFile) return 'f:' + found.path;
 		}
 
 		const name = linkName(typeof value.data === 'string' ? value.data : String(value.data));
@@ -5888,14 +6628,454 @@ class OofClassesPlugin extends Plugin {
 			for (const field of draft.componentFields || []) componentFields.add(field);
 		}
 
+		/*
+		 * And which *classes* are components — read off the `#component` tag. On the
+		 * picture rather than recomputed by each reader, for the reason
+		 * `componentFields` is here: two answers to one question is how the answers
+		 * drift.
+		 */
+		const componentClasses = this.componentClasses(drafts);
+
 		return {
 			notes: notes,
 			characteristics: characteristics,
 			classes: classes,
 			instances: instances,
 			componentFields: componentFields,
+			componentClasses: componentClasses,
+			/*
+			 * The classes whose kind is an open question. On the picture beside the
+			 * set it comes from, so the panel and the plan read one answer.
+			 */
+			componentDisputes: this.componentDisputes(drafts, componentClasses),
 			drafts: drafts,
 			edits: this.drafts,
+		};
+	}
+
+	/* ------------------------------------------------------ the class diagram */
+
+	/*
+	 * The picture, read as UML.
+	 *
+	 * Nothing new is derived here. Every answer below already exists — `drafts`
+	 * says what a class declares, `ancestorsOf` says what is above it,
+	 * `effectiveCharacteristics` is the same walk this one repeats to keep the
+	 * *source* of each inherited row. What this adds is a **reading**: which of
+	 * the picture's relations is which UML shape.
+	 *
+	 *   class box            a class note
+	 *   generalization       `type of`          — hollow triangle at the parent
+	 *   composition          `component fields` — filled diamond at the class
+	 *   attribute            `characteristics`
+	 *   the greyed half      what an ancestor declared
+	 *   «stereotype»         the class symbol
+	 *
+	 * The reading is the whole design decision, and two halves of it are worth
+	 * saying out loud:
+	 *
+	 * **`is a` is not an edge here.** It is UML's instantiation, and a diagram
+	 * with 151 objects hanging off `Goal` is not a class diagram — so instances
+	 * are a count in the footer. `type of` is generalization because that is what
+	 * it means, and it is the only relation between two *classes* the vault has.
+	 *
+	 * **A component field is composition, and its target comes from the
+	 * characteristic's own `possible values`.** That is the only place the vault
+	 * writes down what class may fill a field, so it is the only place an edge
+	 * could come from. A field with no `possible values` is drawn as a row and
+	 * not as an edge — faithfully, since nothing says where it points.
+	 *
+	 * Pure and DOM-free on purpose, exactly like `buildPicture`: the view draws
+	 * what this returns and decides nothing, so the suite can run the whole
+	 * derivation with no app around it.
+	 */
+	umlDiagram(options) {
+		const opts = Object.assign({
+			inherited: true, components: true, instances: true, root: false, focus: '',
+		}, options || {});
+
+		const picture = this.picture();
+		const classes = picture.classes;
+		const drafts = picture.drafts;
+		const characteristics = picture.characteristics;
+
+		const typeOf = (name) => {
+			const characteristic = characteristics.get(name);
+			return (characteristic && characteristic.propertyType) || '';
+		};
+
+		/*
+		 * The parents this class draws an edge to. `known` rather than filtered
+		 * here, because a dangling `type of` is something the box says — it is one
+		 * of the discrepancy panel's insolvable faults, and a diagram that simply
+		 * omitted the edge would be the one place in the system where a fault is
+		 * quietly tidied away.
+		 */
+		const parentsOf = (name) => {
+			const draft = drafts.get(name);
+			const out = [];
+			const seen = new Set([name]);
+			for (const parent of (draft && draft.parents) || []) {
+				if (!parent || seen.has(parent)) continue;
+				seen.add(parent);
+				out.push({ name: parent, implicit: false, known: drafts.has(parent) });
+			}
+			/*
+			 * The implicit root edge, which `ancestorsOf` walks whether or not it is
+			 * drawn. Off by default and behind a toggle: it is true of every class at
+			 * once, so drawing it turns the diagram into a star about `Obsidian Note`
+			 * and says nothing that one line of text does not say better.
+			 */
+			for (const root of this.rootAbove(name)) {
+				if (seen.has(root)) continue;
+				seen.add(root);
+				out.push({ name: root, implicit: true, known: drafts.has(root) });
+			}
+			return out;
+		};
+
+		/*
+		 * Three states a class can be in, and the box says which:
+		 *
+		 *   a note behind it             ordinary
+		 *   no note, but a panel draft   pending — Update will write it
+		 *   no note and no draft         named by a `type of` and by nothing else
+		 *
+		 * The third is the plan's own definition of a dangling parent, down to the
+		 * test it uses — `known.file || this.drafts.has(target)`. It is a class
+		 * here rather than an omission because `scanClasses` records it as one, and
+		 * a diagram that quietly dropped the box would be the single place in the
+		 * system where a fault is tidied away in the act of reading it.
+		 */
+		const missing = (name) => {
+			const object = classes.get(name);
+			return !(object && object.file) && !picture.edits.has(name);
+		};
+
+		/*
+		 * The rows an ancestor declared, nearest first, each carrying the class it
+		 * came from. `effectiveCharacteristics` answers the same question and
+		 * throws that last part away; the box needs it, since "inherited" with no
+		 * "from where" is the half of the answer you cannot act on.
+		 *
+		 * `owned` excludes both lists at once. A class that redeclares a parent's
+		 * characteristic keeps it in its own compartment and nowhere else, which is
+		 * first-occurrence-wins drawn rather than restated.
+		 */
+		const inheritedOf = (name, owned, key) => {
+			const rows = [];
+			const seen = new Set(owned);
+			for (const ancestor of this.ancestorsOf(name, classes, drafts)) {
+				const draft = drafts.get(ancestor);
+				if (!draft) continue;
+				for (const entry of draft[key] || []) {
+					if (!entry || seen.has(entry)) continue;
+					seen.add(entry);
+					rows.push({ name: entry, type: typeOf(entry), from: ancestor });
+				}
+			}
+			return rows;
+		};
+
+		const nodes = new Map();
+		for (const name of Array.from(drafts.keys()).sort((a, b) => a.localeCompare(b))) {
+			const draft = drafts.get(name);
+			const object = classes.get(name);
+
+			const own = (draft.characteristics || []).filter(Boolean)
+				.map((c) => ({ name: c, type: typeOf(c), kind: 'characteristic' }));
+			const ownFields = (draft.componentFields || []).filter(Boolean)
+				.map((f) => ({ name: f, type: typeOf(f), kind: 'component' }));
+
+			const owned = new Set(own.map((r) => r.name).concat(ownFields.map((r) => r.name)));
+
+			/*
+				 * A symbol is one of two kinds of thing, and this is the sixth place
+				 * in the plugin that has to know it — `paintSymbol`'s own comment
+				 * says five copies of *is this an icon or a character* are five
+				 * chances to disagree, and the first version of this diagram was the
+				 * sixth by not asking at all: it concatenated the stored value, so
+				 * 52 of his 53 classes drew the literal text `lucide:brush Art`.
+				 *
+				 * Split here rather than in the drawing, because the *width* depends
+				 * on it too — `lucide:person-standing` measured as a title is a box
+				 * three times wider than the name needs.
+				 */
+			const symbol = this.symbolFor(name, classes, drafts).symbol;
+
+			nodes.set(name, {
+				name: name,
+				symbol: symbol,
+				icon: isIconSymbol(symbol) ? iconNameOf(symbol) : '',
+				glyph: isIconSymbol(symbol) ? '' : symbol,
+				file: (object && object.file) || null,
+				/* Pending: no note yet, but the panel is holding one. */
+				isDraft: !(object && object.file) && picture.edits.has(name),
+				/* And the fault: no note, and nothing waiting to write one. */
+				isMissing: missing(name),
+				own: own,
+				ownFields: ownFields,
+				inherited: inheritedOf(name, owned, 'characteristics')
+					.map((r) => Object.assign(r, { kind: 'characteristic' })),
+				inheritedFields: inheritedOf(name, owned, 'componentFields')
+					.map((r) => Object.assign(r, { kind: 'component' })),
+				parents: parentsOf(name),
+				dangling: parentsOf(name)
+					.filter((p) => !p.known || missing(p.name)).map((p) => p.name),
+				instances: (object && object.instances) ? object.instances.length : 0,
+				children: 0,
+				depth: 0,
+			});
+		}
+
+		/* Which parent edges are actually drawn — asked twice, so said once. */
+		const drawnParents = (node) => node.parents.filter((parent) => parent.known
+			&& (opts.root || !parent.implicit));
+
+		const edges = [];
+		for (const node of nodes.values()) {
+			for (const parent of drawnParents(node)) {
+				edges.push({ kind: 'generalization', from: node.name, to: parent.name,
+					implicit: parent.implicit });
+				nodes.get(parent.name).children++;
+			}
+		}
+
+		if (opts.components) {
+			const made = new Set();
+			for (const node of nodes.values()) {
+				for (const field of node.ownFields) {
+					const characteristic = characteristics.get(field.name);
+					for (const target of (characteristic && characteristic.possibleValues) || []) {
+						if (!nodes.has(target) || target === node.name) continue;
+						const id = node.name + ' ' + field.name + ' ' + target;
+						if (made.has(id)) continue;
+						made.add(id);
+						edges.push({ kind: 'composition', from: node.name, to: target,
+							label: field.name });
+					}
+				}
+			}
+		}
+
+		/*
+		 * How far down the generalization graph a class sits: one below its
+		 * *furthest* parent, so an edge always points upwards and multiple
+		 * inheritance cannot leave a child level with one of its parents.
+		 *
+		 * A `type of` cycle is the picture's business to report and not this
+		 * function's to break — so it is survived rather than fixed. A name met
+		 * twice on one walk answers 0 and is not remembered, which ends the
+		 * recursion without deciding anything about the cycle.
+		 */
+		const depths = new Map();
+		const depthOf = (name, trail) => {
+			if (depths.has(name)) return depths.get(name);
+			if (trail.has(name)) return 0;
+			trail.add(name);
+			let depth = 0;
+			for (const parent of drawnParents(nodes.get(name))) {
+				depth = Math.max(depth, depthOf(parent.name, trail) + 1);
+			}
+			trail.delete(name);
+			depths.set(name, depth);
+			return depth;
+		};
+		for (const node of nodes.values()) node.depth = depthOf(node.name, new Set());
+
+		/*
+		 * One class and everything it is related to. The generalization graph both
+		 * ways — a class is not explained by its parents alone — plus whatever its
+		 * component fields point at, one hop, because that is the class the field
+		 * holds and not a whole second subtree.
+		 */
+		let kept = null;
+		if (opts.focus && nodes.has(opts.focus)) {
+			kept = new Set([opts.focus]);
+			const climb = (name) => {
+				for (const parent of drawnParents(nodes.get(name))) {
+					if (kept.has(parent.name)) continue;
+					kept.add(parent.name);
+					climb(parent.name);
+				}
+			};
+			const descend = (name) => {
+				for (const node of nodes.values()) {
+					if (kept.has(node.name)) continue;
+					if (!drawnParents(node).some((p) => p.name === name)) continue;
+					kept.add(node.name);
+					descend(node.name);
+				}
+			};
+			climb(opts.focus);
+			descend(opts.focus);
+			for (const edge of edges) {
+				if (edge.kind !== 'composition') continue;
+				if (edge.from === opts.focus) kept.add(edge.to);
+				if (edge.to === opts.focus) kept.add(edge.from);
+			}
+		}
+
+		const drawn = Array.from(nodes.values())
+			.filter((node) => !kept || kept.has(node.name));
+		const drawnNames = new Set(drawn.map((node) => node.name));
+
+		/* Size every box from its own longest line, before anything is placed. */
+		for (const node of drawn) {
+			const compartments = [];
+			const first = node.own.concat(node.ownFields);
+			if (first.length > 0) compartments.push({ kind: 'own', rows: first });
+			if (opts.inherited) {
+				const second = node.inherited.concat(node.inheritedFields);
+				if (second.length > 0) compartments.push({ kind: 'inherited', rows: second });
+			}
+			node.compartments = compartments;
+			node.footer = opts.instances
+				? this.umlFooter(node) : '';
+
+			/*
+			 * The title is measured apart from the rows, because an icon widens it
+			 * by a fixed amount rather than by a number of characters — and adding
+			 * that allowance to the widest line of all would widen boxes whose
+			 * longest line is a row the icon sits nowhere near.
+			 */
+			node.title = (node.glyph ? node.glyph + ' ' : '') + node.name;
+			const titleWidth = node.title.length * UML.charWidth
+				+ (node.icon ? UML.iconSize + UML.iconGap : 0);
+
+			const lines = [];
+			for (const compartment of compartments) {
+				for (const row of compartment.rows) lines.push(umlRowText(row));
+			}
+			if (node.footer) lines.push(node.footer);
+
+			const widest = lines.reduce((most, line) => Math.max(most, line.length), 0);
+			node.width = Math.max(UML.minWidth, Math.min(UML.maxWidth,
+				Math.round(Math.max(titleWidth, widest * UML.charWidth) + UML.padX * 2)));
+
+			let height = UML.headerHeight;
+			for (const compartment of compartments) {
+				height += UML.compartmentPad * 2 + compartment.rows.length * UML.rowHeight;
+			}
+			if (node.footer) height += UML.footerHeight;
+			node.height = height;
+		}
+
+		return {
+			nodes: drawn.sort((a, b) => a.depth - b.depth || a.name.localeCompare(b.name)),
+			edges: edges.filter((edge) => drawnNames.has(edge.from) && drawnNames.has(edge.to)),
+			options: opts,
+		};
+	}
+
+	/*
+	 * What the box says underneath. Counted rather than drawn, per the note on
+	 * `umlDiagram`: these are the two numbers that say whether a class is doing
+	 * any work, and both are already in the picture.
+	 */
+	umlFooter(node) {
+		const parts = [];
+		if (node.instances > 0) {
+			parts.push(node.instances + (node.instances === 1 ? ' instance' : ' instances'));
+		}
+		if (node.children > 0) {
+			parts.push(node.children + (node.children === 1 ? ' subtype' : ' subtypes'));
+		}
+		return parts.join('  ·  ');
+	}
+
+	/*
+	 * Where every box goes: layered by depth, and ordered inside a layer to put
+	 * a class near what it is joined to.
+	 *
+	 * The ordering is the barycentre heuristic — a node wants to sit at the mean
+	 * x of its parents, then of its children, alternately — which is what every
+	 * layered graph drawer starts with and is enough here. It is not exact and
+	 * does not need to be: fewer crossings is the whole goal, and the alternative
+	 * is a search whose cost he would feel on every redraw.
+	 *
+	 * Pure, and separate from `umlDiagram`, for the same reason `canonicalOrder`
+	 * is separate from the walk that feeds it: the reading and the arrangement
+	 * are two things, and only one of them changes when a box moves.
+	 */
+	umlLayout(diagram) {
+		const layers = [];
+		for (const node of diagram.nodes) {
+			if (!layers[node.depth]) layers[node.depth] = [];
+			layers[node.depth].push(node);
+		}
+		for (let index = 0; index < layers.length; index++) {
+			if (!layers[index]) layers[index] = [];
+		}
+
+		const byName = new Map(diagram.nodes.map((node) => [node.name, node]));
+		const parentsOf = new Map();
+		const childrenOf = new Map();
+		for (const node of diagram.nodes) {
+			parentsOf.set(node.name, []);
+			childrenOf.set(node.name, []);
+		}
+		for (const edge of diagram.edges) {
+			if (edge.kind !== 'generalization') continue;
+			if (!byName.has(edge.from) || !byName.has(edge.to)) continue;
+			parentsOf.get(edge.from).push(edge.to);
+			childrenOf.get(edge.to).push(edge.from);
+		}
+
+		/* A first, stable arrangement, so an empty barycentre never decides anything. */
+		const order = new Map();
+		for (const layer of layers) {
+			layer.sort((a, b) => a.name.localeCompare(b.name));
+			layer.forEach((node, index) => order.set(node.name, index));
+		}
+
+		const barycentre = (node, neighbours) => {
+			const places = neighbours.map((name) => order.get(name))
+				.filter((place) => place !== undefined);
+			if (places.length === 0) return order.get(node.name);
+			return places.reduce((sum, place) => sum + place, 0) / places.length;
+		};
+
+		const sweep = (neighboursOf, downwards) => {
+			const range = downwards
+				? layers.map((_, index) => index) : layers.map((_, index) => index).reverse();
+			for (const index of range) {
+				const layer = layers[index];
+				const keys = new Map(layer.map((node) =>
+					[node.name, barycentre(node, neighboursOf.get(node.name))]));
+				layer.sort((a, b) => keys.get(a.name) - keys.get(b.name)
+					|| a.name.localeCompare(b.name));
+				layer.forEach((node, place) => order.set(node.name, place));
+			}
+		};
+
+		for (let pass = 0; pass < 4; pass++) {
+			sweep(parentsOf, true);
+			sweep(childrenOf, false);
+		}
+
+		/* Widths first, so every layer can be centred on the same axis. */
+		const widths = layers.map((layer) => layer.reduce(
+			(sum, node, index) => sum + node.width + (index > 0 ? UML.hGap : 0), 0));
+		const widest = widths.reduce((most, width) => Math.max(most, width), 0);
+
+		let y = UML.margin;
+		layers.forEach((layer, index) => {
+			let x = UML.margin + (widest - widths[index]) / 2;
+			let tallest = 0;
+			for (const node of layer) {
+				node.x = Math.round(x);
+				node.y = Math.round(y);
+				x += node.width + UML.hGap;
+				tallest = Math.max(tallest, node.height);
+			}
+			y += tallest + UML.vGap;
+		});
+
+		return {
+			layers: layers,
+			width: Math.round(widest + UML.margin * 2),
+			height: Math.round(Math.max(y - UML.vGap, 0) + UML.margin),
 		};
 	}
 
@@ -7409,19 +8589,23 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/*
-	 * `exact` is the *exact matches only* switch on the Class base menu, and it
-	 * arrives here only from a reset - a base is generated inclusive, and the
-	 * switch is a thing done to one afterwards. It is passed through so that a
-	 * reset rebuilds the base in the reading it was already in.
+	 * `reading` arrives here only from a reset - a base is generated as an
+	 * inclusive `is a`, and every switch on the Class base menu is something done
+	 * to one afterwards. It is passed through so that a reset rebuilds the base in
+	 * the reading it was already in, which is the one thing a reset is not being
+	 * asked to change; with none given, the generated reading is the plain one.
 	 */
-	baseContentFor(name, objects, drafts, exact) {
+	baseContentFor(name, objects, drafts, reading) {
 		const columns = this.baseColumnsFor(name, objects, drafts);
+		const held = reading && (reading.streams || []).length > 0
+			? reading
+			: { streams: ['is a'], exact: false, excluded: {} };
 
 		const lines = [];
 		lines.push('filters:');
 		lines.push('  and:');
 		/* Instances of this class, inheritance included unless asked otherwise. */
-		lines.push('    - ' + this.baseFilterExpression(name, !!exact));
+		for (const line of this.readingClauseLines(name, held, 4)) lines.push(line);
 		/* A template names its class too, so it would otherwise show up here. */
 		lines.push('    - \'!file.inFolder("' + this.settings.templatesFolder + '")\'');
 		lines.push('views:');
@@ -7579,89 +8763,995 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/*
-	 * The one line of a generated base that says which notes it holds, in its two
-	 * readings.
+	 * ── what a generated base holds ─────────────────────────────────────────
 	 *
-	 *   all     file.isA("Person")                every note that is a Person,
-	 *                                             instances of its subclasses too
-	 *   exact   file.isADistance("Person") == 1   only notes whose own `is a`
-	 *                                             names Person
+	 * Until 2026-09-05 this was **one line in one of four readings** - two
+	 * questions, crossed: which of two streams, and how far along it. His note
+	 * `Improvements to Class Bases` widens the first question and adds a third:
 	 *
-	 * `isADistance() == 1` rather than a fifth base function, because distance 1
-	 * already *is* "named directly in `is a`" - `climb()` seeds at 1 and every hop
-	 * above adds one - and a new function would be a second spelling of a question
-	 * that already has an answer.
+	 *   streams   any of `is a`, `has a`, `type of`, **or-ed**, at least one on
+	 *   exclude   per stream, classes dropped out of that stream's subtree
+	 *   exact     one switch across all of them
 	 *
-	 * Neither needs quoting. `!file.inFolder(...)` is quoted in the generated base
-	 * because a leading `!` is a YAML tag indicator; `==` is nothing to YAML.
+	 * **`or` and not `and` is his sentence, and it is the only reading that can
+	 * be meant**: a note reached through a component field is not also an
+	 * instance of the class, so anding two streams would empty every base that
+	 * had both on. The streams are alternative routes to one class, not
+	 * conditions on one note.
+	 *
+	 * **An exclusion is written without a distance, always.** `!file.isA("Effort")`
+	 * removes the notes under Effort as well as Effort's own - his "if one class
+	 * is excluded, then all of its children are turned off as well (because this
+	 * is how it works anyways)". The relation already says it, so only the
+	 * topmost class of an excluded branch is ever written, and a subclass he adds
+	 * tomorrow is excluded the day it appears rather than the day the list is
+	 * next opened.
+	 *
+	 * **One stream and nothing excluded is still one line**, byte-identical to
+	 * what all 47 of his bases already say - which is why not one of them needed
+	 * migrating for any of this.
 	 */
-	baseFilterExpression(name, exact) {
-		return exact
-			? 'file.isADistance("' + name + '") == 1'
-			: 'file.isA("' + name + '")';
+
+	baseStreamOf(id) {
+		for (const stream of BASE_STREAMS) if (stream.id === id) return stream;
+		return BASE_STREAMS[0];
 	}
 
 	/*
-	 * Which reading a base on disk is written in, and where that line sits.
+	 * The term one stream contributes.
 	 *
-	 * Found by its **exact text**, never by a pattern over anything that mentions
-	 * the class. A base is his from the moment it is created and his filter can be
-	 * anything; a fuzzy match here would rewrite a clause he wrote. Nothing
-	 * recognised means the switch says so and changes nothing - the same posture
-	 * Bases Sharing takes towards a filter it cannot reach.
+	 *   all     file.isA("Person")                subclasses included
+	 *   exact   file.isADistance("Person") == 1   only notes naming it directly
 	 *
-	 * The prefix and any quotes are carried out with the answer so the replacement
-	 * can be laid back into the line it came from, indentation and all.
+	 * `<fn>Distance(X) == 1` is the exact reading of every stream for one reason:
+	 * `climb()` seeds a direct mention at 1 and every hop above adds one. So
+	 * "the note's own is a names X", "its own component field names X" and "its
+	 * own type of names X" are one sentence about three relations, and the third
+	 * needed only that its distance function be registered.
+	 *
+	 * None of them needs quoting - `==` is nothing to YAML.
 	 */
-	findBaseFilterLine(text, name) {
-		const readings = [
-			{ exact: false, expression: this.baseFilterExpression(name, false) },
-			{ exact: true, expression: this.baseFilterExpression(name, true) },
-		];
-		const lines = String(text === null || text === undefined ? '' : text).split('\n');
+	baseFilterExpression(name, exact, stream) {
+		const fn = this.baseStreamOf(stream).fn;
+		return exact
+			? 'file.' + fn + 'Distance("' + name + '") == 1'
+			: 'file.' + fn + '("' + name + '")';
+	}
 
-		for (let i = 0; i < lines.length; i += 1) {
-			const parts = /^(\s*-\s*)(.*?)\s*$/.exec(lines[i]);
-			if (!parts) continue;
+	/* One class dropped out of one stream. Quoted: a leading `!` is a YAML tag. */
+	baseExcludeExpression(name, stream) {
+		return '!file.' + this.baseStreamOf(stream).fn + '("' + name + '")';
+	}
 
-			let body = parts[2];
-			let quote = '';
-			const quoted = /^(['"])([\s\S]*)\1$/.exec(body);
-			if (quoted) { quote = quoted[1]; body = quoted[2]; }
+	/*
+	 * How many notes one stream reaches at all, right now.
+	 *
+	 * **This exists because of a real mistake of his** (2026-09-05): he turned
+	 * *has a* on for a view of `Goal Base`, the view emptied, and he read that as
+	 * `hasA()` being broken. It was not - `file.hasA("Goal")` is true of **no**
+	 * note in his vault and correctly so, because Goal is a class you instantiate
+	 * and nothing names it in a component field. The switch was answering
+	 * honestly; there was simply nothing to tell him that the answer was zero
+	 * *before* he threw it.
+	 *
+	 * So the number sits on the row. `is a Goal - 151 notes`, `has a Goal -
+	 * nothing reaches Goal this way`, and on `Obsidian Plugin Base` the other way
+	 * round: `is a - nothing`, `has a - 113 notes`, which is the whole reason the
+	 * stream switch exists said in one line.
+	 *
+	 * It counts what the *base* would hold, not what this reading holds:
+	 * `matchesSelf` and the templates folder are treated exactly as the generated
+	 * filter treats them, and exclusions are deliberately **not** applied - the
+	 * question a row answers is "is there anything down this road", which is the
+	 * one you ask before turning it on.
+	 *
+	 * Measured on his vault: 5ms cold over 346 notes, 0ms warm. It shares
+	 * `instanceCache`, so `invalidateClosures` drops it with everything else, and
+	 * the key is prefixed so it cannot collide.
+	 */
+	streamReach(className, stream) {
+		const cacheKey = 'reach:' + stream + ':' + className;
+		const hit = this.instanceCache.get(cacheKey);
+		if (hit !== undefined) return hit;
 
-			for (const reading of readings) {
-				if (body !== reading.expression) continue;
-				return { index: i, exact: reading.exact, prefix: parts[1], quote: quote };
+		const key = this.keyForName(className, '');
+		let count = 0;
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (this.isTemplateFile(file)) continue;
+			if (this.reachDistance(file, key, stream) !== null) count += 1;
+		}
+		this.instanceCache.set(cacheKey, count);
+		return count;
+	}
+
+	/*
+	 * How far this note is from the class down one stream, or null for out of
+	 * reach — which is the whole of what a base filter asks.
+	 *
+	 * **It is the base functions' own arithmetic, said once.** `isADistance`,
+	 * `hasADistance` and `inheritsFromDistance` are three spellings of one
+	 * sentence, and everything that counts what a base holds has to agree with
+	 * them exactly or the number on a card contradicts the rows behind it. The
+	 * two asymmetries are theirs, not this function's: `matchesSelf` answers 0 for
+	 * the two relations a class can bear to itself, and `has a` has none, because
+	 * a class does not name itself in one of its own component fields.
+	 */
+	reachDistance(file, key, stream) {
+		if (stream === 'has a') {
+			const found = this.hasAClosure(file).distance.get(key);
+			return found === undefined ? null : found;
+		}
+		if (this.matchesSelf(file, key)) return 0;
+		const closure = stream === 'type of'
+			? this.inheritsClosure(file) : this.isAClosure(file);
+		const found = closure.distance.get(key);
+		return found === undefined ? null : found;
+	}
+
+	/*
+	 * How many notes a reading actually holds — the number a generated base would
+	 * show if you opened it now.
+	 *
+	 * Not the same question as `streamReach`, and the difference is the point of
+	 * both. A stream row asks *is there anything down this road*, which is asked
+	 * before the switch is thrown, so it ignores exactness and exclusions. A count
+	 * that sits on a **button** has to answer *what will I see when I press this*,
+	 * so it applies all three — or the card says one number and the base it opens
+	 * shows another, which is worse than no number.
+	 *
+	 * It mirrors `readingClauseLines` clause for clause, because that function is
+	 * what the file actually says: the streams are or-ed, each stream's exclusions
+	 * are and-ed onto it, and an exclusion is written without a distance whatever
+	 * the reading's exactness — which is his own rule, so a subclass added
+	 * tomorrow is excluded the day it appears.
+	 */
+	readingReach(className, reading) {
+		const value = this.normaliseReading(reading);
+		if (value.streams.length === 0) return 0;
+
+		const cacheKey = 'holds:' + className + ':' + JSON.stringify(value);
+		const hit = this.instanceCache.get(cacheKey);
+		if (hit !== undefined) return hit;
+
+		const key = this.keyForName(className, '');
+		const excludedKeys = {};
+		for (const stream of value.streams) {
+			excludedKeys[stream] = (value.excluded[stream] || [])
+				.map((one) => this.keyForName(one, ''));
+		}
+
+		const held = (file, stream) => {
+			const distance = this.reachDistance(file, key, stream);
+			if (distance === null) return false;
+			if (value.exact && distance !== 1) return false;
+			return !excludedKeys[stream].some(
+				(dropped) => this.reachDistance(file, dropped, stream) !== null);
+		};
+
+		let count = 0;
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (this.isTemplateFile(file)) continue;
+			if (value.streams.some((stream) => held(file, stream))) count += 1;
+		}
+		this.instanceCache.set(cacheKey, count);
+		return count;
+	}
+
+	/*
+	 * What a class's base holds, and whether there is a base to open.
+	 *
+	 *   { file, count, reading, readable }
+	 *
+	 * The reading comes out of the **file**, not out of what the generator would
+	 * write, because the two can differ: the stream switch, the exactness switch
+	 * and the exclusions all live as a clause in the base and nowhere else — that
+	 * is the design, so the line in the file *is* the setting. A base whose filter
+	 * he has rewritten into something this cannot read falls back to the plain
+	 * `is a` count with `readable` false, and the card says so rather than
+	 * quietly reporting a number about a filter that is not there.
+	 */
+	classBaseHolds(className) {
+		const path = this.basePathFor(className);
+		const file = this.app.vault.getFileByPath(path);
+		const found = file
+			? this.readClassBaseReading(this.baseTexts.get(path) || '', className) : null;
+		const reading = found
+			? found.reading : this.normaliseReading({ streams: [BASE_STREAMS[0].id] });
+
+		return {
+			file: file,
+			reading: reading,
+			readable: !!found,
+			count: this.readingReach(className, reading),
+		};
+	}
+
+	/*
+	 * The same answer as a sentence, for the badge's tooltip. It names the stream
+	 * whenever the base is not reading the ordinary one, because "14" over a base
+	 * about component fields is a different fact from "14" over a base about
+	 * instances, and nothing else on the card would say which.
+	 */
+	classBaseHoldsSaid(className, holds) {
+		if (!holds.file) {
+			return 'Holds ' + holds.count + (holds.count === 1 ? ' note' : ' notes')
+				+ ' by ' + BASE_STREAMS[0].label + ' ' + className + '.\n'
+				+ (this.settings.createBases
+					? 'No base for it yet — Update creates one.'
+					: 'Generated bases are off in settings, so there is none to open.');
+		}
+
+		const notes = holds.count === 0
+			? 'Holds nothing yet' : 'Holds ' + holds.count
+				+ (holds.count === 1 ? ' note' : ' notes');
+		const streams = holds.reading.streams
+			.map((stream) => this.baseStreamOf(stream).label + ' ' + className)
+			.join(' or ');
+		const how = holds.reading.exact ? ', named directly only' : '';
+
+		if (!holds.readable) {
+			return notes + ' by ' + streams + how + '.\nIts filter is not one of mine, '
+				+ 'so this counts the plain reading rather than what you wrote.';
+		}
+		return notes + ' — ' + streams + how + '. Click to open it.';
+	}
+
+	/* The same number as something a row can say. */
+	streamReachSaid(className, stream) {
+		const count = this.streamReach(className, stream);
+		if (count === 0) return 'nothing reaches ' + className + ' this way';
+		return count + (count === 1 ? ' note' : ' notes');
+	}
+
+	/*
+	 * A reading in the one shape everything below passes around, with the streams
+	 * in `BASE_STREAMS` order and each exclusion list sorted and de-duplicated.
+	 *
+	 * Normalised on the way in and on the way out, so that two readings holding
+	 * the same thing are equal to `readingsEqual` and identical bytes on disk.
+	 * That is what lets a view whose reading has come back to the base's be
+	 * recognised and have its clause removed, rather than rewritten into a clause
+	 * that says nothing.
+	 */
+	normaliseReading(reading) {
+		const source = reading || {};
+		const value = { streams: [], exact: !!source.exact, excluded: {} };
+		const wanted = new Set(source.streams || []);
+		for (const stream of BASE_STREAMS) {
+			if (!wanted.has(stream.id)) continue;
+			value.streams.push(stream.id);
+			const names = ((source.excluded || {})[stream.id] || [])
+				.map((one) => String(one === null || one === undefined ? '' : one).trim())
+				.filter((one) => one);
+			value.excluded[stream.id] = Array.from(new Set(names))
+				.sort((a, b) => a.localeCompare(b));
+		}
+		return value;
+	}
+
+	readingsEqual(a, b) {
+		const one = this.normaliseReading(a);
+		const two = this.normaliseReading(b);
+		if (one.exact !== two.exact) return false;
+		if (one.streams.join(' ') !== two.streams.join(' ')) return false;
+		for (const stream of one.streams) {
+			if ((one.excluded[stream] || []).join(' ')
+				!== (two.excluded[stream] || []).join(' ')) return false;
+		}
+		return true;
+	}
+
+	/*
+	 * The clause a reading is written as - **one entry of the list it sits in**,
+	 * however many lines that entry takes.
+	 *
+	 * That invariant is what keeps this line surgery in everything but name: the
+	 * reading is found as one entry and replaced as one entry, so his own clauses
+	 * beside it, his views, his sorts and his formulas come out byte-identical.
+	 * It is the discipline the single line had, generalised from a line to a
+	 * clause - which is the smallest generalisation that can hold an `or`.
+	 */
+	readingClauseLines(name, reading, indent) {
+		const value = this.normaliseReading(reading);
+		const pad = (n) => new Array(n + 1).join(' ');
+
+		const streamLines = (stream, at) => {
+			const term = this.baseFilterExpression(name, value.exact, stream);
+			const excluded = value.excluded[stream] || [];
+			if (excluded.length === 0) return [pad(at) + '- ' + term];
+
+			const lines = [pad(at) + '- and:', pad(at + 4) + '- ' + term];
+			for (const one of excluded) {
+				lines.push(pad(at + 4) + '- '
+					+ yamlSingleQuoted(this.baseExcludeExpression(one, stream)));
 			}
+			return lines;
+		};
+
+		if (value.streams.length === 0) return [];
+		if (value.streams.length === 1) return streamLines(value.streams[0], indent);
+
+		const lines = [pad(indent) + '- or:'];
+		for (const stream of value.streams) {
+			for (const line of streamLines(stream, indent + 4)) lines.push(line);
+		}
+		return lines;
+	}
+
+	/*
+	 * The `filters:` block at the top of a base - the lines the base's own
+	 * reading may live in, and nothing below them.
+	 *
+	 * Scoped deliberately, and it was not scoped before. A *view* can carry the
+	 * very same expression as its own narrowing clause, so a search over the whole
+	 * file would read one of those as the base's reading the moment his top-level
+	 * clause had been edited - and then flip a view's line while announcing it had
+	 * changed what the base is about. The base's reading is a top-level key or it
+	 * is not there.
+	 */
+	topLevelFiltersRange(lines) {
+		let start = -1;
+		for (let i = 0; i < lines.length; i += 1) {
+			if (/^filters\s*:/.test(lines[i])) { start = i; break; }
+		}
+		if (start === -1) return null;
+
+		let end = lines.length;
+		for (let i = start + 1; i < lines.length; i += 1) {
+			if (!lines[i].trim()) continue;
+			if (/^\s/.test(lines[i])) continue;
+			end = i;
+			break;
+		}
+		return { start: start, end: end };
+	}
+
+	/*
+	 * One entry of a YAML list, read as a node: a scalar, or a group keyed
+	 * `and:` / `or:` / `not:` holding entries of its own.
+	 *
+	 * Hand-read rather than handed to `parseYaml`, for the reason every read of a
+	 * `.base` in this plugin is hand-read: the answer has to carry the lines it
+	 * came from, or writing it back is a re-emission of the whole file and
+	 * whatever the emitter does not happen to know about is lost.
+	 */
+	readClauseNode(lines, start, stop) {
+		const head = /^(\s*)-(?:\s+(.*?))?\s*$/.exec(lines[start] || '');
+		if (!head) return null;
+		const indent = head[1].length;
+		const rest = head[2] || '';
+
+		const group = /^(and|or|not)\s*:\s*$/.exec(rest);
+		if (!group) {
+			let text = rest;
+			let quote = '';
+			const quoted = /^(['"])([\s\S]*)\1$/.exec(text);
+			if (quoted) { quote = quoted[1]; text = quoted[2]; }
+			return {
+				kind: 'scalar', start: start, stop: stop, indent: indent,
+				text: text, quote: quote,
+			};
+		}
+
+		/*
+		 * Where this group's dashes sit is decided by its first one and every later
+		 * one must match it, so a dash nested one level further in can never be
+		 * mistaken for a sibling.
+		 */
+		let dash = -1;
+		const starts = [];
+		for (let i = start + 1; i < stop; i += 1) {
+			if (!lines[i].trim()) continue;
+			if (/^(\s*)/.exec(lines[i])[1].length <= indent) break;
+			const marker = /^(\s*)-(\s|$)/.exec(lines[i]);
+			if (!marker) continue;
+			if (dash === -1) dash = marker[1].length;
+			if (marker[1].length === dash) starts.push(i);
+		}
+
+		const children = [];
+		for (let n = 0; n < starts.length; n += 1) {
+			const end = n + 1 < starts.length ? starts[n + 1] : stop;
+			const child = this.readClauseNode(lines, starts[n], end);
+			if (!child) return null;
+			children.push(child);
+		}
+		return {
+			kind: group[1], start: start, stop: stop, indent: indent,
+			children: children,
+		};
+	}
+
+	/* The class one of our exclusion clauses names, or null. */
+	excludedClassIn(text, stream) {
+		if (typeof text !== 'string') return null;
+		const prefix = '!file.' + this.baseStreamOf(stream).fn + '("';
+		if (!text.startsWith(prefix) || !text.endsWith('")')) return null;
+		const name = text.slice(prefix.length, text.length - 2);
+		return name && name.indexOf('"') === -1 ? name : null;
+	}
+
+	/*
+	 * The reading a clause says, or null when it says something else - which is
+	 * the answer for every filter he has written himself.
+	 *
+	 * Everything here is compared as **exact text** against expressions this
+	 * plugin generates, never by a pattern over anything that mentions the class.
+	 * A base is his from the moment it is created and his filter can be anything;
+	 * a fuzzy match would rewrite a clause he wrote. Nothing recognised means the
+	 * menu says so and changes nothing - the posture Bases Sharing takes towards
+	 * a filter it cannot reach.
+	 */
+	matchReadingNode(node, name) {
+		if (!node) return null;
+
+		const oneStream = (entry) => {
+			if (entry.kind === 'scalar') {
+				for (const stream of BASE_STREAMS) {
+					for (const exact of [false, true]) {
+						if (entry.text !== this.baseFilterExpression(name, exact, stream.id)) continue;
+						return { stream: stream.id, exact: exact, excluded: [] };
+					}
+				}
+				return null;
+			}
+			if (entry.kind !== 'and' || entry.children.length < 2) return null;
+
+			const head = oneStream(entry.children[0]);
+			if (!head || head.excluded.length > 0) return null;
+
+			const excluded = [];
+			for (let i = 1; i < entry.children.length; i += 1) {
+				const child = entry.children[i];
+				if (child.kind !== 'scalar') return null;
+				const found = this.excludedClassIn(child.text, head.stream);
+				if (!found) return null;
+				excluded.push(found);
+			}
+			return { stream: head.stream, exact: head.exact, excluded: excluded };
+		};
+
+		const parts = node.kind === 'or' ? node.children : [node];
+		/* An `or:` of one is not something this writes, so it is not read either. */
+		if (node.kind === 'or' && parts.length < 2) return null;
+
+		const reading = { streams: [], exact: false, excluded: {} };
+		const seen = new Set();
+		for (let i = 0; i < parts.length; i += 1) {
+			const one = oneStream(parts[i]);
+			if (!one) return null;
+			if (seen.has(one.stream)) return null;
+			/* One switch across the streams: two branches disagreeing is not ours. */
+			if (i > 0 && one.exact !== reading.exact) return null;
+			seen.add(one.stream);
+			reading.streams.push(one.stream);
+			reading.exact = one.exact;
+			reading.excluded[one.stream] = one.excluded;
+		}
+		return this.normaliseReading(reading);
+	}
+
+	/*
+	 * Every entry of a list inside `[from, to)`, as `{start, stop, indent}`,
+	 * **outermost first**.
+	 *
+	 * Outermost first is what makes a multi-stream reading legible at all: an
+	 * `or:` whose children are themselves readings would otherwise be found as
+	 * its first branch, and the base would be reported as holding one stream when
+	 * it holds three - and then flipped to one.
+	 */
+	clauseEntriesIn(lines, from, to) {
+		const entries = [];
+		for (let i = from; i < to; i += 1) {
+			const marker = /^(\s*)-(\s|$)/.exec(lines[i] || '');
+			if (!marker) continue;
+			const indent = marker[1].length;
+			let stop = to;
+			for (let j = i + 1; j < to; j += 1) {
+				if (!lines[j].trim()) continue;
+				if (/^(\s*)/.exec(lines[j])[1].length > indent) continue;
+				stop = j;
+				break;
+			}
+			entries.push({ start: i, stop: stop, indent: indent });
+		}
+		entries.sort((a, b) => (a.indent - b.indent) || (a.start - b.start));
+		return entries;
+	}
+
+	/*
+	 * The first entry of a list that says a reading of ours, or null.
+	 *
+	 * **A group this refuses takes its children down with it**, and that guard is
+	 * the whole of the outermost-first rule rather than an optimisation of it. The
+	 * first version only sorted the entries and was caught by its own tests: given
+	 * an `or:` of two branches disagreeing about exactness - a shape this never
+	 * writes - it rejected the `or:` and then happily claimed its first branch, so
+	 * a filter of his would have been reported as a plain `is a` base and the next
+	 * flip would have rewritten one line out of the middle of his expression.
+	 *
+	 * If the group is not ours, nothing inside it is a clause; it is a piece of
+	 * something he wrote.
+	 */
+	findReadingIn(lines, from, to, name) {
+		const refused = [];
+		for (const entry of this.clauseEntriesIn(lines, from, to)) {
+			if (refused.some((range) => entry.start >= range.start && entry.start < range.stop)) {
+				continue;
+			}
+			const node = this.readClauseNode(lines, entry.start, entry.stop);
+			const reading = this.matchReadingNode(node, name);
+			if (!reading) {
+				if (node && node.kind !== 'scalar') refused.push(entry);
+				continue;
+			}
+			return {
+				lines: lines, start: entry.start, stop: entry.stop, indent: entry.indent,
+				node: node, reading: reading,
+			};
 		}
 		return null;
 	}
 
+	/* Where the base's own reading is, and what it says. */
+	readClassBaseReading(text, name) {
+		const lines = String(text === null || text === undefined ? '' : text).split('\n');
+		const range = this.topLevelFiltersRange(lines);
+		if (!range) return null;
+		return this.findReadingIn(lines, range.start, range.end, name);
+	}
+
 	/*
-	 * Flip one base between the two readings. One line changes; every other line -
-	 * his views, his sorts, the columns he added, his own filter clauses - comes
-	 * out byte-identical. That is the same line surgery Bases Sharing does to a
-	 * `.base` and for the same reason: parsing a file and re-emitting it loses
-	 * whatever the emitter does not happen to know about.
+	 * Lay a reading back into the entry it was read from.
+	 *
+	 * A single scalar keeps whatever quoting it arrived with, so a base whose one
+	 * line he happened to quote comes back quoted and the file is byte-identical
+	 * everywhere the reading did not change.
 	 */
-	async setBaseExactness(file, name, exact) {
+	spliceReadingClause(lines, found, name, reading) {
+		const block = this.readingClauseLines(name, reading, found.indent);
+		if (block.length === 0) return null;
+
+		if (block.length === 1 && found.node && found.node.kind === 'scalar' && found.node.quote) {
+			const pad = new Array(found.indent + 1).join(' ');
+			const term = block[0].slice(pad.length + 2);
+			block[0] = pad + '- ' + found.node.quote + term + found.node.quote;
+		}
+		return lines.slice(0, found.start).concat(block, lines.slice(found.stop));
+	}
+
+	/* ----- exactness, one view at a time ------------------------------------ */
+
+	/*
+	 * *Exact matches only* used to be one switch over the whole base, and his ask
+	 * (2026-09-05) is that it be one per **view**: a base with a Table, a
+	 * Smart Goals and a graph is three readings of one set of notes, and there is
+	 * no reason all three have to travel the same distance up the hierarchy.
+	 *
+	 * **The whole base keeps its switch and the views are narrowings under it.**
+	 * That is not a compromise between two designs, it is what the file already
+	 * says: the top-level `filters:` is what the base is *of*, a view's own
+	 * `filters:` is what that view keeps of it, and Bases ands the two together.
+	 * So a view is made exact by giving it `file.isADistance("X") == 1` of its
+	 * own, and the base-wide switch stays exactly where it was - which is also
+	 * why an old base needs no migrating.
+	 *
+	 * The consequence, stated because it is the one thing that surprises: with
+	 * the whole base exact, a per-view switch has nothing left to narrow. Those
+	 * items are drawn checked and disabled with the reason in the **label**,
+	 * since a disabled Obsidian menu item swallows its own click and can say
+	 * nothing of its own.
+	 *
+	 * **Still no stored state.** The clause in the view *is* the switch, the same
+	 * way the top-level line is, so what the menu says and what the base does
+	 * cannot drift - and a view whose filter he has rewritten is reported rather
+	 * than guessed at, which is the posture every other write to a `.base` here
+	 * takes.
+	 */
+
+	/*
+	 * Every view in a base, as **lines** rather than as parsed YAML.
+	 *
+	 * Read by hand for the reason every write to a `.base` in this plugin is line
+	 * surgery: the answer has to be somewhere to write, and a YAML round trip
+	 * loses whatever the emitter does not happen to know about - his
+	 * `columnSize`, his `graphOptions`, the order he put his keys in. `parseYaml`
+	 * is still what `rememberBaseViews` uses, because *listing* views loses
+	 * nothing.
+	 */
+	baseViewBlocks(text) {
+		const lines = String(text === null || text === undefined ? '' : text).split('\n');
+
+		let viewsAt = -1;
+		for (let i = 0; i < lines.length; i += 1) {
+			if (/^views\s*:\s*$/.test(lines[i])) { viewsAt = i; break; }
+		}
+		if (viewsAt === -1) return { lines: lines, views: [] };
+
+		let end = lines.length;
+		for (let i = viewsAt + 1; i < lines.length; i += 1) {
+			if (!lines[i].trim()) continue;
+			if (/^\s/.test(lines[i])) continue;
+			end = i;
+			break;
+		}
+
+		/*
+		 * Where this list's dashes sit is decided by the first one and every later
+		 * one must match it, so a dash nested inside a view - an `order:` entry, a
+		 * filter clause - can never be mistaken for a view of its own.
+		 */
+		let dash = -1;
+		const starts = [];
+		for (let i = viewsAt + 1; i < end; i += 1) {
+			const marker = /^(\s*)-(\s|$)/.exec(lines[i]);
+			if (!marker) continue;
+			if (dash === -1) dash = marker[1].length;
+			if (marker[1].length === dash) starts.push(i);
+		}
+
+		const views = [];
+		for (let n = 0; n < starts.length; n += 1) {
+			const stop = n + 1 < starts.length ? starts[n + 1] : end;
+			views.push(this.readBaseViewBlock(lines, starts[n], stop, dash, n));
+		}
+		return { lines: lines, views: views };
+	}
+
+	/*
+	 * One view's lines. The first line of a block carries its first key after the
+	 * `- `, so it is read as a key sitting at the same column as the rest.
+	 */
+	readBaseViewBlock(lines, start, stop, dash, index) {
+		const keyIndent = dash + 2;
+
+		const keyAt = (i) => {
+			const text = lines[i];
+			if (!text || !text.trim()) return null;
+			const parts = i === start
+				? /^(\s*-\s+)([A-Za-z_][^:]*):(.*)$/.exec(text)
+				: /^(\s*)([A-Za-z_][^:]*):(.*)$/.exec(text);
+			if (!parts) return null;
+			if (parts[1].length !== keyIndent) return null;
+			return { key: parts[2].trim(), value: parts[3].trim() };
+		};
+
+		const view = {
+			index: index, start: start, stop: stop, dash: dash, keyIndent: keyIndent,
+			name: '', nameLine: -1, filters: null,
+		};
+
+		for (let i = start; i < stop; i += 1) {
+			const entry = keyAt(i);
+			if (!entry) continue;
+			if (entry.key === 'name' && view.nameLine === -1) {
+				view.nameLine = i;
+				view.name = unquoteScalar(entry.value);
+			} else if (entry.key === 'filters' && !view.filters) {
+				view.filters = this.readViewFilters(lines, i, stop, keyIndent, entry.value);
+			}
+		}
+		return view;
+	}
+
+	/*
+	 * A view's own `filters:`, in the three shapes it can take.
+	 *
+	 *   and     `and:` with a list under it - the one we can add a clause to
+	 *   group   `or:` or `not:` - adding a clause there changes what his filter
+	 *           means, so it is refused and said out loud
+	 *   scalar  one expression written on the key's own line, same reason
+	 */
+	readViewFilters(lines, line, stop, keyIndent, inline) {
+		const filters = {
+			line: line, kind: 'scalar', andLine: -1, clauses: [], clauseIndent: keyIndent + 4,
+			keys: 0, end: line + 1,
+		};
+		if (inline) return filters;
+
+		let end = stop;
+		for (let i = line + 1; i < stop; i += 1) {
+			if (!lines[i].trim()) continue;
+			const indent = /^(\s*)/.exec(lines[i])[1].length;
+			if (indent > keyIndent) continue;
+			end = i;
+			break;
+		}
+		filters.end = end;
+
+		/* An empty `filters:` is a key with nothing under it - nothing to add to. */
+		if (end === line + 1) { filters.kind = 'empty'; return filters; }
+
+		filters.kind = 'group';
+		for (let i = line + 1; i < end; i += 1) {
+			const parts = /^(\s*)([A-Za-z_][^:]*):(.*)$/.exec(lines[i]);
+			if (!parts || parts[1].length !== keyIndent + 2) continue;
+			filters.keys += 1;
+			if (parts[2].trim() === 'and' && !parts[3].trim() && filters.andLine === -1) {
+				filters.andLine = i;
+			}
+		}
+		if (filters.andLine === -1) return filters;
+
+		filters.kind = 'and';
+		for (let i = filters.andLine + 1; i < end; i += 1) {
+			if (!lines[i].trim()) continue;
+			const marker = /^(\s*)-(\s|$)/.exec(lines[i]);
+			if (!marker) continue;
+			if (marker[1].length <= keyIndent + 2) break;
+			if (filters.clauses.length === 0) filters.clauseIndent = marker[1].length;
+			if (marker[1].length === filters.clauseIndent) filters.clauses.push(i);
+		}
+		return filters;
+	}
+
+	/*
+	 * The reading one view carries as its own narrowing clause, or null.
+	 *
+	 * The same machinery the base's own reading is read with, pointed at the
+	 * view's `and:` list instead of the top-level one - which is the whole reason
+	 * a view can now say everything the base can. Both streams and both
+	 * exactnesses are looked for rather than only the reading the base is
+	 * currently in, because that is what lets `setClassBaseReading` carry a
+	 * view's narrowing across a change of stream instead of stranding it.
+	 */
+	findViewReadingClause(lines, view, name) {
+		if (!view || !view.filters || view.filters.kind !== 'and') return null;
+
+		return this.findReadingIn(lines, view.filters.andLine + 1, view.filters.end, name);
+	}
+
+	/*
+	 * What the menu needs to know about one view: its name, the reading it
+	 * carries of its own, and - when it carries none - whether it could.
+	 */
+	baseViewReadings(text, name) {
+		const parsed = this.baseViewBlocks(text);
+		return parsed.views.map((view) => {
+			const clause = this.findViewReadingClause(parsed.lines, view, name);
+			const kind = view.filters ? view.filters.kind : 'none';
+			let reason = '';
+			if (!clause) {
+				if (kind === 'group') reason = 'its filter is not an "and"';
+				else if (kind === 'scalar') reason = 'its filter is one written-out expression';
+			}
+			return {
+				index: view.index,
+				name: view.name || 'Untitled view ' + (view.index + 1),
+				named: !!view.name,
+				reading: clause ? clause.reading : null,
+				exact: !!(clause && clause.reading.exact),
+				reachable: !reason,
+				reason: reason,
+			};
+		});
+	}
+
+	/*
+	 * Add, replace or remove one view's narrowing clause. Every other line of the
+	 * file - his views, his sorts, his own filter clauses, the base's own
+	 * reading - comes out byte-identical, which is the discipline the base-wide
+	 * switch has always had.
+	 *
+	 * `reading` of null means *this view says nothing of its own* and takes the
+	 * block back down with it: a `filters:` left holding an empty `and:` is a
+	 * shape Obsidian did not write and would only have to be tidied later, so a
+	 * clause that was the only one takes its `and:` and its `filters:` away too -
+	 * and the file comes out identical to one no switch had ever been thrown on.
+	 */
+	rewriteViewReading(text, name, viewIndex, reading) {
+		const parsed = this.baseViewBlocks(text);
+		const view = parsed.views[viewIndex];
+		if (!view) return { text: text, changed: false, reason: 'that view is no longer there' };
+
+		const lines = parsed.lines;
+		const clause = this.findViewReadingClause(lines, view, name);
+		const wanted = reading ? this.normaliseReading(reading) : null;
+
+		if (wanted && wanted.streams.length === 0) {
+			return {
+				text: text, changed: false,
+				reason: 'a view has to keep at least one stream on, or it holds nothing',
+			};
+		}
+
+		if (!wanted) {
+			if (!clause) return { text: text, changed: false, reason: '' };
+			const drop = new Set();
+			for (let i = clause.start; i < clause.stop; i += 1) drop.add(i);
+			if (view.filters.clauses.length === 1) {
+				drop.add(view.filters.andLine);
+				if (view.filters.keys === 1) drop.add(view.filters.line);
+			}
+			return {
+				text: lines.filter((line, i) => !drop.has(i)).join('\n'),
+				changed: true, reason: '',
+			};
+		}
+
+		/* Already narrowed: lay the new reading into the entry the old one had. */
+		if (clause) {
+			if (this.readingsEqual(clause.reading, wanted)) {
+				return { text: text, changed: false, reason: '' };
+			}
+			const next = this.spliceReadingClause(lines, clause, name, wanted);
+			return { text: next.join('\n'), changed: true, reason: '' };
+		}
+
+		const kind = view.filters ? view.filters.kind : 'none';
+		if (kind === 'group') {
+			return {
+				text: text, changed: false,
+				reason: 'its filter is not an "and", so a clause cannot be added to it '
+					+ 'without changing what it means',
+			};
+		}
+		if (kind === 'scalar') {
+			return {
+				text: text, changed: false,
+				reason: 'its filter is one written-out expression rather than a list of '
+					+ 'clauses',
+			};
+		}
+
+		if (kind === 'and') {
+			const indent = view.filters.clauses.length > 0
+				? view.filters.clauseIndent
+				: view.keyIndent + 4;
+			/*
+			 * First among his clauses, where the base's own reading sits in the
+			 * top-level block: what the view is *about* reads before what it then
+			 * keeps out.
+			 */
+			const block = this.readingClauseLines(name, wanted, indent);
+			lines.splice(view.filters.andLine + 1, 0, ...block);
+			return { text: lines.join('\n'), changed: true, reason: '' };
+		}
+
+		/*
+		 * No `filters:` at all, or one with nothing under it. A fresh block goes
+		 * after `name:` - which is where Obsidian's own writer puts it, so a view
+		 * it later rewrites comes back looking the same.
+		 */
+		const pad = (n) => new Array(n + 1).join(' ');
+		const at = view.nameLine !== -1 ? view.nameLine + 1 : view.start + 1;
+		const inner = this.readingClauseLines(name, wanted, view.keyIndent + 4);
+		const block = kind === 'empty'
+			? [pad(view.keyIndent + 2) + 'and:'].concat(inner)
+			: [pad(view.keyIndent) + 'filters:', pad(view.keyIndent + 2) + 'and:'].concat(inner);
+		lines.splice(kind === 'empty' ? view.filters.line + 1 : at, 0, ...block);
+		return { text: lines.join('\n'), changed: true, reason: '' };
+	}
+
+	/*
+	 * Throw one view's switch. The reason a refusal carries is handed back rather
+	 * than swallowed, so the notice can say which view and why.
+	 */
+	async setViewReading(file, name, viewIndex, reading) {
+		let reason = '';
 		const rewrite = (text) => {
-			const found = this.findBaseFilterLine(text, name);
-			if (!found || found.exact === exact) return text;
-			const lines = text.split('\n');
-			lines[found.index] = found.prefix + found.quote
-				+ this.baseFilterExpression(name, exact) + found.quote;
-			return lines.join('\n');
+			const result = this.rewriteViewReading(text, name, viewIndex, reading);
+			reason = result.reason;
+			return result.text;
 		};
 
 		if (typeof this.app.vault.process === 'function') {
 			await this.app.vault.process(file, rewrite);
-			return;
+			return reason;
 		}
 		const text = await this.app.vault.read(file);
 		const next = rewrite(text);
 		if (next !== text) await this.app.vault.modify(file, next);
+		return reason;
 	}
+
+	/*
+	 * What a view can still say once the base has been changed under it.
+	 *
+	 * A view can only ever **narrow** - Bases ands the top-level `filters:` with
+	 * each view's own - so a stream the base has turned off says nothing in a
+	 * view, and a clause no note can satisfy empties that view in silence. That
+	 * is the exact failure the stream switch was built to cure, so the views are
+	 * carried rather than left behind: a view keeps the streams that survive, and
+	 * a view left with none goes back to following the base.
+	 */
+	restrictViewReading(view, base) {
+		const one = this.normaliseReading(view);
+		const two = this.normaliseReading(base);
+		const survived = one.streams.filter((stream) => two.streams.indexOf(stream) !== -1);
+		const streams = survived.length > 0 ? survived : two.streams.slice();
+		const value = { streams: streams, exact: one.exact, excluded: {}, stranded: survived.length === 0 };
+		for (const stream of streams) {
+			value.excluded[stream] = (one.excluded[stream] || []).slice();
+		}
+		const kept = this.normaliseReading(value);
+		kept.stranded = survived.length === 0;
+		return kept;
+	}
+
+	/*
+	 * Write a whole reading into the base. One clause changes; every other line -
+	 * his views, his sorts, the columns he added, his own filter clauses - comes
+	 * out byte-identical. Same line surgery Bases Sharing does to a `.base`, and
+	 * for the same reason: parsing a file and re-emitting it loses whatever the
+	 * emitter does not happen to know about.
+	 *
+	 * The views are carried with it, and the count of those that moved is handed
+	 * back, because the edit is larger than the item it was asked of and a change
+	 * he did not ask for is one to be told about rather than to discover.
+	 */
+	async setClassBaseReading(file, name, reading) {
+		const wanted = this.normaliseReading(reading);
+		let carried = 0;
+
+		const rewrite = (text) => {
+			const found = this.readClassBaseReading(text, name);
+			if (!found) return text;
+			if (wanted.streams.length === 0) return text;
+
+			carried = 0;
+			let next = text;
+			if (!this.readingsEqual(found.reading, wanted)) {
+				const lines = this.spliceReadingClause(found.lines, found, name, wanted);
+				if (!lines) return text;
+				next = lines.join('\n');
+			}
+
+			/*
+			 * Backwards, so that rewriting one view cannot move the lines of a view
+			 * this loop has not reached yet.
+			 */
+			const views = this.baseViewReadings(next, name);
+			for (let i = views.length - 1; i >= 0; i -= 1) {
+				if (!views[i].reading) continue;
+				const kept = this.restrictViewReading(views[i].reading, wanted);
+				/*
+				 * A view that has come back to saying exactly what the base says, and
+				 * only because every stream of its own is gone, has nothing left to
+				 * narrow - so its clause goes rather than standing there restating the
+				 * line above it. A clause that is merely redundant (the base has been
+				 * made exact under a view that was already exact) is left alone, or
+				 * un-exacting the base later would find his per-view choice thrown away.
+				 */
+				const settled = (kept.stranded && this.readingsEqual(kept, wanted)) ? null : kept;
+				if (settled && this.readingsEqual(views[i].reading, settled)) continue;
+				const result = this.rewriteViewReading(next, name, i, settled);
+				if (result.changed) carried += 1;
+				next = result.text;
+			}
+			return next;
+		};
+
+		if (typeof this.app.vault.process === 'function') {
+			await this.app.vault.process(file, rewrite);
+			return carried;
+		}
+		const text = await this.app.vault.read(file);
+		const next = rewrite(text);
+		if (next !== text) await this.app.vault.modify(file, next);
+		return carried;
+	}
+
+	/*
+	 * `setBaseReading` is the last of these, and four methods that used to sit
+	 * under it are gone (2026-09-05): `findViewExactClause`, `rewriteViewExact`,
+	 * `setViewExact` and `viewIsExact`, which spoke about a view's narrowing as
+	 * though exactness were the only thing it could say.
+	 *
+	 * **Their contract stopped being expressible the day a view could carry a
+	 * reading of its own**, and the sweep over his real bases is what proved it:
+	 * turning exactness *off* removed the whole clause, so a view narrowed to one
+	 * stream with two classes excluded lost all of it. There is no fixing the
+	 * signature either - deciding whether what is left "says anything" needs the
+	 * **base's** reading, and none of them took it. They were dead in production
+	 * by then (the card and the menu both go through `setViewReading`), so what
+	 * they really were is a loaded gun with the old contract written on the side.
+	 */
+	/* The two-switch call the reset still speaks in. */
+	async setBaseReading(file, name, exact, stream) {
+		return this.setClassBaseReading(file, name, { streams: [stream], exact: exact });
+	}
+
 
 	/*
 	 * Rebuild one base from its class, now, with the diff in front of it and a
@@ -7686,9 +9776,9 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		const before = await this.app.vault.read(file);
-		const found = this.findBaseFilterLine(before, name);
-		const exact = !!(found && found.exact);
-		const after = this.baseContentFor(name, objects, drafts, exact);
+		const found = this.readClassBaseReading(before, name);
+		const reading = found ? found.reading : null;
+		const after = this.baseContentFor(name, objects, drafts, reading);
 
 		if (after === before) {
 			new Notice('OOF Class Manager: ' + file.path + ' is already exactly what "' + name
@@ -7702,9 +9792,23 @@ class OofClassesPlugin extends Plugin {
 			'Any views, sorts, group-bys and filters you added are lost. Nothing else '
 				+ 'keeps a copy of them.',
 		];
-		if (exact) {
-			lines.push('Exact matches only stays on - which notes the base is about is the '
-				+ 'one thing a reset keeps.');
+		if (reading && !this.readingsEqual(reading, { streams: ['is a'], exact: false })) {
+			lines.push('The reading stays as it is - ' + this.describeReading(name, reading)
+				+ '. Which notes the base is about is the one thing a reset keeps.');
+		}
+		/*
+		 * The base-wide reading survives a reset; a per-view narrowing cannot,
+		 * because the view it was written on does not. Said in its own line rather
+		 * than left inside "any views you added are lost", since that line reads as
+		 * being about views he built and these are readings he set.
+		 */
+		const narrowed = this.baseViewReadings(before, name).filter((view) => view.reading);
+		if (narrowed.length > 0) {
+			lines.push(andList(narrowed.map((view) => '"' + view.name + '"'))
+				+ (narrowed.length === 1 ? ' reads' : ' read')
+				+ ' more narrowly than the base does. That goes with the views: the '
+				+ 'rebuilt base has one view, and it is the base-wide reading that a '
+				+ 'reset keeps.');
 		}
 		if (this.drafts.has(name)) {
 			lines.push('"' + name + '" has edits in the panel that Update has not applied '
@@ -7888,8 +9992,275 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	/*
+	 * ── the reading, as menu items ──────────────────────────────────────────
+	 *
+	 * **One builder, two ways in** - the rule this plugin's class menu already
+	 * lives by. The three streams, their exclusions and *exact matches only* are
+	 * drawn by `addReadingItems`, and both the Class base button (for the whole
+	 * base) and Obsidian's own Configure view menu (for one view) call it. Two
+	 * copies of these controls would be two places to add the next stream to, and
+	 * the one I forgot would be the one he opened.
+	 *
+	 * Which surface a scope is drawn on is his N.B., and it is not only a
+	 * preference - it is what makes the depth work. Streams carry a list of
+	 * classes, so a per-view stream reached from the Class base button would be
+	 * *Class base → Views → this view → is a → Effort*, five levels. Reached from
+	 * the view's own menu, where the view is already named by where you are
+	 * standing, it is three.
+	 */
+	describeReading(name, reading) {
+		const value = this.normaliseReading(reading);
+		if (value.streams.length === 0) return 'nothing';
+
+		const said = value.streams.map((stream) => {
+			const excluded = value.excluded[stream] || [];
+			const head = stream === 'has a'
+				? (value.exact
+					? 'notes whose own component fields name ' + name
+					: 'notes reaching ' + name + ' through a component field')
+				: stream === 'type of'
+					? (value.exact
+						? 'classes whose own "type of" names ' + name
+						: 'every class that is a type of ' + name + ', ' + name + ' included')
+					: (value.exact
+						? 'notes whose own "is a" names ' + name
+						: 'notes that are ' + article(name) + ' ' + name);
+			return excluded.length === 0
+				? head
+				: head + ' (except ' + andList(excluded.slice()) + ')';
+		});
+		return andList(said);
+	}
+
+	/*
+	 * Which classes a stream can be asked to drop, and which of them are already
+	 * gone because something above them is.
+	 *
+	 * A class is dropped by the class *above* it as well as by itself, because
+	 * `!file.isA("Effort")` removes everything under Effort too - his "this is how
+	 * it works anyways". So a row whose ancestor is excluded is drawn ticked-off
+	 * and disabled, with the ancestor named: it is not a state he can leave from
+	 * that row, and a control that silently does nothing is worse than one that
+	 * says why.
+	 */
+	exclusionRows(name, drafts, excluded) {
+		const rows = this.excludableClasses(name, drafts);
+		const byName = new Map(rows.map((row) => [row.name, row.parents]));
+		const gone = new Set(excluded || []);
+
+		const blockedBy = (from) => {
+			const seen = new Set();
+			const stack = (byName.get(from) || []).slice();
+			while (stack.length > 0) {
+				const parent = stack.pop();
+				if (parent === name || seen.has(parent)) continue;
+				seen.add(parent);
+				if (gone.has(parent)) return parent;
+				for (const above of byName.get(parent) || []) stack.push(above);
+			}
+			return null;
+		};
+
+		const under = (from) => {
+			const below = new Set();
+			const stack = [from];
+			while (stack.length > 0) {
+				const one = stack.pop();
+				for (const row of rows) {
+					if (below.has(row.name) || row.name === from) continue;
+					if ((row.parents || []).indexOf(one) === -1) continue;
+					below.add(row.name);
+					stack.push(row.name);
+				}
+			}
+			return below;
+		};
+
+		return rows.map((row) => ({
+			name: row.name,
+			depth: row.depth,
+			excluded: gone.has(row.name),
+			blockedBy: gone.has(row.name) ? null : blockedBy(row.name),
+			below: under(row.name),
+		}));
+	}
+
+	/*
+	 * One stream's submenu: whether it is on, the two quick answers, and then the
+	 * classes it can be asked to drop.
+	 */
+	fillStreamSubmenu(sub, ctx, stream) {
+		const reading = this.normaliseReading(ctx.reading);
+		const on = reading.streams.indexOf(stream.id) !== -1;
+		const excluded = (reading.excluded[stream.id] || []).slice();
+
+		const withStreams = (streams) => this.normaliseReading({
+			streams: streams, exact: reading.exact, excluded: reading.excluded,
+		});
+		const withExcluded = (names) => {
+			const next = { streams: reading.streams.slice(), exact: reading.exact, excluded: {} };
+			for (const one of reading.streams) next.excluded[one] = (reading.excluded[one] || []).slice();
+			next.excluded[stream.id] = names;
+			return this.normaliseReading(next);
+		};
+
+		sub.addItem((entry) => {
+			entry.setTitle(on ? 'On for this ' + ctx.scopeWord : 'Off for this ' + ctx.scopeWord)
+				.setIcon(on ? 'toggle-right' : 'toggle-left')
+				.onClick(() => {
+					const streams = new Set(reading.streams);
+					if (on) {
+						/*
+						 * The last one on cannot be turned off. A reading with no streams is
+						 * not "a base about nothing" - it is a clause this plugin can no
+						 * longer read, and the only way back would be the reset.
+						 */
+						if (streams.size === 1) {
+							new Notice('OOF Class Manager: at least one stream has to stay on, or '
+								+ 'the base holds nothing at all. Turn another one on first.', 7000);
+							return;
+						}
+						streams.delete(stream.id);
+					} else if (this.settings.oneStreamAtATime) {
+						streams.clear();
+						streams.add(stream.id);
+					} else {
+						streams.add(stream.id);
+					}
+					ctx.apply(withStreams(Array.from(streams)));
+				});
+			if (typeof entry.setChecked === 'function') entry.setChecked(on);
+		});
+
+		if (!on) return;
+		if (typeof sub.addSeparator === 'function') sub.addSeparator();
+
+		const rows = this.exclusionRows(ctx.name, ctx.drafts, excluded);
+		const direct = rows.filter((row) => row.depth === 0).map((row) => row.name);
+
+		sub.addItem((entry) => {
+			entry.setTitle('Include every class').setIcon('check-check');
+			if (excluded.length === 0) {
+				if (typeof entry.setDisabled === 'function') entry.setDisabled(true);
+				return;
+			}
+			entry.onClick(() => ctx.apply(withExcluded([])));
+		});
+
+		sub.addItem((entry) => {
+			entry.setTitle('Exclude every subclass').setIcon('x-octagon');
+			const already = direct.length > 0 && direct.every((one) => excluded.indexOf(one) !== -1);
+			if (direct.length === 0 || already) {
+				if (typeof entry.setDisabled === 'function') entry.setDisabled(true);
+				return;
+			}
+			entry.onClick(() => ctx.apply(withExcluded(direct.slice())));
+		});
+
+		if (rows.length === 0) {
+			sub.addItem((entry) => {
+				entry.setTitle('Nothing below ' + ctx.name + ' to exclude');
+				if (typeof entry.setDisabled === 'function') entry.setDisabled(true);
+			});
+			return;
+		}
+
+		if (typeof sub.addSeparator === 'function') sub.addSeparator();
+
+		for (const row of rows) {
+			sub.addItem((entry) => {
+				const indent = new Array(row.depth + 1).join(' ');
+				const included = !row.excluded && !row.blockedBy;
+				entry.setTitle(row.blockedBy
+					? indent + row.name + '  —  excluded with ' + row.blockedBy
+					: indent + row.name)
+					.setIcon(included ? 'check' : 'minus');
+				if (typeof entry.setChecked === 'function') entry.setChecked(included);
+
+				if (row.blockedBy) {
+					if (typeof entry.setDisabled === 'function') entry.setDisabled(true);
+					return;
+				}
+				entry.onClick(() => {
+					if (row.excluded) {
+						ctx.apply(withExcluded(excluded.filter((one) => one !== row.name)));
+						return;
+					}
+					/*
+					 * Only the topmost class of an excluded branch is written: anything
+					 * already listed below this one is now said by this one, so it comes
+					 * back off the list rather than being written twice.
+					 */
+					const kept = excluded.filter((one) => !row.below.has(one));
+					kept.push(row.name);
+					ctx.apply(withExcluded(kept));
+				});
+			});
+		}
+	}
+
+	/* The four items a reading is: three streams, and how far each travels. */
+	addReadingItems(menu, ctx) {
+		const reading = this.normaliseReading(ctx.reading);
+		const on = new Set(reading.streams);
+		const offered = ctx.offered || BASE_STREAMS.map((stream) => stream.id);
+
+		for (const stream of BASE_STREAMS) {
+			menu.addItem((item) => {
+				const allowed = offered.indexOf(stream.id) !== -1;
+				const excluded = reading.excluded[stream.id] || [];
+				item.setIcon(stream.icon);
+
+				/*
+				 * **The row names the class**, because `has a` on its own reads as
+				 * "has a *the note I am looking at*" - which is what he took it for,
+				 * and is a different question entirely. `has a Goal` cannot be read
+				 * that way.
+				 */
+				const named = stream.label + ' ' + ctx.name;
+
+				if (!allowed) {
+					/*
+					 * A view can only ever narrow - Bases ands the top-level `filters:`
+					 * with the view's own - so a stream the base has off says nothing
+					 * here, and the label carries the reason because a disabled Obsidian
+					 * menu item swallows its own click.
+					 */
+					item.setTitle(named + '  —  the base is not read this way');
+					if (typeof item.setDisabled === 'function') item.setDisabled(true);
+					return;
+				}
+
+				item.setTitle(named + '  —  ' + this.streamReachSaid(ctx.name, stream.id)
+					+ (excluded.length > 0 ? ', ' + excluded.length + ' excluded' : ''));
+				if (typeof item.setChecked === 'function') item.setChecked(on.has(stream.id));
+				if (typeof item.setSubmenu !== 'function') return;
+				this.fillStreamSubmenu(item.setSubmenu(), ctx, stream);
+			});
+		}
+
+		menu.addItem((item) => {
+			const governed = ctx.scope === 'view' && ctx.baseExact;
+			item.setTitle(governed
+				? 'Exact matches only  —  the whole base is exact'
+				: 'Exact matches only')
+				.setIcon('crosshair');
+			if (typeof item.setChecked === 'function') {
+				item.setChecked(reading.exact || !!ctx.baseExact);
+			}
+			if (governed) {
+				if (typeof item.setDisabled === 'function') item.setDisabled(true);
+				return;
+			}
+			item.onClick(() => ctx.apply(this.normaliseReading({
+				streams: reading.streams, exact: !reading.exact, excluded: reading.excluded,
+			})));
+		});
+	}
+
+	/*
 	 * What the button opens: what a class base is, in the base's own words, then
-	 * the two things you can do to it.
+	 * the reading and the two things you can do to the file.
 	 *
 	 * Obsidian's own `Menu` rather than a popover of ours. A menu is the wrong
 	 * shape for a paragraph and the right shape for everything else here - it
@@ -7897,9 +10268,9 @@ class OofClassesPlugin extends Plugin {
 	 * the app - so the paragraph goes in as a label item and is styled to wrap,
 	 * rather than a second popup being written to hold it.
 	 *
-	 * The file is read first, because which way the switch is set is written in
-	 * the file and nowhere else. There is no stored state for it at all: the
-	 * filter line *is* the setting, so it cannot drift from what the base does.
+	 * The file is read first, because the reading is written in the file and
+	 * nowhere else. There is no stored state for any of it: the clause *is* the
+	 * setting, so what the menu says and what the base does cannot drift.
 	 */
 	async openClassBaseMenu(buttonEl, name, file) {
 		if (typeof Menu !== 'function') {
@@ -7925,26 +10296,29 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		const columns = this.baseColumnsFor(name, objects, drafts);
-		const filter = this.findBaseFilterLine(text, name);
-		const exact = !!(filter && filter.exact);
+		const found = this.readClassBaseReading(text, name);
+		const reading = found ? found.reading : null;
 
 		const said = [
-			'Generated by OOF Class Manager for the class ' + name + ': one row per note that '
-				+ 'is ' + article(name) + ' ' + name + ', one column per characteristic '
-				+ name + ' carries.',
+			'Generated by OOF Class Manager for the class ' + name + ': one column per '
+				+ 'characteristic ' + name + ' carries, and one row per note it reaches.',
 			'It was created once and has been yours ever since - Update never rewrites '
 				+ 'it. Resetting it from the class is the only thing that does, and that '
 				+ 'is here.',
 		];
-		if (filter) {
-			said.push(exact
-				? 'Showing only notes whose own "is a" names ' + name
-					+ ' - subclasses excluded.'
-				: 'Showing every note that is ' + article(name) + ' ' + name
-					+ ', instances of its subclasses included.');
-		} else {
-			said.push('Its filter has been edited, so what it shows is yours rather than '
-				+ 'the generated one.');
+		said.push(reading
+			? 'Showing ' + this.describeReading(name, reading) + '.'
+			: 'Its filter has been edited, so what it shows is yours rather than the '
+				+ 'generated one.');
+
+		if (reading) {
+			const narrowed = this.baseViewReadings(text, name).filter((view) => view.reading);
+			if (narrowed.length > 0) {
+				said.push(andList(narrowed.map((view) => '"' + view.name + '"'))
+					+ (narrowed.length === 1 ? ' reads' : ' read')
+					+ ' more narrowly than the base does. A view is set from its own '
+					+ 'Configure view menu, beside Rename and Duplicate.');
+			}
 		}
 		said.push(columns.length > 0
 			? 'Columns: file.name, ' + columns.join(', ') + '.'
@@ -7966,30 +10340,33 @@ class OofClassesPlugin extends Plugin {
 
 		if (typeof menu.addSeparator === 'function') menu.addSeparator();
 
-		/*
-		 * The switch he asked for. Offered either way: a base whose filter line
-		 * cannot be found still shows it, and pressing it says why rather than
-		 * doing nothing - the same answer the panel's greyed-out buttons give.
-		 */
-		menu.addItem((item) => {
-			item.setTitle('Exact matches only')
-				.setIcon(filter ? 'crosshair' : 'alert-triangle')
-				.onClick(async () => {
-					if (!filter) {
-						new Notice('OOF Class Manager: this base\'s filter no longer contains the '
-							+ 'line this would change, so it has been left alone. Reset the '
-							+ 'base to get it back.', 10000);
-						return;
+		if (!reading) {
+			menu.addItem((item) => {
+				item.setTitle('The reading is not one of ours — reset to get it back')
+					.setIcon('alert-triangle');
+				if (typeof item.setDisabled === 'function') item.setDisabled(true);
+			});
+		} else {
+			this.addReadingItems(menu, {
+				scope: 'base', scopeWord: 'base', name: name, drafts: drafts,
+				reading: reading,
+				apply: async (next) => {
+					try {
+						const carried = await this.setClassBaseReading(file, name, next);
+						new Notice('OOF Class Manager: ' + file.path + ' now shows '
+							+ this.describeReading(name, next) + '.'
+							+ (carried > 0
+								? ' ' + carried + (carried === 1 ? ' view' : ' views')
+									+ ' moved with it.'
+								: ''), 6000);
+					} catch (error) {
+						console.error('oof-classes: writing the class base reading failed', error);
+						new Notice('OOF Class Manager: that change was not written — see the '
+							+ 'console.', 8000);
 					}
-					await this.setBaseExactness(file, name, !exact);
-					new Notice(exact
-						? 'OOF Class Manager: ' + file.path + ' now shows every note that is '
-							+ article(name) + ' ' + name + '.'
-						: 'OOF Class Manager: ' + file.path + ' now shows only notes whose "is a" '
-							+ 'names ' + name + '.', 5000);
-				});
-			if (filter && typeof item.setChecked === 'function') item.setChecked(exact);
-		});
+				},
+			});
+		}
 
 		if (typeof menu.addSeparator === 'function') menu.addSeparator();
 
@@ -8019,6 +10396,416 @@ class OofClassesPlugin extends Plugin {
 		}
 	}
 
+	/* ----- the per-view half, on Obsidian's own Configure view card --------- */
+
+	/*
+	 * His N.B.: *these options will still belong to Class Bases, but they will
+	 * live in the native view panel instead of the dedicated Class Bases panel.*
+	 *
+	 * So the reading of **one view** is set on Obsidian's own Configure view card,
+	 * under its View name, Layout and the layout's own options - a **Class base**
+	 * group of the same shape as the ones Obsidian draws there. The Class base
+	 * button keeps only the reading of the **whole base**.
+	 *
+	 * **It began behind the card's ⋮ and he moved it onto the card** (2026-09-05,
+	 * the same day): a menu is the right shape for a list of *actions* - set as
+	 * default, duplicate, delete - and the wrong shape for a set of switches you
+	 * are reading off against each other. Three streams and their exclusions are a
+	 * state to look at, not a command to pick, and the card is where every other
+	 * thing about a view is already looked at.
+	 *
+	 * **The exclusions gained by the move rather than merely surviving it.** In a
+	 * menu they were a submenu per stream that closes the moment you touch one;
+	 * on the card they are rows you throw one after another, indented by depth, and
+	 * a class dropped by something above it is greyed in place rather than needing
+	 * its reason written into a label.
+	 *
+	 * **A view can only narrow.** Bases ands the top-level `filters:` with each
+	 * view's own, so a stream the base has off can never be turned on here - those
+	 * rows are drawn disabled with the reason beside them. Widening lives on the
+	 * Class base button because that is the only place it can live.
+	 */
+
+	/*
+	 * The card lives in a `.menu` attached to `body`, not inside the base's leaf -
+	 * checked, rather than assumed - so there is nothing of the base's to hang an
+	 * observer on. `body`'s **direct children** are watched instead: menus,
+	 * popovers and modals are appended there and nothing else is, so this fires a
+	 * handful of times a session rather than on every row a base renders.
+	 *
+	 * A second observer then watches each menu itself, because the form arrives
+	 * *inside* a menu that is already in the document, and is rebuilt from scratch
+	 * every time the layout dropdown changes - `display()` empties it.
+	 *
+	 * **Every menu is watched, not only the ones already holding a form**, and
+	 * that is the whole of a bug he reported: the views popover opens on its
+	 * *list* of views, so the menu is appended with no form in it; clicking the
+	 * chevron beside a view then replaces the page **inside** that element, which
+	 * is no mutation of `body` at all. So nothing fired, and the card appeared
+	 * only when something else was appended to `body` - which is what pressing the
+	 * card's own ⋮ does. It looked like the ⋮ summoning it.
+	 *
+	 * Watching a menu that never holds a form costs nothing: a menu is a handful
+	 * of nodes, and the paint it provokes returns at the signature.
+	 */
+	registerViewConfigCard() {
+		this.viewCardMenus = new WeakSet();
+
+		const scan = () => {
+			for (const menu of Array.from(document.querySelectorAll('.menu'))) {
+				this.watchViewConfigMenu(menu);
+			}
+			this.queueViewConfigCards();
+		};
+
+		const observer = new MutationObserver(scan);
+		observer.observe(document.body, { childList: true });
+		this.register(() => observer.disconnect());
+		scan();
+	}
+
+	watchViewConfigMenu(menu) {
+		if (!this.viewCardMenus || this.viewCardMenus.has(menu)) return;
+		this.viewCardMenus.add(menu);
+		const observer = new MutationObserver(() => this.queueViewConfigCards());
+		observer.observe(menu, { childList: true, subtree: true });
+		this.register(() => observer.disconnect());
+	}
+
+	/*
+	 * Coalesced into one frame. **No is-this-us flag**: a mutation record arrives
+	 * as a microtask, by which time a synchronous "I am painting" flag has already
+	 * been cleared, so such a flag never suppresses anything. What stops the loop
+	 * is the signature stamped on the form - the pass our own painting provokes
+	 * finds nothing stale and returns.
+	 */
+	queueViewConfigCards() {
+		if (this.viewCardFrame) return;
+		this.viewCardFrame = window.requestAnimationFrame(() => {
+			this.viewCardFrame = null;
+			for (const form of Array.from(document.querySelectorAll('.view-config-menu'))) {
+				this.paintViewConfigCard(form).catch((error) => {
+					console.error('oof-classes: painting the Class base card failed', error);
+				});
+			}
+		});
+	}
+
+	/*
+	 * The `.base` a views popover belongs to.
+	 *
+	 * The popover is on `body`, so there is no toolbar above it to read: the
+	 * active leaf is the answer, and it stays the base's leaf while its own
+	 * toolbar menu is open. A base drawn **inside a note** - a Dynamic Viewer
+	 * band, a `![[X.base]]` - therefore answers nothing, which is the rule the
+	 * Class base button itself already follows: that leaf is about the note, and
+	 * aiming a write at a file you are not looking at is what the reset was moved
+	 * out of the panel to stop.
+	 */
+	activeBaseFile() {
+		const leaf = this.app.workspace.activeLeaf;
+		const path = leaf ? this.leafFilePath(leaf) : '';
+		const file = path ? this.app.vault.getFileByPath(path) : null;
+		return file instanceof TFile && file.extension === 'base' ? file : null;
+	}
+
+	/*
+	 * The view a config card is about, read off the **name field** - the first
+	 * input on the card, which is what Obsidian fills with `view.name`. There is
+	 * no route from that DOM back to the view object, and the selected view is not
+	 * the answer either: the chevron beside any view in the list opens this card
+	 * for that one. A name no view answers to means the card is mid-rename, and
+	 * nothing is drawn until it settles.
+	 */
+	viewNameOnCard(form) {
+		const input = form ? form.querySelector('input') : null;
+		return input ? String(input.value || '').trim() : '';
+	}
+
+	async paintViewConfigCard(form) {
+		if (!form || !form.isConnected) return;
+
+		const clear = () => {
+			const stale = form.querySelector(':scope > .oof-view-card');
+			if (stale) stale.remove();
+			delete form.dataset.oofView;
+			delete form.dataset.oofBase;
+		};
+
+		if (!this.settings.createBases || !this.settings.classBaseToolbar) { clear(); return; }
+
+		const viewName = this.viewNameOnCard(form);
+		const file = this.activeBaseFile();
+		if (!viewName || !file) { clear(); return; }
+
+		/*
+		 * The vault walk is the expensive half and **every** menu mutation reaches
+		 * here now, so a card already right about this file, this view and this
+		 * version of the file is answered before it. `mtime` is what makes the
+		 * cheap key honest: our own write bumps it, and so does an edit made
+		 * anywhere else, so a stale card cannot survive one.
+		 */
+		const cheap = file.path + '\u0000' + viewName + '\u0000' + (file.stat || {}).mtime;
+		if (form.dataset.oofBase === cheap && form.querySelector(':scope > .oof-view-card')) {
+			return;
+		}
+
+		const objects = this.scanClasses();
+		const drafts = this.allDrafts(objects);
+		const name = this.classForBase(file, drafts);
+		if (!name) { clear(); return; }
+
+		let text = '';
+		try {
+			text = await this.app.vault.cachedRead(file);
+		} catch (error) {
+			clear();
+			return;
+		}
+		if (!form.isConnected) return;
+
+		const found = this.readClassBaseReading(text, name);
+		if (!found) { clear(); return; }
+
+		const views = this.baseViewReadings(text, name);
+		let view = null;
+		for (const one of views) {
+			if (one.name === viewName) { view = one; break; }
+		}
+		if (!view) { clear(); return; }
+
+		const base = found.reading;
+		/*
+		 * **Both guards ask whether the card is still there**, and the second one
+		 * did not until he found it. `display()` rebuilds the form from scratch
+		 * whenever the layout dropdown changes - and `empty()` takes the children
+		 * without taking the `data-` attributes, so a signature written before the
+		 * rebuild still matched afterwards and the group never came back. A stamp
+		 * on an element the app owns describes something that may already be gone;
+		 * it has to be checked against the thing it claims to describe.
+		 */
+		const signature = JSON.stringify([file.path, name, view.index, view.name,
+			base, view.reading, view.reachable, view.reason]);
+		if (form.dataset.oofView === signature
+			&& form.querySelector(':scope > .oof-view-card')) {
+			return;
+		}
+
+		clear();
+		form.dataset.oofView = signature;
+		form.dataset.oofBase = cheap;
+
+		const container = form.createDiv({ cls: 'input-group-container oof-view-card' });
+		if (form.childElementCount > 1) container.createDiv({ cls: 'input-group-divider' });
+		const header = container.createDiv({ cls: 'input-group' })
+			.createDiv({ cls: 'input-group-header' });
+		const chevron = header.createDiv({ cls: 'collapse-icon' });
+		if (typeof setIcon === 'function') setIcon(chevron, 'right-triangle');
+		header.createDiv({ cls: 'input-group-header-text', text: 'Class base' });
+		const body = container.createDiv({ cls: 'input-group-content' });
+
+		/*
+		 * Open the first time and closed after that is a fold you have to discover;
+		 * this one is remembered for the session on the plugin, so it behaves like
+		 * Obsidian's own groups without a preference behind it - a control is not a
+		 * preference.
+		 */
+		let collapsed = !!this.viewCardCollapsed;
+		const fold = () => {
+			chevron.toggleClass('is-collapsed', collapsed);
+			body.toggleClass('is-hidden', collapsed);
+			body.style.display = collapsed ? 'none' : '';
+		};
+		header.addEventListener('click', (event) => {
+			event.preventDefault();
+			collapsed = !collapsed;
+			this.viewCardCollapsed = collapsed;
+			fold();
+		});
+		fold();
+
+		if (!view.reachable) {
+			body.createDiv({
+				cls: 'oof-view-card-note',
+				text: 'This view cannot be narrowed — ' + view.reason + '.',
+			});
+			return;
+		}
+
+		this.drawReadingCard(body, {
+			scope: 'view', scopeWord: 'view', name: name, drafts: drafts,
+			/* With no clause of its own a view reads exactly as the base does. */
+			reading: view.reading || base,
+			baseReading: base,
+			baseExact: base.exact,
+			offered: base.streams.slice(),
+			apply: async (next) => {
+				try {
+					/*
+					 * A view saying exactly what the base says is a view that says
+					 * nothing, so its clause comes back out rather than standing there
+					 * restating the line above it.
+					 */
+					const settled = this.readingsEqual(next, base) ? null : next;
+					const refused = await this.setViewReading(file, name, view.index, settled);
+					if (refused) {
+						new Notice('OOF Class Manager: "' + view.name + '" was left alone — '
+							+ refused + '.', 8000);
+					}
+					/*
+					 * Repainted from the file rather than from what was just asked for:
+					 * a refusal leaves the card saying what the view really holds.
+					 */
+					delete form.dataset.oofView;
+					delete form.dataset.oofBase;
+					this.queueViewConfigCards();
+				} catch (error) {
+					console.error('oof-classes: writing the view reading failed', error);
+					new Notice('OOF Class Manager: that change was not written — see the '
+						+ 'console.', 8000);
+				}
+			},
+		});
+	}
+
+	/*
+	 * The reading as rows on a card, in Obsidian's own `.input-row` markup so the
+	 * theme, the widths and the label rules are the card's rather than ours.
+	 *
+	 * Same shape as `addReadingItems` draws in a menu and deliberately so: three
+	 * streams, the classes each one drops, and how far they travel.
+	 */
+	drawReadingCard(host, ctx) {
+		const reading = this.normaliseReading(ctx.reading);
+		const on = new Set(reading.streams);
+		const offered = ctx.offered || BASE_STREAMS.map((stream) => stream.id);
+
+		const row = (label, hint, depth) => {
+			const el = host.createDiv({ cls: 'input-row oof-view-card-row' });
+			if (depth) el.style.paddingInlineStart = (depth * 14) + 'px';
+			const side = el.createDiv({ cls: 'input-row-label' });
+			side.createDiv({ cls: 'oof-view-card-name', text: label });
+			if (hint) side.createDiv({ cls: 'oof-view-card-hint', text: hint });
+			return { el: el, content: el.createDiv({ cls: 'input-row-content' }) };
+		};
+
+		const toggle = (into, value, disabled, change) => {
+			if (obsidian.ToggleComponent) {
+				const control = new obsidian.ToggleComponent(into).setValue(value);
+				if (disabled) control.setDisabled(true);
+				else control.onChange(change);
+				return;
+			}
+			const box = into.createEl('input', { type: 'checkbox' });
+			box.checked = value;
+			box.disabled = !!disabled;
+			if (!disabled) box.addEventListener('change', () => change(box.checked));
+		};
+
+		const withStreams = (streams) => this.normaliseReading({
+			streams: streams, exact: reading.exact, excluded: reading.excluded,
+		});
+		const withExcluded = (stream, names) => {
+			const next = { streams: reading.streams.slice(), exact: reading.exact, excluded: {} };
+			for (const one of reading.streams) {
+				next.excluded[one] = (reading.excluded[one] || []).slice();
+			}
+			next.excluded[stream] = names;
+			return this.normaliseReading(next);
+		};
+
+		for (const stream of BASE_STREAMS) {
+			const allowed = offered.indexOf(stream.id) !== -1;
+			const live = on.has(stream.id);
+			const excluded = (reading.excluded[stream.id] || []).slice();
+
+			/*
+			 * The row names the class for the reason the menu does, and carries how
+			 * many notes the stream reaches, so a road with nothing down it says so
+			 * before it is taken rather than after.
+			 */
+			const line = row(stream.label + ' ' + ctx.name,
+				allowed
+					? this.streamReachSaid(ctx.name, stream.id)
+						+ (excluded.length > 0
+							? ', ' + excluded.length + (excluded.length === 1 ? ' class excluded' : ' classes excluded')
+							: '')
+					: 'the base is not read this way');
+			line.el.addClass('oof-view-card-stream');
+			toggle(line.content, live, !allowed, (value) => {
+				const streams = new Set(reading.streams);
+				if (!value) {
+					/*
+					 * The last one on cannot be turned off. A reading with no streams is
+					 * not "a base about nothing" - it is a clause this plugin can no
+					 * longer read, and the only way back would be the reset.
+					 */
+					if (streams.size === 1) {
+						new Notice('OOF Class Manager: at least one stream has to stay on, or '
+							+ 'the ' + ctx.scopeWord + ' holds nothing at all. Turn another one '
+							+ 'on first.', 7000);
+						this.queueViewConfigCards();
+						return;
+					}
+					streams.delete(stream.id);
+				} else if (this.settings.oneStreamAtATime) {
+					streams.clear();
+					streams.add(stream.id);
+				} else {
+					streams.add(stream.id);
+				}
+				ctx.apply(withStreams(Array.from(streams)));
+			});
+
+			if (!allowed || !live) continue;
+
+			const rows = this.exclusionRows(ctx.name, ctx.drafts, excluded);
+			if (rows.length === 0) continue;
+
+			const direct = rows.filter((one) => one.depth === 0).map((one) => one.name);
+			const actions = host.createDiv({ cls: 'oof-view-card-actions' });
+			const all = actions.createEl('button', { text: 'Include every class' });
+			all.disabled = excluded.length === 0;
+			all.addEventListener('click', () => ctx.apply(withExcluded(stream.id, [])));
+			const none = actions.createEl('button', { text: 'Exclude every subclass' });
+			none.disabled = direct.length === 0
+				|| direct.every((one) => excluded.indexOf(one) !== -1);
+			none.addEventListener('click', () => ctx.apply(withExcluded(stream.id, direct.slice())));
+
+			for (const one of rows) {
+				const included = !one.excluded && !one.blockedBy;
+				const entry = row(one.name,
+					one.blockedBy ? 'excluded with ' + one.blockedBy : '', one.depth + 1);
+				entry.el.addClass('oof-view-card-class');
+				toggle(entry.content, included, !!one.blockedBy, (value) => {
+					if (value) {
+						ctx.apply(withExcluded(stream.id,
+							excluded.filter((gone) => gone !== one.name)));
+						return;
+					}
+					/*
+					 * Only the topmost class of an excluded branch is written: anything
+					 * already listed below this one is now said by this one, so it comes
+					 * off the list rather than being written twice.
+					 */
+					const kept = excluded.filter((gone) => !one.below.has(gone));
+					kept.push(one.name);
+					ctx.apply(withExcluded(stream.id, kept));
+				});
+			}
+		}
+
+		const governed = ctx.scope === 'view' && ctx.baseExact;
+		const exact = row('Exact matches only',
+			governed ? 'the whole base is exact' : '');
+		exact.el.addClass('oof-view-card-stream');
+		toggle(exact.content, reading.exact || !!ctx.baseExact, governed, (value) => {
+			ctx.apply(this.normaliseReading({
+				streams: reading.streams, exact: value, excluded: reading.excluded,
+			}));
+		});
+	}
+
 
 	/* ------------------------------------------------------------ the plan -- */
 
@@ -8041,10 +10828,36 @@ class OofClassesPlugin extends Plugin {
 
 		/* 1. characteristic notes that are needed but do not exist yet */
 		const referencedBy = new Map();
+		/*
+		 * **Both lists.** This walked `characteristics` alone until 2026-09-04, and
+		 * the consequence was exact: a component field he had typed into a class
+		 * card had no note created for it, so the chip stayed grey for ever and the
+		 * property had nothing behind it — no `possible values` to say which classes
+		 * it takes, no defaults table, nothing. A component field *is* a
+		 * characteristic; only the tag differs.
+		 */
+		const componentFields = this.componentFieldNames(drafts);
+		/*
+		 * And which classes are components, off the `#component` tag. Computed here
+		 * from this pass's own `drafts` rather than read off the picture:
+		 * `buildPlan` builds its own model, and a set that exists on one and not the
+		 * other is exactly the defect that let every component value through as a
+		 * conflict on 2026-09-04.
+		 */
+		const components = this.componentClasses(drafts);
+		/*
+		 * And the ones whose kind is in dispute, which this pass and the template
+		 * pass both stand aside for — see `componentDisputes`.
+		 */
+		const disputed = this.componentDisputes(drafts, components);
 		for (const [className, draft] of drafts) {
-			for (const characteristic of draft.characteristics) {
+			for (const characteristic of (draft.characteristics || [])
+				.concat(draft.componentFields || [])) {
+				if (!characteristic) continue;
 				if (!referencedBy.has(characteristic)) referencedBy.set(characteristic, []);
-				referencedBy.get(characteristic).push(className);
+				if (referencedBy.get(characteristic).indexOf(className) === -1) {
+					referencedBy.get(characteristic).push(className);
+				}
 			}
 		}
 
@@ -8100,27 +10913,37 @@ class OofClassesPlugin extends Plugin {
 			}
 
 			const byClasses = referencedBy.get(name) || [];
+			const isComponent = componentFields.has(name);
 			const reason = isBase
 				? 'A base characteristic, but it has no note of its own'
 					+ (byClasses.length > 0 ? '; also listed by ' + byClasses.join(', ') : '') + '.'
-				: 'Listed as a characteristic of ' + byClasses.join(', ')
-					+ ', but has no note of its own.';
+				: 'Listed as a ' + (isComponent ? 'component field' : 'characteristic') + ' of '
+					+ byClasses.join(', ') + ', but has no note of its own.';
+
+			/*
+			 * The tag is the only difference between the two kinds, so it is the
+			 * only thing decided differently here — the note is otherwise created
+			 * exactly as a characteristic is, which is his instruction verbatim.
+			 */
+			const tag = this.characteristicTagFor(name, componentFields);
 
 			actions.push({
 				kind: 'create-characteristic',
-				label: 'Create characteristic note "' + name + '"',
+				label: 'Create ' + (isComponent ? 'component field' : 'characteristic')
+					+ ' note "' + name + '"',
 				path: this.characteristicPath(name),
 				name: name,
 				/* A base characteristic is a list of links; anything else is his to say. */
 				propertyType: isBase ? 'list' : '',
 				isBase: isBase,
+				tag: tag,
 				detail: [
 					reason,
 					isBase
 						? 'Created with property type: list, since the base characteristics '
 							+ 'hold links. Ready for a meaning.'
 						: 'Created empty, ready for a meaning and a property type.',
-				],
+				].concat(tag ? ['Tagged #' + tag + '.'] : []),
 			});
 		}
 
@@ -8438,6 +11261,87 @@ class OofClassesPlugin extends Plugin {
 		}
 
 		/*
+		 * 1c. the tag on every characteristic note.
+		 *
+		 * His ask, 2026-09-04: *"make it so that the class manager enforces the
+		 * `#characteristic` tag to all characteristics and enforces the
+		 * `#componentfield` tag to all components."* One tag each and never both,
+		 * because the two kinds *are* the same thing besides the tag — so a note
+		 * wearing both would be saying two things about itself, and neither of them
+		 * decisively.
+		 *
+		 * **Which one is derived, not read.** A characteristic is a component field
+		 * because some class lists it under `component fields`; the tag reports
+		 * that. Reading the tag instead would make it a second declaration, free to
+		 * disagree with the class that declares it — the `default value:` lesson
+		 * again. So moving a characteristic from one list to the other swaps the
+		 * tag on the next Update, without him touching the note.
+		 *
+		 * Over **every** characteristic note rather than only the ones some class
+		 * lists, because "all characteristics" is what he said and a note nothing
+		 * lists is still one. It runs after 1b so a note on its way to the trash is
+		 * not tagged on the way there.
+		 */
+		const trashing = new Set(actions
+			.filter((action) => action.kind === 'trash-characteristic' && action.file)
+			.map((action) => action.file.path));
+
+		for (const [name, characteristic] of characteristics) {
+			if (!characteristic.file || trashing.has(characteristic.file.path)) continue;
+
+			const wanted = this.characteristicTagFor(name, componentFields);
+			if (!wanted) continue;
+			if (this.hasTag(characteristic.file, wanted)) {
+				/*
+				 * Right tag on, wrong tag also on: still out of step. A note that
+				 * has just moved between the two lists by hand looks exactly like
+				 * this, and leaving the old tag would leave the vault searchable
+				 * for a claim that is no longer true.
+				 */
+				const strays = this.characteristicTags().filter(
+					(tag) => tag !== wanted && this.hasTag(characteristic.file, tag));
+				if (strays.length === 0) continue;
+
+				actions.push({
+					kind: 'describe-characteristic',
+					label: 'Untag ' + name + ' — ' + strays.map((t) => '#' + t).join(', '),
+					file: characteristic.file,
+					removeTags: strays,
+					detail: [name + ' is a '
+						+ (componentFields.has(name) ? 'component field' : 'characteristic')
+						+ ' and is tagged #' + wanted + ' already, but still carries '
+						+ andList(strays.map((t) => '#' + t)) + '.'],
+				});
+				continue;
+			}
+
+			const strays = this.characteristicTags().filter(
+				(tag) => tag !== wanted && this.hasTag(characteristic.file, tag));
+			const isComponent = componentFields.has(name);
+			const byClasses = referencedBy.get(name) || [];
+
+			actions.push({
+				kind: 'describe-characteristic',
+				label: 'Tag ' + name + ' #' + wanted
+					+ (strays.length > 0 ? ' (was ' + strays.map((t) => '#' + t).join(', ') + ')' : ''),
+				file: characteristic.file,
+				addTag: wanted,
+				removeTags: strays,
+				detail: [
+					isComponent
+						? 'A component field: ' + (byClasses.length > 0
+							? andList(byClasses) + ' list' + (byClasses.length === 1 ? 's' : '')
+								+ ' it under ' + this.settings.componentsProperty + '.'
+							: 'some class lists it under ' + this.settings.componentsProperty + '.')
+						: 'An ordinary characteristic, so it carries #' + wanted + '.',
+				].concat(strays.length > 0
+					? [andList(strays.map((t) => '#' + t)) + ' is removed: a characteristic note '
+						+ 'carries one of the two, never both.']
+					: []),
+			});
+		}
+
+		/*
 		 * Keys nothing declares. Two questions are asked of them below, so both
 		 * answers are worked out once, here, before any pass that consults them:
 		 *
@@ -8504,7 +11408,7 @@ class OofClassesPlugin extends Plugin {
 		 * set to. Before the templates are written, so a misnamed one is put right
 		 * rather than duplicated by the pass that generates the missing one.
 		 */
-		for (const action of this.misnamedTemplateActions(objects)) {
+		for (const action of this.misnamedTemplateActions(objects, components)) {
 			if (action.insolvable) conflicts.push(action);
 			else actions.push(action);
 		}
@@ -8541,18 +11445,23 @@ class OofClassesPlugin extends Plugin {
 					.filter((property) => wanted[property].length > 0)
 					.map((property) => property + ': ' + wanted[property].join(', '));
 
+				const wantedTag = this.classTagFor(name, components);
+
 				actions.push({
 					kind: 'create-class',
-					label: 'Create class note "' + name + '"',
+					label: 'Create ' + (components.has(name) ? 'component' : 'class')
+						+ ' note "' + name + '"',
 					path: this.settings.notesFolder + '/' + name + '.md',
 					name: name,
 					values: wanted,
 					write: this.settings.logicProperties.slice(),
-					addTag: this.settings.classTag,
+					addTag: wantedTag,
 					detail: [
 						'Named as a class, but no note exists for it yet.',
-						'Tagged #' + this.settings.classTag + '.',
-					].concat(declared.length > 0
+						'Tagged #' + wantedTag + '.',
+					].concat(components.has(name)
+						? [this.componentReason(name, components)]
+						: []).concat(declared.length > 0
 						? declared
 						: ['Created with the base characteristics, all empty.']),
 				});
@@ -8722,8 +11631,30 @@ class OofClassesPlugin extends Plugin {
 
 			const misordered = !sameNameList(managedAfter, canonical) || symbolStranded;
 
-			/* Every class says so with the tag. */
-			const needsTag = !!this.settings.classTag && !object.tagged;
+			/*
+			 * Every class says so with a tag, and which tag says which kind it is:
+			 * `#class` for one you instantiate, `#component` for one you compose
+			 * with. Exactly one of the two, never both — a note wearing both would
+			 * be saying two things about itself and neither decisively, which is
+			 * the same rule and the same shape as the characteristic notes'.
+			 *
+			 * The stray is taken off in the same action rather than in one of its
+			 * own: a class that has just moved between the two kinds passes through
+			 * no state carrying both, and the search for `#class` never returns a
+			 * component even for an instant.
+			 */
+			/*
+			 * A class in dispute keeps whatever tag it has: its kind is the thing
+			 * being argued about, so claiming one in the meantime would be the
+			 * plugin taking a side in a question it has just reported as his.
+			 */
+			const inDispute = disputed.has(name);
+			const wantedTag = inDispute ? '' : this.classTagFor(name, components);
+			const needsTag = !!wantedTag && !this.hasTag(object.file, wantedTag);
+			const strayTags = wantedTag
+				? this.classTags().filter(
+					(tag) => tag !== wantedTag && this.hasTag(object.file, tag))
+				: [];
 
 			/*
 			 * The symbol is an edit like any other, so it travels in the plan rather
@@ -8746,6 +11677,7 @@ class OofClassesPlugin extends Plugin {
 				&& symbolWanted !== symbolNow;
 
 			if (write.length > 0 || dropped.length > 0 || misordered || needsTag
+				|| strayTags.length > 0
 				|| shedEmpty.length > 0 || gained.length > 0 || symbolChanged) {
 				const described = write.map(
 					(property) => (missing.includes(property) ? property + ' (missing)' : property));
@@ -8792,9 +11724,17 @@ class OofClassesPlugin extends Plugin {
 				}
 
 				if (needsTag) {
-					described.push('#' + this.settings.classTag);
-					detail.push('Tagged #' + this.settings.classTag
-						+ ' — this note is a class, and says so.');
+					described.push('#' + wantedTag);
+					detail.push('Tagged #' + wantedTag + ' — this note is a '
+						+ (components.has(name) ? 'component' : 'class') + ', and says so.'
+						+ (components.has(name)
+							? ' ' + this.componentReason(name, components) : ''));
+				}
+				if (strayTags.length > 0) {
+					described.push(strayTags.map((tag) => '-#' + tag).join(', '));
+					detail.push(andList(strayTags.map((tag) => '#' + tag))
+						+ ' is removed: a class note carries one of #'
+						+ this.classTags().join(' and #') + ', never both.');
 				}
 
 				if (symbolChanged) {
@@ -8848,7 +11788,8 @@ class OofClassesPlugin extends Plugin {
 					remove: dropped.concat(shedEmpty),
 					add: gained,
 					missing: missing,
-					addTag: needsTag ? this.settings.classTag : null,
+					addTag: needsTag ? wantedTag : null,
+					removeTags: strayTags,
 					/* Also when the symbol is arriving — see `symbolArriving`. */
 					order: (misordered || (symbolChanged && symbolWanted && symbolArriving))
 						? canonical : null,
@@ -8862,6 +11803,64 @@ class OofClassesPlugin extends Plugin {
 		for (const [name, draft] of drafts) {
 			const path = this.templatePathFor(name);
 			const file = this.app.vault.getFileByPath(path);
+
+			/*
+			 * **A component has no template**, which is the whole of what his note
+			 * asks for: *"Components will work the same as classes except that they
+			 * won't have templates, which effectively means that they cannot be
+			 * instantiated."* No template is the mechanism, not a side effect — it
+			 * is what removes the button, what the `+ New` menu has nothing to make
+			 * a note from, and what leaves `is a: "[[Project]]"` with no way to
+			 * arise except by hand.
+			 *
+			 * One that already exists is trashed, and only one **we** generated:
+			 * the same `is a` test `orphanActions` uses, so a template of his own
+			 * that happens to sit under that name is left exactly where it is. It
+			 * goes to the Obsidian trash, so a component that stops being one gets
+			 * its template written again and the old one is still recoverable in
+			 * the meantime.
+			 */
+			if (components.has(name)) {
+				/*
+				 * Its kind is in dispute, so its template is not the plugin's to
+				 * destroy — he may settle it the other way, and a trashed file is a
+				 * worse answer to that than a stale one.
+				 */
+				if (disputed.has(name)) continue;
+				if (!(file instanceof TFile)) continue;
+
+				const frontmatter = this.frontmatterOf(file) || {};
+				const claims = toArray(frontmatter[this.settings.isAProperty])
+					.map(linkName).filter(Boolean)
+					.some((target) => String(target).toLowerCase() === name.toLowerCase());
+				if (!claims) {
+					conflicts.push({
+						file: file,
+						property: this.settings.isAProperty,
+						value: frontmatter[this.settings.isAProperty],
+						reason: name + ' is a component, so it has no template — but this '
+							+ 'file does not say `' + this.settings.isAProperty + ': "[['
+							+ name + ']]"`, so it was not generated here. Left untouched.',
+					});
+					continue;
+				}
+
+				actions.push({
+					kind: 'trash-template',
+					label: 'Trash the template for "' + name + '" — it is a component',
+					file: file,
+					path: path,
+					detail: [
+						this.componentReason(name, components),
+						'A component is never instantiated, so it has no template. Without '
+							+ 'one there is nothing to make a note from, which is what makes '
+							+ 'that true rather than merely discouraged.',
+						'It goes to the Obsidian trash, so it can be brought back.',
+					],
+				});
+				continue;
+			}
+
 			const current = file instanceof TFile ? this.frontmatterOf(file) : null;
 			/*
 			 * The component *fields* belong in a template, empty — they are what a
@@ -9073,6 +12072,12 @@ class OofClassesPlugin extends Plugin {
 		{
 			const wanted = String(this.settings.uniqueNameFormat || '').trim();
 			for (const name of drafts.keys()) {
+				/*
+				 * A component's template is on its way to the trash in the pass
+				 * above, and editing a file in the same Update that removes it is
+				 * two actions arguing about one file.
+				 */
+				if (components.has(name)) continue;
 				const path = this.templatePathFor(name);
 				const file = this.app.vault.getFileByPath(path);
 				if (!(file instanceof TFile)) continue;
@@ -9164,9 +12169,29 @@ class OofClassesPlugin extends Plugin {
 				if (this.app.vault.getFileByPath(path)) continue;
 
 				const columns = this.baseColumnsFor(name, objects, drafts);
+				/*
+				 * **A component's base is of the other stream.** Nothing is ever `is
+				 * a` a component, so a base generated in the usual reading would open
+				 * empty and stay empty — which is exactly the silent failure the
+				 * stream switch was added for on 2026-09-04, arriving here as a
+				 * consequence of the same rule rather than as a surprise. What
+				 * reaches a component is `has a`: the notes that fill it into a
+				 * component field.
+				 */
+				const reading = components.has(name)
+					? { streams: ['has a'], exact: false, excluded: {} }
+					: null;
 				const detail = [];
-				detail.push('Table of everything that is a ' + name
-					+ ', templates excluded.');
+				detail.push(components.has(name)
+					? 'Table of everything that has a ' + name
+						+ ' in a component field, templates excluded.'
+					: 'Table of everything that is a ' + name
+						+ ', templates excluded.');
+				if (components.has(name)) {
+					detail.push(this.componentReason(name, components)
+						+ ' Nothing is `' + this.settings.isAProperty + '` one, so the '
+						+ 'ordinary reading would hold no rows at all.');
+				}
 				detail.push(columns.length > 0
 					? 'Columns: file.name, ' + columns.join(', ')
 					: 'Only file.name, since ' + name + ' has no characteristics yet.');
@@ -9178,7 +12203,7 @@ class OofClassesPlugin extends Plugin {
 					label: 'Create base for "' + name + '"',
 					path: path,
 					object: name,
-					content: this.baseContentFor(name, objects, drafts),
+					content: this.baseContentFor(name, objects, drafts, reading),
 					detail: detail,
 				});
 			}
@@ -9399,144 +12424,160 @@ class OofClassesPlugin extends Plugin {
 		 * the same claim said per characteristic and per class, so the setting went.
 		 */
 		for (const instance of instances) {
-			const strictSeen = new Set();
+			/*
+			 * `carriedKeys`, not `effectiveCharacteristics` - the same correction pass 4
+			 * already carries, arriving here a version late. A characteristic reached
+			 * through a **component field** is one of this note's own: `goal type:
+			 * [[Project]]` hands the note `done`, pass 4 duly writes the empty key for
+			 * it, and this pass never looked at it - so `done`'s *None replacement* of
+			 * `false` was never enforced and nothing was reported either. Found by him,
+			 * 2026-09-05, and his theory of it was exactly right.
+			 *
+			 * `owner` names the class each key came from - the first of the note's own
+			 * classes to declare it, or the component class that brought it - which is
+			 * the class whose row in the defaults table should answer. For the `is a`
+			 * half that is precisely what the two nested loops used to compute, so
+			 * nothing about the old behaviour moves.
+			 *
+			 * The `strictSeen` guard went with the nesting: `carriedKeys`
+			 * de-duplicates by construction, and a second guard over one list is a
+			 * second answer waiting to disagree with the first.
+			 */
+			const carried = this.carriedKeys(
+				instance.classes, instance.frontmatter, objects, drafts);
+			for (const key of carried.keys) {
+				const className = carried.owner.get(key) || null;
 
-			for (const className of instance.classes) {
-				for (const key of this.effectiveCharacteristics(className, objects, drafts)) {
-					if (strictSeen.has(key)) continue;
-					strictSeen.add(key);
+				const characteristic = characteristics.get(key);
+				const resolved = this.defaultFor(characteristic, className, objects, drafts);
+				if (!resolved) continue;
 
-					const characteristic = characteristics.get(key);
-					const resolved = this.defaultFor(characteristic, className, objects, drafts);
-					if (!resolved) continue;
+				const current = instance.frontmatter[key];
+				const where = resolved.source === ALL_NOTES_ROW
+					? 'every note carrying ' + key
+					: 'an instance of ' + resolved.source;
 
-					const current = instance.frontmatter[key];
-					const where = resolved.source === ALL_NOTES_ROW
-						? 'every note carrying ' + key
-						: 'an instance of ' + resolved.source;
+				/*
+				 * A value already written as a Templater expression is machinery, and
+				 * so is a claim written as one: it says what the *template* should
+				 * hold, and there is nothing to enforce on a note that exists.
+				 * `fill-datetime` is what recovers those, from the file's own
+				 * creation time.
+				 */
+				if (isTemplaterExpression(current)) continue;
+
+				const must = this.columnWriteValue(characteristic, resolved, 'must');
+				const none = this.columnWriteValue(characteristic, resolved, 'none');
+				const contains = this.columnWriteValue(characteristic, resolved, 'contains');
+
+				/* Value must be — total, so it is asked first and answers alone. */
+				if (!isEmptyValue(must) && !isTemplaterExpression(must)) {
+					if (sameDefaultValue(current, must)) continue;
+					const shown = toArray(must).join(', ');
+					actions.push({
+						kind: 'fill-default',
+						label: (isEmptyValue(current) ? 'Fill ' : 'Replace ') + key + ' on "'
+							+ instance.file.basename + '" — '
+							+ (isEmptyValue(current) ? shown
+								: toArray(current).join(', ') + ' → ' + shown),
+						file: instance.file,
+						path: instance.file.path,
+						property: key,
+						value: must,
+						overwrite: true,
+						detail: [
+							'The defaults table for ' + key + ' says ' + where
+								+ ' must be ' + shown + ', and this holds '
+								+ (isEmptyValue(current)
+									? 'nothing.' : toArray(current).join(', ') + '.'),
+							'Value must be is total: anything else is replaced. Empty the '
+								+ 'cell, or use None replacement instead, if what you meant '
+								+ 'was only to fill an empty one.',
+						],
+					});
+					continue;
+				}
+
+				/* None replacement — an empty value, and nothing else. */
+				if (!isEmptyValue(none) && !isTemplaterExpression(none)
+					&& isEmptyValue(current)) {
+					const shown = toArray(none).join(', ');
+					actions.push({
+						kind: 'fill-default',
+						label: 'Fill ' + key + ' on "' + instance.file.basename
+							+ '" — ' + shown,
+						file: instance.file,
+						path: instance.file.path,
+						property: key,
+						value: none,
+						/* Only if it is still empty when the write happens. */
+						overwrite: false,
+						detail: [
+							key + ' is empty, and its defaults table replaces none with '
+								+ shown + ' for ' + where + '.',
+							'A none replacement is not a starting point: an empty value is '
+								+ 'never accepted while one stands.',
+						],
+					});
+					continue;
+				}
+
+				/* Value must contain — an entry that has to be in the list. */
+				if (!isEmptyValue(contains) && !isTemplaterExpression(contains)) {
+					const wanted = toArray(contains).map((one) => String(one).trim())
+						.filter((one) => one !== '');
+					const held = toArray(current).map((one) => String(one).trim());
+					const missing = wanted.filter((one) => !held.some(
+						(have) => sameDefaultValue(have, one)));
+					if (missing.length === 0) continue;
 
 					/*
-					 * A value already written as a Templater expression is machinery, and
-					 * so is a claim written as one: it says what the *template* should
-					 * hold, and there is nothing to enforce on a note that exists.
-					 * `fill-datetime` is what recovers those, from the file's own
-					 * creation time.
+					 * Only a list can gain an entry. On a single value there is no way
+					 * to add without replacing, and replacing is what the *Value must
+					 * be* column is for — so this is reported rather than guessed at.
 					 */
-					if (isTemplaterExpression(current)) continue;
+					const type = String(characteristic
+						&& characteristic.propertyType || '').toLowerCase();
+					const isList = type === 'list' || type === 'tags' || type === 'multitext';
 
-					const must = this.columnWriteValue(characteristic, resolved, 'must');
-					const none = this.columnWriteValue(characteristic, resolved, 'none');
-					const contains = this.columnWriteValue(characteristic, resolved, 'contains');
-
-					/* Value must be — total, so it is asked first and answers alone. */
-					if (!isEmptyValue(must) && !isTemplaterExpression(must)) {
-						if (sameDefaultValue(current, must)) continue;
-						const shown = toArray(must).join(', ');
-						actions.push({
-							kind: 'fill-default',
-							label: (isEmptyValue(current) ? 'Fill ' : 'Replace ') + key + ' on "'
-								+ instance.file.basename + '" — '
-								+ (isEmptyValue(current) ? shown
-									: toArray(current).join(', ') + ' → ' + shown),
-							file: instance.file,
-							path: instance.file.path,
-							property: key,
-							value: must,
-							overwrite: true,
-							detail: [
-								'The defaults table for ' + key + ' says ' + where
-									+ ' must be ' + shown + ', and this holds '
-									+ (isEmptyValue(current)
-										? 'nothing.' : toArray(current).join(', ') + '.'),
-								'Value must be is total: anything else is replaced. Empty the '
-									+ 'cell, or use None replacement instead, if what you meant '
-									+ 'was only to fill an empty one.',
-							],
-						});
-						continue;
-					}
-
-					/* None replacement — an empty value, and nothing else. */
-					if (!isEmptyValue(none) && !isTemplaterExpression(none)
-						&& isEmptyValue(current)) {
-						const shown = toArray(none).join(', ');
-						actions.push({
-							kind: 'fill-default',
-							label: 'Fill ' + key + ' on "' + instance.file.basename
-								+ '" — ' + shown,
-							file: instance.file,
-							path: instance.file.path,
-							property: key,
-							value: none,
-							/* Only if it is still empty when the write happens. */
-							overwrite: false,
-							detail: [
-								key + ' is empty, and its defaults table replaces none with '
-									+ shown + ' for ' + where + '.',
-								'A none replacement is not a starting point: an empty value is '
-									+ 'never accepted while one stands.',
-							],
-						});
-						continue;
-					}
-
-					/* Value must contain — an entry that has to be in the list. */
-					if (!isEmptyValue(contains) && !isTemplaterExpression(contains)) {
-						const wanted = toArray(contains).map((one) => String(one).trim())
-							.filter((one) => one !== '');
-						const held = toArray(current).map((one) => String(one).trim());
-						const missing = wanted.filter((one) => !held.some(
-							(have) => sameDefaultValue(have, one)));
-						if (missing.length === 0) continue;
-
-						/*
-						 * Only a list can gain an entry. On a single value there is no way
-						 * to add without replacing, and replacing is what the *Value must
-						 * be* column is for — so this is reported rather than guessed at.
-						 */
-						const type = String(characteristic
-							&& characteristic.propertyType || '').toLowerCase();
-						const isList = type === 'list' || type === 'tags' || type === 'multitext';
-
-						if (!isList) {
-							if (!isEmptyValue(current)
-								&& wanted.every((one) => String(current).indexOf(one) !== -1)) {
-								continue;
-							}
-							conflicts.push({
-								file: instance.file,
-								property: key,
-								value: current,
-								reason: 'The defaults table for ' + key + ' says ' + where
-									+ ' must contain ' + missing.join(', ') + ', and this holds '
-									+ (isEmptyValue(current)
-										? 'nothing' : toArray(current).join(', '))
-									+ '. ' + key + ' is not a list, so there is nothing to add '
-									+ 'to — write it yourself, or say Value must be instead.',
-							});
+					if (!isList) {
+						if (!isEmptyValue(current)
+							&& wanted.every((one) => String(current).indexOf(one) !== -1)) {
 							continue;
 						}
-
-						actions.push({
-							kind: 'fill-default',
-							label: 'Add to ' + key + ' on "' + instance.file.basename
-								+ '" — ' + missing.join(', '),
+						conflicts.push({
 							file: instance.file,
-							path: instance.file.path,
 							property: key,
-							value: held.filter((one) => one !== '').concat(missing),
-							overwrite: true,
-							detail: [
-								'The defaults table for ' + key + ' says ' + where
-									+ ' must contain ' + missing.join(', ') + '.',
-								'Added to what is there. Nothing already in the list is '
-									+ 'removed or reordered.',
-							],
+							value: current,
+							reason: 'The defaults table for ' + key + ' says ' + where
+								+ ' must contain ' + missing.join(', ') + ', and this holds '
+								+ (isEmptyValue(current)
+									? 'nothing' : toArray(current).join(', '))
+								+ '. ' + key + ' is not a list, so there is nothing to add '
+								+ 'to — write it yourself, or say Value must be instead.',
 						});
+						continue;
 					}
+
+					actions.push({
+						kind: 'fill-default',
+						label: 'Add to ' + key + ' on "' + instance.file.basename
+							+ '" — ' + missing.join(', '),
+						file: instance.file,
+						path: instance.file.path,
+						property: key,
+						value: held.filter((one) => one !== '').concat(missing),
+						overwrite: true,
+						detail: [
+							'The defaults table for ' + key + ' says ' + where
+								+ ' must contain ' + missing.join(', ') + '.',
+							'Added to what is there. Nothing already in the list is '
+								+ 'removed or reordered.',
+						],
+					});
 				}
 			}
-		}
+			}
 
 		/*
 		 * 4b. a row that says two things at once.
@@ -9794,9 +12835,22 @@ class OofClassesPlugin extends Plugin {
 		 * plugin has no business choosing a different value than the one he
 		 * typed.
 		 */
+		/*
+		 * `componentFields` is not decoration here - it is what tells
+		 * `constraintsFor` which reading of a class constraint applies. Without
+		 * it every component value in the vault is judged as though `[[Goal
+		 * Type]]` asked for an *instance* of Goal Type, and `goal type:
+		 * [[Project]]` - a subclass, which is the whole point - is reported as
+		 * a value the characteristic does not permit.
+		 *
+		 * This picture is assembled by hand rather than by `buildPicture`, so a
+		 * field added to one is not added to the other. That is exactly how it
+		 * went missing.
+		 */
 		const localPicture = {
 			characteristics: characteristics,
 			classes: objects,
+			componentFields: componentFields,
 			instances: new Map(instances.map((i) => [i.file.path, {
 				file: i.file, keys: new Set(Object.keys(i.frontmatter)), values: i.frontmatter,
 			}])),
@@ -9866,7 +12920,7 @@ class OofClassesPlugin extends Plugin {
 	 * The name is not decoration. It is the only link between a class and its
 	 * template, so it has to be true.
 	 */
-	misnamedTemplateActions(objects) {
+	misnamedTemplateActions(objects, components) {
 		const found = [];
 
 		for (const file of this.filesIn(this.settings.templatesFolder)) {
@@ -9881,6 +12935,13 @@ class OofClassesPlugin extends Plugin {
 				.map((name) => this.canonicalName(name))
 				.find((name) => objects.has(name));
 			if (!claimed) continue;
+
+			/*
+			 * A component has no template, so there is no name for this one to be
+			 * put right to. Renaming it into the place the trash pass is about to
+			 * clear would be one Update moving a file and the next removing it.
+			 */
+			if (components && components.has(claimed)) continue;
 
 			const target = this.templatePathFor(claimed);
 			if (file.path === target) continue;
@@ -10512,6 +13573,88 @@ class OofClassesPlugin extends Plugin {
 			});
 		}
 
+		/*
+		 * A note that is an instance of a component — his note, 2026-09-05: *"If
+		 * someone tries to instantiate a component, it will be a discrepancy."*
+		 *
+		 * There is nothing to fix automatically, and that is the honest answer
+		 * rather than a gap: the note either belongs to a class that is not a
+		 * component, or the class should not be one, and only he knows which. What
+		 * the plugin can do is make it hard to arrive here at all — a component has
+		 * no template, so no button makes one of these.
+		 */
+		const components = picture.componentClasses || new Map();
+		for (const note of picture.notes.values()) {
+			for (const target of note.classes) {
+				if (!components.has(target)) continue;
+				/* Already reported, and more usefully, as a link naming nothing. */
+				if (!picture.classes.has(target)) continue;
+				found.push({
+					severity: 'insolvable',
+					kind: 'instantiated-component',
+					subject: note.name,
+					label: '"' + note.name + '" is a "' + target + '", which is a component',
+					file: note.file,
+					path: note.file.path,
+					detail: [
+						this.componentReason(target, components),
+						'A component is composed into other notes rather than instantiated, '
+							+ 'so nothing should be `' + this.settings.isAProperty + '` one.',
+						'Either point `' + this.settings.isAProperty + '` at a class that is '
+							+ 'not a component, or stop using "' + target + '" as a component '
+							+ 'field value — the tag follows whichever you choose.',
+					],
+					fix: null,
+				});
+			}
+		}
+
+		/*
+		 * A class and a parent of different kinds — his fourth rule: *"it is
+		 * impossible for a class to be a type of a component and vice versa."*
+		 *
+		 * Only one direction can actually occur, and saying which is the point.
+		 * Downward the rule holds by construction: a `type of` a component *is* a
+		 * component, because that is what gets written into the field. So the case
+		 * left is a component that is also a type of a plain class — the same
+		 * violation reached from the other side, and the one place the two trees
+		 * would otherwise be spliced together.
+		 *
+		 * Through `componentDisputes`, which is the same set the plan stands aside
+		 * for: what is reported here and what is left untouched there have to be
+		 * one answer, or the plugin acts on a class in the same breath it says it
+		 * cannot.
+		 */
+		for (const [name, strangers] of
+			this.componentDisputes(picture.drafts, components)) {
+			const klass = picture.classes.get(name) || {};
+			for (const parent of strangers) {
+				found.push({
+					severity: 'insolvable',
+					kind: 'component-mixed-parent',
+					subject: name,
+					label: '"' + name + '" is a component, but is a '
+						+ this.settings.inheritsProperty + ' "' + parent
+						+ '", which is not',
+					file: klass.file || null,
+					path: (klass.file || {}).path || '',
+					detail: [
+						this.componentReason(name, components),
+						'"' + parent + '" is not a component: no component field permits '
+							+ 'it, and nothing above it is one either.',
+						'A class cannot be a ' + this.settings.inheritsProperty
+							+ ' a component and a component cannot be a '
+							+ this.settings.inheritsProperty + ' a class — the two are '
+							+ 'separate trees. Either drop that parent, or point a component '
+							+ 'field at "' + parent + '" so the whole branch is one kind.',
+						'Until this is settled "' + name + '" is left exactly as it is: its '
+							+ 'tag is not changed and its template is not removed.',
+					],
+					fix: null,
+				});
+			}
+		}
+
 		return found;
 	}
 
@@ -10733,6 +13876,12 @@ class OofClassesPlugin extends Plugin {
 			return (fm) => {
 				if (action.setType) fm['property type'] = action.setType;
 				if (action.setBaseFlag) fm['is base characteristic'] = true;
+				/* Off first, so a swap cannot pass through a state carrying both. */
+				for (const tag of toArray(action.removeTags)) this.removeTag(fm, tag);
+				if (action.addTag) {
+					this.addTag(fm, action.addTag);
+					this.tagsFirst(fm);
+				}
 			};
 		}
 
@@ -10808,6 +13957,8 @@ class OofClassesPlugin extends Plugin {
 		if (action.kind === 'update-class') {
 			return (fm) => {
 				this.writeLogicValues(fm, action);
+				/* Off first, so a swap cannot pass through a state carrying both. */
+				for (const tag of toArray(action.removeTags)) this.removeTag(fm, tag);
 				if (action.addTag) this.addTag(fm, action.addTag);
 				/*
 				 * Cleared to empty rather than deleted. An absent property and an
@@ -11016,6 +14167,7 @@ class OofClassesPlugin extends Plugin {
 			const mutation = this.frontmatterMutation(action);
 			const made = {};
 			if (action.kind === 'create-characteristic') {
+				if (action.tag) made.tags = [action.tag];
 				made['characteristic meaning'] = null;
 				made['property type'] = action.propertyType || null;
 				made['is base characteristic'] = !!action.isBase;
@@ -11074,7 +14226,13 @@ class OofClassesPlugin extends Plugin {
 			 * so the table costs nothing here — and a characteristic without one
 			 * has no way to say what its value should be for a given class.
 			 */
-			const content = '---\ncharacteristic meaning: \nproperty type: '
+			/*
+			 * The tag leads, the way it does on a class note: `tags:` is the first
+			 * thing in his own notes and the first thing read off one.
+			 */
+			const content = '---\n'
+				+ (action.tag ? 'tags:\n  - ' + action.tag + '\n' : '')
+				+ 'characteristic meaning: \nproperty type: '
 				+ (action.propertyType || '')
 				+ '\nis base characteristic: ' + (action.isBase ? 'true' : 'false')
 				+ '\npossible values: \n---\n\n'
@@ -11528,6 +14686,53 @@ class OofClassesPlugin extends Plugin {
 		frontmatter.tags = existing.concat([bare]);
 	}
 
+	/*
+	 * `tags` to the top of the frontmatter, which is where every note of his that
+	 * has one carries it — a class note opens with `tags:\n  - class`.
+	 *
+	 * `processFrontMatter` appends a key it has never seen, so without this a tag
+	 * arriving on an existing characteristic note would land under `possible
+	 * values`, while a note created by the same Update leads with it. Two spellings
+	 * of one thing, decided by which came first.
+	 *
+	 * The other keys keep the order they were in: they are his, and the canonical
+	 * order the rest of the plugin imposes is about *characteristics on a note*,
+	 * which is not what a characteristic note's own frontmatter is.
+	 */
+	tagsFirst(frontmatter) {
+		if (!frontmatter || !('tags' in frontmatter)) return;
+
+		const snapshot = {};
+		for (const key of Object.keys(frontmatter)) snapshot[key] = frontmatter[key];
+		for (const key of Object.keys(frontmatter)) delete frontmatter[key];
+
+		frontmatter.tags = snapshot.tags;
+		for (const key of Object.keys(snapshot)) {
+			if (key !== 'tags') frontmatter[key] = snapshot[key];
+		}
+	}
+
+	/*
+	 * One tag off `tags`, leaving every other tag exactly as it was — his own are
+	 * on these notes too, and only the one named here is ours to take.
+	 *
+	 * It can only reach frontmatter. A tag written `#characteristic` in the body
+	 * is in his prose, and this plugin does not edit bodies except in the three
+	 * places that say so.
+	 */
+	removeTag(frontmatter, tag) {
+		if (!tag || !frontmatter) return;
+
+		const bare = String(tag).replace(/^#/, '');
+		const existing = toArray(frontmatter.tags)
+			.filter((entry) => typeof entry === 'string');
+		const kept = existing.filter((entry) => entry.replace(/^#/, '') !== bare);
+		if (kept.length === existing.length) return;
+
+		/* An emptied list is written as nothing, not as `tags: []`. */
+		frontmatter.tags = kept.length > 0 ? kept : null;
+	}
+
 	applyOrder(frontmatter, action) {
 		if (!action.order) return;
 		this.reorderFrontMatter(frontmatter, action.order, new Set(action.managed || action.order));
@@ -11748,6 +14953,15 @@ class OofClassesPlugin extends Plugin {
 			}
 
 			/*
+			 * Applying a class writes `is a`, and nothing is `is a` a component —
+			 * so the refusal belongs here as well as on the button, for every way
+			 * in that is not the button.
+			 */
+			if (this.isComponent(className)) {
+				return { reason: this.componentRefusal([className]) };
+			}
+
+			/*
 			 * A class note is not an instance of another class by `is a` — that is
 			 * what `type of` is for, and writing `is a` between two classes is the
 			 * mistake the whole two-relations design exists to prevent.
@@ -11785,13 +14999,15 @@ class OofClassesPlugin extends Plugin {
 		 * The union of what all of them declare, in the order the classes were
 		 * given, each class's own order within that. A characteristic two of them
 		 * share is one key, not two.
+		 *
+		 * Through `carriedKeys`, which is the one answer to *what keys does a note
+		 * carry* - so the classes' **component fields** arrive as well, and where this
+		 * note has already filled one, whatever that class brings. Applying `Goal` to
+		 * a note used to leave out `goal type` and `goal subject` entirely, and the
+		 * next Update would add them; two paths answering one question differently is
+		 * how the answer drifts.
 		 */
-		const expected = [];
-		for (const className of names) {
-			for (const key of this.effectiveCharacteristics(className, objects, drafts)) {
-				if (expected.indexOf(key) === -1) expected.push(key);
-			}
-		}
+		const expected = this.carriedKeys(names, frontmatter, objects, drafts).keys;
 		const add = expected.filter((key) => !(key in frontmatter));
 
 		/*
@@ -11849,6 +15065,17 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	async createInstance(objectName, noteName, folder) {
+		/*
+		 * A component has no template, so this would fail anyway — but it would
+		 * fail saying "press Update first", which is advice that can never work.
+		 * The panel's button is already refused; this is the same refusal for
+		 * every other way in.
+		 */
+		if (this.isComponent(objectName)) {
+			new Notice('OOF Class Manager: ' + this.componentRefusal([objectName]), 6000);
+			return null;
+		}
+
 		const templatePath = this.templatePathFor(objectName);
 		const template = this.app.vault.getFileByPath(templatePath);
 		if (!(template instanceof TFile)) {
@@ -11891,19 +15118,32 @@ class OofClassesPlugin extends Plugin {
 	 * that was created a moment ago by us, so there is nothing of his to lose.
 	 */
 	async createInstanceOfMany(names, noteName, folder) {
+		/*
+		 * Every one of them, not only the first: the new note's `is a` names them
+		 * all, so one component anywhere in the list is one note that is a
+		 * component.
+		 */
+		const refusal = this.componentRefusal(names);
+		if (refusal) {
+			new Notice('OOF Class Manager: ' + refusal, 6000);
+			return null;
+		}
+
 		const file = await this.createInstance(names[0], noteName, folder);
 		if (!(file instanceof TFile) || names.length < 2) return file;
 
 		const objects = this.scanClasses();
 		const drafts = this.allDrafts(objects);
 
-		/* The union, in the order the classes were selected. */
-		const expected = [];
-		for (const name of names) {
-			for (const key of this.effectiveCharacteristics(name, objects, drafts)) {
-				if (expected.indexOf(key) === -1) expected.push(key);
-			}
-		}
+		/*
+		 * The union, in the order the classes were selected - through `carriedKeys`
+		 * for the same reason as everywhere else, so the later classes' component
+		 * fields arrive empty rather than being left for the next Update to notice.
+		 * The frontmatter is read too: the first class's template has already run, and
+		 * may have filled a component field in.
+		 */
+		const expected = this.carriedKeys(
+			names, this.frontmatterOf(file), objects, drafts).keys;
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			fm[this.settings.isAProperty] = names.map(asLink);
@@ -12182,8 +15422,618 @@ class OofClassesPlugin extends Plugin {
 	}
 
 	refreshViews() {
-		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
-			if (leaf.view && typeof leaf.view.render === 'function') leaf.view.render();
+		/*
+		 * Both tabs, since 2.98.0. A setting that changes what the panel says
+		 * changes what the diagram draws — they read one picture — and leaving the
+		 * diagram out would have made it the one place a settings change did not
+		 * reach.
+		 */
+		for (const type of [VIEW_TYPE, UML_VIEW_TYPE]) {
+			for (const leaf of this.app.workspace.getLeavesOfType(type)) {
+				if (leaf.view && typeof leaf.view.render === 'function') leaf.view.render();
+			}
+		}
+	}
+}
+
+/* --------------------------------------------------- the class diagram tab */
+
+/*
+ * The UML view. It draws `umlDiagram()` and decides nothing about it — every
+ * question of what a box says or where it goes is answered before this class is
+ * reached, which is the same division the panel keeps with `picture()`.
+ *
+ * SVG built through `createElementNS` rather than Obsidian's `createSvg`, for
+ * one reason: this is the only file in the plugin that draws vector graphics,
+ * and the namespace call is the part that has to be right whichever helper wraps
+ * it.
+ */
+class UmlView extends ItemView {
+	constructor(leaf, plugin) {
+		super(leaf);
+		this.plugin = plugin;
+		/*
+		 * Search and focus are where you are in a piece of work rather than
+		 * preferences, so neither is persisted — the same reading the panel's
+		 * selection gets. The four toggles *are* preferences and live in settings.
+		 */
+		this.query = '';
+		this.focus = '';
+		this.viewBox = null;
+	}
+
+	getViewType() { return UML_VIEW_TYPE; }
+	getDisplayText() { return 'Class diagram'; }
+	getIcon() { return 'workflow'; }
+
+	async onOpen() {
+		this.registerEvent(this.app.metadataCache.on('changed', (file) => {
+			if (this.plugin.inPictureFolders(file)) this.queueRender();
+		}));
+		this.registerEvent(this.app.vault.on('delete', () => this.queueRender()));
+		this.registerEvent(this.app.vault.on('rename', () => this.queueRender()));
+		/* Only when following: otherwise a diagram you arranged is left alone. */
+		this.registerEvent(this.app.workspace.on('file-open', () => {
+			if (this.following) this.render();
+		}));
+		this.render();
+	}
+
+	/*
+	 * The panel's own coalescing, for the same reason it has it: typing in a note
+	 * inside the notes folder fires `changed` on every keystroke, and a redraw
+	 * here is a whole layout rather than a list.
+	 */
+	queueRender() {
+		if (this.renderQueued) return;
+		this.renderQueued = true;
+		window.setTimeout(() => {
+			this.renderQueued = false;
+			this.render();
+		}, 400);
+	}
+
+	settings() { return this.plugin.settings; }
+
+	async setToggle(key, value) {
+		this.plugin.settings[key] = value;
+		await this.plugin.persist();
+		this.render();
+	}
+
+	/* --------------------------------------------------------------- drawing */
+
+	render() {
+		const container = this.containerEl.children[1];
+		container.empty();
+		container.addClass('oof-uml');
+
+		const settings = this.settings();
+
+		/*
+		 * Following the active note is a *focus*, worked out at draw time rather
+		 * than stored: what the note is about can change without the diagram being
+		 * touched, and a stored answer would go stale exactly the way the panel's
+		 * old `getActiveFile()` fallback did.
+		 */
+		this.following = !!settings.umlFollowActiveNote;
+		if (this.following) {
+			const active = this.app.workspace.getActiveFile();
+			const objects = this.plugin.scanClasses();
+			const about = this.plugin.activeClassesFor(active, objects,
+				this.plugin.allDrafts(objects));
+			this.focus = (about.names && about.names[0]) || '';
+		}
+
+		const diagram = this.plugin.umlDiagram({
+			inherited: settings.umlShowInherited,
+			components: settings.umlShowComponents,
+			instances: settings.umlShowCounts,
+			root: settings.umlShowRoot,
+			focus: this.focus,
+		});
+		const layout = this.plugin.umlLayout(diagram);
+
+		this.drawToolbar(container, diagram);
+
+		const stage = container.createDiv({ cls: 'oof-uml-stage' });
+		if (diagram.nodes.length === 0) {
+			stage.createDiv({ cls: 'oof-uml-empty',
+				text: this.focus
+					? 'Nothing to draw for ' + this.focus + '.'
+					: 'No classes yet. A note becomes one by carrying the class tag, '
+						+ 'declaring characteristics, or naming a parent.' });
+			return;
+		}
+
+		this.drawDiagram(stage, diagram, layout);
+		this.applyQuery();
+	}
+
+	drawToolbar(container, diagram) {
+		const settings = this.settings();
+		const bar = container.createDiv({ cls: 'oof-uml-bar' });
+
+		const count = bar.createDiv({ cls: 'oof-uml-count' });
+		count.createSpan({ cls: 'oof-uml-count-number', text: String(diagram.nodes.length) });
+		count.createSpan({ text: diagram.nodes.length === 1 ? ' class' : ' classes' });
+
+		if (this.focus) {
+			const chip = bar.createDiv({ cls: 'oof-uml-chip' });
+			chip.createSpan({ text: this.focus });
+			const clear = chip.createSpan({ cls: 'oof-uml-chip-clear', text: '×' });
+			clear.setAttribute('aria-label', 'Show every class again');
+			clear.onclick = () => {
+				this.focus = '';
+				/* Clearing by hand also stops the following that put it there. */
+				if (this.following) {
+					this.setToggle('umlFollowActiveNote', false);
+					return;
+				}
+				this.viewBox = null;
+				this.render();
+			};
+		}
+
+		const search = bar.createEl('input', { cls: 'oof-uml-search',
+			attr: { type: 'text', placeholder: 'Find a class…', value: this.query } });
+		search.oninput = () => {
+			this.query = search.value;
+			/*
+			 * Dimming rather than redrawing. A search that relaid the diagram would
+			 * move every box on every keystroke, and the thing you were looking for
+			 * would never be where you last saw it.
+			 */
+			this.applyQuery();
+		};
+
+		const toggles = bar.createDiv({ cls: 'oof-uml-toggles' });
+		const toggle = (key, label, tooltip) => {
+			const button = toggles.createEl('button',
+				{ cls: 'oof-uml-toggle' + (settings[key] ? ' is-on' : ''), text: label });
+			button.setAttribute('aria-label', tooltip);
+			button.onclick = () => this.setToggle(key, !settings[key]);
+		};
+		toggle('umlShowInherited', 'inherited',
+			'The greyed compartment: what an ancestor declared');
+		toggle('umlShowComponents', 'components',
+			'Composition edges, from a component field’s possible values');
+		toggle('umlShowCounts', 'counts', 'Instances and subtypes, under each box');
+		toggle('umlShowRoot', 'root',
+			'The implicit edge every class has to ' + (settings.rootClass || 'the root class'));
+		toggle('umlFollowActiveNote', 'follow',
+			'Draw only what the note you are reading is about');
+
+		const zoom = bar.createDiv({ cls: 'oof-uml-zoom' });
+		const step = (factor) => {
+			if (!this.viewBox) return;
+			const box = this.viewBox;
+			const width = box.w * factor;
+			const height = box.h * factor;
+			this.setViewBox({ x: box.x + (box.w - width) / 2, y: box.y + (box.h - height) / 2,
+				w: width, h: height });
+		};
+		const zoomButton = (label, tooltip, run) => {
+			const button = zoom.createEl('button', { cls: 'oof-uml-zoom-button', text: label });
+			button.setAttribute('aria-label', tooltip);
+			button.onclick = run;
+		};
+		zoomButton('−', 'Zoom out', () => step(1.25));
+		zoomButton('+', 'Zoom in', () => step(0.8));
+		zoomButton('fit', 'Fit the whole diagram', () => {
+			this.viewBox = null;
+			this.render();
+		});
+	}
+
+	/*
+	 * A Lucide symbol, drawn as an icon.
+	 *
+	 * `setIcon` builds a real `<svg viewBox="0 0 24 24">` in the SVG namespace, so
+	 * it nests inside this diagram and takes `x`/`y`/`width`/`height` like any
+	 * other child — checked in the running app before this was written, because a
+	 * foreign element that silently measures 0×0 is exactly the failure this
+	 * whole feature is a fix for.
+	 *
+	 * Its own class is **added to**, never replaced: `svg-icon` is what carries
+	 * Obsidian's stroke width and `currentColor`, so overwriting the attribute
+	 * would draw a correctly placed invisible icon.
+	 */
+	drawIcon(group, name, x, y, size) {
+		if (typeof setIcon !== 'function') return null;
+		const holder = document.createElement('div');
+		setIcon(holder, name);
+		const icon = holder.firstElementChild;
+		if (!icon) return null;
+
+		icon.setAttribute('x', String(x));
+		icon.setAttribute('y', String(y));
+		icon.setAttribute('width', String(size));
+		icon.setAttribute('height', String(size));
+		icon.classList.add('oof-uml-icon');
+		group.appendChild(icon);
+		return icon;
+	}
+
+	svg(tag, attrs, parent) {
+		const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+		for (const key of Object.keys(attrs || {})) {
+			if (attrs[key] === null || attrs[key] === undefined) continue;
+			el.setAttribute(key, String(attrs[key]));
+		}
+		if (parent) parent.appendChild(el);
+		return el;
+	}
+
+	drawDiagram(stage, diagram, layout) {
+		const svg = this.svg('svg', {
+			class: 'oof-uml-svg',
+			preserveAspectRatio: 'xMidYMid meet',
+		}, stage);
+		this.svgEl = svg;
+
+		if (!this.viewBox || this.lastSize !== layout.width + 'x' + layout.height) {
+			this.viewBox = { x: 0, y: 0, w: layout.width, h: layout.height };
+		}
+		this.lastSize = layout.width + 'x' + layout.height;
+		this.setViewBox(this.viewBox);
+
+		this.drawMarkers(svg);
+
+		const byName = new Map(diagram.nodes.map((node) => [node.name, node]));
+		const edgeLayer = this.svg('g', { class: 'oof-uml-edges' }, svg);
+		const nodeLayer = this.svg('g', { class: 'oof-uml-nodes' }, svg);
+
+		this.drawGeneralizations(edgeLayer, diagram, byName);
+		this.drawCompositions(edgeLayer, diagram, byName);
+		for (const node of diagram.nodes) this.drawNode(nodeLayer, node);
+
+		this.wirePointer(svg);
+	}
+
+	/*
+	 * The two arrowheads UML is read by. Both are `userSpaceOnUse` in effect —
+	 * `markerUnits: userSpaceOnUse` — so they keep one size whatever the line
+	 * weight, and the hollow triangle is filled with the pane's own background
+	 * rather than left open, or the edge shows through it.
+	 */
+	drawMarkers(svg) {
+		const defs = this.svg('defs', {}, svg);
+
+		const triangle = this.svg('marker', {
+			id: 'oof-uml-generalization', viewBox: '0 0 12 12',
+			refX: 11, refY: 6, markerWidth: 12, markerHeight: 12,
+			markerUnits: 'userSpaceOnUse', orient: 'auto',
+		}, defs);
+		this.svg('path', { d: 'M0,0 L12,6 L0,12 z', class: 'oof-uml-arrow-hollow' }, triangle);
+
+		const diamond = this.svg('marker', {
+			id: 'oof-uml-composition', viewBox: '0 0 14 10',
+			refX: 1, refY: 5, markerWidth: 14, markerHeight: 10,
+			markerUnits: 'userSpaceOnUse', orient: 'auto',
+		}, defs);
+		this.svg('path', { d: 'M0,5 L7,0 L14,5 L7,10 z', class: 'oof-uml-arrow-solid' }, diamond);
+	}
+
+	/*
+	 * Generalization, drawn the way UML draws it: straight up out of the child,
+	 * across, and into the parent's underside behind one hollow triangle.
+	 *
+	 * The children of one parent are **fanned across its lower edge** rather than
+	 * all meeting at its centre. Two reasons, and the second is the one that
+	 * matters: a shared point makes six edges into one thick stem you cannot
+	 * follow, and it puts six arrowheads on top of each other, so the triangle —
+	 * the mark that says which relation this is — stops being legible at exactly
+	 * the class that has the most of them.
+	 */
+	drawGeneralizations(layer, diagram, byName) {
+		const groups = new Map();
+		for (const edge of diagram.edges) {
+			if (edge.kind !== 'generalization') continue;
+			if (!groups.has(edge.to)) groups.set(edge.to, []);
+			groups.get(edge.to).push(edge);
+		}
+
+		for (const [parentName, edges] of groups) {
+			const parent = byName.get(parentName);
+			edges.sort((a, b) => byName.get(a.from).x - byName.get(b.from).x);
+
+			edges.forEach((edge, index) => {
+				const child = byName.get(edge.from);
+				const at = parent.x + parent.width * (index + 1) / (edges.length + 1);
+				const from = { x: child.x + child.width / 2, y: child.y };
+				const to = { x: at, y: parent.y + parent.height };
+
+				/*
+				 * The elbow only works while the child sits below the parent, which
+				 * depth guarantees — except around a `type of` cycle, where depth
+				 * refuses to decide. A straight line there rather than a path that
+				 * doubles back through both boxes.
+				 */
+				const path = from.y > to.y
+					? 'M' + from.x + ',' + from.y + ' V' + ((from.y + to.y) / 2)
+						+ ' H' + to.x + ' V' + to.y
+					: 'M' + from.x + ',' + from.y + ' L' + to.x + ',' + to.y;
+
+				const line = this.svg('path', {
+					d: path,
+					class: 'oof-uml-edge oof-uml-generalization'
+						+ (edge.implicit ? ' is-implicit' : ''),
+					'marker-end': 'url(#oof-uml-generalization)',
+				}, layer);
+				line.setAttribute('data-from', edge.from);
+				line.setAttribute('data-to', edge.to);
+			});
+		}
+	}
+
+	/*
+	 * Composition, which does not respect the layers: a component field may point
+	 * anywhere, so these are curves between the nearest sides rather than elbows,
+	 * and they carry the field's name because *which* field it is is the whole
+	 * content of the edge.
+	 */
+	drawCompositions(layer, diagram, byName) {
+		for (const edge of diagram.edges) {
+			if (edge.kind !== 'composition') continue;
+			const from = byName.get(edge.from);
+			const to = byName.get(edge.to);
+
+			const rightwards = to.x + to.width / 2 >= from.x + from.width / 2;
+			const start = { x: rightwards ? from.x + from.width : from.x,
+				y: from.y + from.height / 2 };
+			const end = { x: rightwards ? to.x : to.x + to.width, y: to.y + to.height / 2 };
+			const reach = Math.max(40, Math.abs(end.x - start.x) / 2);
+			const bend = rightwards ? reach : -reach;
+
+			const line = this.svg('path', {
+				d: 'M' + start.x + ',' + start.y
+					+ ' C' + (start.x + bend) + ',' + start.y
+					+ ' ' + (end.x - bend) + ',' + end.y
+					+ ' ' + end.x + ',' + end.y,
+				class: 'oof-uml-edge oof-uml-composition',
+				/*
+				 * The diamond and nothing else. UML draws composition as a plain line
+				 * with the filled diamond at the **whole** — the class holding the
+				 * field — and an arrowhead at the far end is a separate claim
+				 * (navigability) that this diagram is not making. His correction,
+				 * 2026-09-05, and the right one: the line already reads left to right
+				 * from the diamond, so the arrow was saying a second time what the
+				 * diamond had said, in a notation that means something else.
+				 */
+				'marker-start': 'url(#oof-uml-composition)',
+			}, layer);
+			line.setAttribute('data-from', edge.from);
+			line.setAttribute('data-to', edge.to);
+
+			if (!edge.label) continue;
+			const label = this.svg('text', {
+				x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 4,
+				class: 'oof-uml-edge-label', 'text-anchor': 'middle',
+			}, layer);
+			label.textContent = edge.label;
+		}
+	}
+
+	drawNode(layer, node) {
+		const group = this.svg('g', {
+			class: 'oof-uml-node' + (node.isDraft ? ' is-draft' : '')
+				+ (node.isMissing ? ' is-missing' : '')
+				+ (node.dangling.length > 0 ? ' is-faulty' : ''),
+			transform: 'translate(' + node.x + ',' + node.y + ')',
+		}, layer);
+		group.setAttribute('data-name', node.name);
+		/*
+		 * What the search reads, written down here rather than scraped off the
+		 * drawing afterwards.
+		 *
+		 * `textContent` looked like the free version of this and is not: an SVG
+		 * `<title>` is a child element, so every tooltip is part of it, and a box
+		 * whose inherited row says *from Sculpture* answered to "sculpture". The
+		 * string is built from the model instead, so what a search matches is what
+		 * the class actually carries.
+		 *
+		 * **What it declares, not what it carries.** Searching `location` lights
+		 * the classes that introduce it, not the nineteen that inherit it — which
+		 * is the panel's own rule for a characteristic note, and the readable
+		 * answer for the same reason: the inherited half is a consequence, and a
+		 * search that returned every consequence would return most of the vault.
+		 */
+		group.setAttribute('data-search', [node.name]
+			.concat(node.own.concat(node.ownFields).map((row) => row.name))
+			.join(' ').toLowerCase());
+		group.onmouseenter = () => this.light(node.name);
+		group.onmouseleave = () => this.light('');
+
+		/*
+		 * The tooltip belongs to the whole group, not to the name: a `<title>` as
+		 * a child of the `<g>` is what SVG reads for the box, and hovering anywhere
+		 * on a class is when you want to be told what state it is in.
+		 */
+		let says = 'Open ' + node.name;
+		if (node.isDraft) says = node.name + ' — drafted in the panel, not written yet';
+		else if (node.isMissing) says = node.name + ' — named by a `type of`, with no note';
+		this.svg('title', {}, group).textContent = says;
+
+		this.svg('rect', { x: 0, y: 0, width: node.width, height: node.height,
+			rx: 4, class: 'oof-uml-box' }, group);
+
+		/*
+		 * The icon and the name are centred **as a pair**, not the name alone with
+		 * the icon hung off it — otherwise a class with an icon reads as a name
+		 * pushed to the right of its box.
+		 *
+		 * The text width is the same estimate the layout sized the box with, so the
+		 * two cannot disagree: whatever the estimate is wrong by, it is wrong by
+		 * equally in both places.
+		 */
+		const textWidth = node.title.length * UML.charWidth;
+		const pairWidth = textWidth + (node.icon ? UML.iconSize + UML.iconGap : 0);
+		const left = (node.width - pairWidth) / 2;
+
+		if (node.icon) {
+			this.drawIcon(group, node.icon, left,
+				(UML.headerHeight - UML.iconSize) / 2, UML.iconSize);
+		}
+
+		const title = this.svg('text', {
+			x: left + pairWidth - textWidth / 2, y: UML.headerHeight / 2 + 4,
+			class: 'oof-uml-name', 'text-anchor': 'middle',
+		}, group);
+		title.textContent = node.title;
+
+		/*
+		 * The name opens the note; the box does not. A box is most of the target
+		 * and you land on one every time you finish a drag, so opening from it
+		 * would make panning a way to lose your place.
+		 */
+		title.onclick = (event) => {
+			if (!node.file) return;
+			event.stopPropagation();
+			this.app.workspace.getLeaf(event.ctrlKey || event.metaKey).openFile(node.file);
+		};
+
+		let y = UML.headerHeight;
+		this.svg('line', { x1: 0, y1: y, x2: node.width, y2: y, class: 'oof-uml-rule' }, group);
+
+		for (const compartment of node.compartments) {
+			y += UML.compartmentPad;
+			for (const row of compartment.rows) {
+				const text = this.svg('text', {
+					x: UML.padX, y: y + UML.rowHeight - 5,
+					class: 'oof-uml-row is-' + compartment.kind + ' is-' + row.kind,
+				}, group);
+				text.textContent = umlRowText(row);
+				if (row.from) {
+					this.svg('title', {}, text).textContent = 'from ' + row.from;
+				}
+				y += UML.rowHeight;
+			}
+			y += UML.compartmentPad;
+			if (compartment !== node.compartments[node.compartments.length - 1]) {
+				this.svg('line', { x1: 0, y1: y, x2: node.width, y2: y,
+					class: 'oof-uml-rule is-soft' }, group);
+			}
+		}
+
+		if (!node.footer) return;
+		this.svg('line', { x1: 0, y1: y, x2: node.width, y2: y,
+			class: 'oof-uml-rule is-soft' }, group);
+		const footer = this.svg('text', {
+			x: node.width / 2, y: y + UML.footerHeight - 4,
+			class: 'oof-uml-footer', 'text-anchor': 'middle',
+		}, group);
+		footer.textContent = node.footer;
+	}
+
+
+	/*
+	 * Hovering a class lights what it is joined to and dims the rest.
+	 *
+	 * Done by class on elements already drawn, not by redrawing: a diagram that
+	 * rebuilt itself under the pointer would flicker on every crossing, and the
+	 * edge you were following would be a different element by the time you got to
+	 * the end of it. The lit set is grown from the *edges* rather than recomputed
+	 * from the model, so what lights up is exactly what is drawn — a composition
+	 * edge hidden by its toggle cannot light a class that is not there.
+	 */
+	light(name) {
+		const svg = this.svgEl;
+		if (!svg) return;
+		svg.classList.toggle('is-lighting', !!name);
+
+		const related = new Set(name ? [name] : []);
+		for (const edge of Array.from(svg.querySelectorAll('.oof-uml-edge'))) {
+			const on = !!name && (edge.getAttribute('data-from') === name
+				|| edge.getAttribute('data-to') === name);
+			edge.classList.toggle('is-lit', on);
+			if (!on) continue;
+			related.add(edge.getAttribute('data-from'));
+			related.add(edge.getAttribute('data-to'));
+		}
+		for (const group of Array.from(svg.querySelectorAll('.oof-uml-node'))) {
+			group.classList.toggle('is-lit', related.has(group.getAttribute('data-name')));
+		}
+	}
+
+	/* ------------------------------------------------------ pan, zoom, search */
+
+	setViewBox(box) {
+		this.viewBox = box;
+		if (!this.svgEl) return;
+		this.svgEl.setAttribute('viewBox',
+			box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h);
+	}
+
+	wirePointer(svg) {
+		let dragging = null;
+
+		svg.onmousedown = (event) => {
+			if (event.button !== 0) return;
+			dragging = { x: event.clientX, y: event.clientY,
+				box: Object.assign({}, this.viewBox) };
+			svg.classList.add('is-dragging');
+		};
+		const stop = () => {
+			dragging = null;
+			svg.classList.remove('is-dragging');
+		};
+		svg.onmouseup = stop;
+		svg.onmouseleave = stop;
+
+		svg.onmousemove = (event) => {
+			if (!dragging) return;
+			const scale = this.viewBox.w / Math.max(svg.clientWidth || 1, 1);
+			this.setViewBox({
+				x: dragging.box.x - (event.clientX - dragging.x) * scale,
+				y: dragging.box.y - (event.clientY - dragging.y) * scale,
+				w: dragging.box.w, h: dragging.box.h,
+			});
+		};
+
+		/*
+		 * Zoom towards the pointer, so the thing under the cursor stays under it.
+		 * `passive: false` because the default would scroll the pane behind.
+		 */
+		svg.addEventListener('wheel', (event) => {
+			event.preventDefault();
+			const box = this.viewBox;
+			const rect = svg.getBoundingClientRect();
+			const atX = box.x + ((event.clientX - rect.left) / Math.max(rect.width, 1)) * box.w;
+			const atY = box.y + ((event.clientY - rect.top) / Math.max(rect.height, 1)) * box.h;
+			const factor = event.deltaY > 0 ? 1.12 : 1 / 1.12;
+			const width = box.w * factor;
+			const height = box.h * factor;
+			this.setViewBox({
+				x: atX - (atX - box.x) * factor,
+				y: atY - (atY - box.y) * factor,
+				w: width, h: height,
+			});
+		}, { passive: false });
+	}
+
+	/*
+	 * The search, applied to what is already drawn. A class matches on its own
+	 * name or on any row it carries — looking for `location` should find the
+	 * classes that declare it, which is the question a diagram is being asked
+	 * when you type a characteristic into it.
+	 *
+	 * It reads `data-search`, written when the box was drawn. See `drawNode`:
+	 * reading the drawing's own text instead matched every tooltip on it.
+	 */
+	applyQuery() {
+		if (!this.svgEl) return;
+		const query = this.query.trim().toLowerCase();
+		this.svgEl.classList.toggle('is-searching', query.length > 0);
+		if (!query) {
+			for (const group of Array.from(this.svgEl.querySelectorAll('.oof-uml-node'))) {
+				group.classList.remove('is-miss');
+			}
+			return;
+		}
+		for (const group of Array.from(this.svgEl.querySelectorAll('.oof-uml-node'))) {
+			const text = group.getAttribute('data-search') || '';
+			group.classList.toggle('is-miss', text.indexOf(query) === -1);
 		}
 	}
 }
@@ -13558,7 +17408,8 @@ class ClassesView extends ItemView {
 			|| name === settings.inheritsProperty) {
 			return 'used by the engine';
 		}
-		if (name === settings.viewsProperty) return 'read by file.views()';
+		if (name === settings.viewsProperty) return 'file.views(), to instances';
+		if (name === settings.classViewsProperty) return 'file.views(), to subtypes';
 		if (name === settings.componentsProperty) return 'read by file.hasA()';
 		return 'stored and editable, no inheritance';
 	}
@@ -14287,7 +18138,16 @@ class ClassesView extends ItemView {
 			return false;
 		}
 
-		const values = plugin.emptyLogicValues();
+		/*
+		 * Only the row that says anything — `type of` when this is a subclass, and
+		 * nothing at all otherwise. It used to be `emptyLogicValues()`, which
+		 * spells out all five rows as `[]`, and `[]` is how the panel says *he
+		 * cleared this row*. Harmless while the class has no note, since there is
+		 * nothing to disagree with; a trap the moment one appears by any route
+		 * other than Update, because the placeholder then reads as five deliberate
+		 * clearings and the next Update empties the note. See `setDraftValue`.
+		 */
+		const values = {};
 		if (parent) values[plugin.settings.inheritsProperty] = [parent];
 		plugin.drafts.set(clean, { values: values });
 
@@ -14316,6 +18176,37 @@ class ClassesView extends ItemView {
 		const templateFile = this.app.vault.getFileByPath(plugin.templatePathFor(primary));
 		const baseFile = this.app.vault.getFileByPath(plugin.basePathFor(primary));
 
+		/*
+		 * A component is never instantiated, so the two things that would make an
+		 * instance of one are refused rather than pending: *New X*, and *Apply to
+		 * the open note*, which is the same act written into a note that already
+		 * exists.
+		 *
+		 * Refused with the reason in words, not hidden. A button that disappears
+		 * for some classes teaches nothing; one that says *New Project — Project is
+		 * a component* teaches the distinction his note is asking to make explicit,
+		 * in the place where the mistake would have been made.
+		 *
+		 * **A class whose kind is in dispute refuses for its own reason.** The plan
+		 * stands aside for one of those — its tag is untouched and its template is
+		 * still on disk — so saying "a component" here would be the panel deciding
+		 * what the plan declined to decide. Making an instance is still refused,
+		 * because a note whose class may be a component is a discrepancy waiting to
+		 * be reported; *Open template* is not, because the file is there and the
+		 * plugin kept it on purpose.
+		 */
+		const componentsIn = list.filter((name) => plugin.isComponent(name));
+		const disputedIn = list.filter((name) => plugin.isDisputedComponent(name));
+		const isComponent = componentsIn.indexOf(primary) !== -1;
+		const isDisputed = disputedIn.indexOf(primary) !== -1;
+		const componentSaid = disputedIn.length > 0
+			? andList(disputedIn) + ' is a component by one parent and a class by another, '
+				+ 'so its kind is unsettled — the discrepancy list says which parents'
+			: (componentsIn.length === 1
+				? andList(componentsIn) + ' is a component'
+				: andList(componentsIn) + ' are components');
+		const componentShort = disputedIn.length > 0 ? 'kind in dispute' : 'a component';
+
 		const specs = [];
 		/*
 		 * A file that does not exist yet is *pending*; an action that cannot apply
@@ -14337,7 +18228,16 @@ class ClassesView extends ItemView {
 				'No note for "' + primary + '" yet — Update creates it.', 'no note yet')));
 		}
 
-		if (many) {
+		if (isComponent && !isDisputed) {
+			specs.push(Object.assign({
+				icon: 'layout-template',
+				group: 'open',
+				label: 'Open template',
+			}, blocked(
+				primary + ' is a component, so it has no template — a component is '
+					+ 'filled into a field rather than instantiated.',
+				'a component')));
+		} else if (many) {
 			specs.push(Object.assign({
 				icon: 'layout-template',
 				group: 'open',
@@ -14403,24 +18303,37 @@ class ClassesView extends ItemView {
 		 * With several selected the note becomes all of them at once — his note:
 		 * *"will give that note all of the selected classes"*.
 		 */
-		specs.push({
-			icon: 'file-check',
-			group: 'make',
-			cls: 'oof-apply-class',
-			label: many ? 'Apply these classes to the open note' : 'Apply to the open note',
-			tooltip: 'Make the open note '
-				+ andList(list.map((name) => article(name) + ' ' + name)),
-			run: () => {
-				const file = this.app.workspace.getActiveFile();
-				const situation = plugin.applyClassAction(list, file);
-				if (situation.reason) {
-					new Notice('OOF Class Manager: ' + situation.reason, 5000);
-					return;
-				}
-				new ApplyClassModal(this.app, plugin, list, file, situation,
-					() => this.render()).open();
-			},
-		});
+		if (componentsIn.length > 0) {
+			specs.push(Object.assign({
+				icon: 'file-check',
+				group: 'make',
+				cls: 'oof-apply-class',
+				label: many ? 'Apply these classes to the open note' : 'Apply to the open note',
+			}, blocked(
+				componentSaid + ', and applying a class writes `'
+					+ plugin.settings.isAProperty + '` — which no note should name a '
+					+ 'component under.',
+				componentShort)));
+		} else {
+			specs.push({
+				icon: 'file-check',
+				group: 'make',
+				cls: 'oof-apply-class',
+				label: many ? 'Apply these classes to the open note' : 'Apply to the open note',
+				tooltip: 'Make the open note '
+					+ andList(list.map((name) => article(name) + ' ' + name)),
+				run: () => {
+					const file = this.app.workspace.getActiveFile();
+					const situation = plugin.applyClassAction(list, file);
+					if (situation.reason) {
+						new Notice('OOF Class Manager: ' + situation.reason, 5000);
+						return;
+					}
+					new ApplyClassModal(this.app, plugin, list, file, situation,
+						() => this.render()).open();
+				},
+			});
+		}
 
 		/*
 		 * Making an instance is what a class is *for*, so it ends the row and gets
@@ -14431,7 +18344,17 @@ class ClassesView extends ItemView {
 		 * from the **first** one's template — a note comes from one file, and that
 		 * is the only place the body can come from.
 		 */
-		if (templateFile instanceof TFile) {
+		if (componentsIn.length > 0) {
+			specs.push(Object.assign({
+				icon: 'file-plus',
+				group: 'make',
+				label: many ? 'New note' : 'New ' + primary,
+			}, blocked(
+				componentSaid + ', so a note made from it would be an instance of a '
+					+ 'component. A component is written into a field on a note that is '
+					+ 'a class.',
+				componentShort), { cls: 'oof-icon-disabled oof-new-instance' }));
+		} else if (templateFile instanceof TFile) {
 			specs.push({
 				icon: 'file-plus',
 				group: 'make',
@@ -14860,9 +18783,103 @@ class ClassesView extends ItemView {
 			});
 		}
 
+		/*
+		 * How many notes it holds, beside how much it adds.
+		 *
+		 * The two numbers are the pair the card is for: `+3` is what this class
+		 * *says*, and the count beside it is who is *listening*. A class that adds
+		 * three characteristics to nothing at all is a different thing from one
+		 * that adds three to a hundred and fifty notes, and until now nothing on
+		 * the card said which — the diagram said it first, and this is that number
+		 * brought back to the panel he actually works in.
+		 *
+		 * **It is a button, and that is what decides which number it is.** The
+		 * diagram counts a class's *direct* instances, because the boxes below it
+		 * carry the rest and the tree can be read. Here there is nowhere for the
+		 * rest to be, and pressing it opens the base — so it counts what the base
+		 * holds, exclusions and exactness included. A badge that opened a view of
+		 * 151 notes while saying 3 would be a worse badge than none.
+		 */
+		const holds = plugin.classBaseHolds(draft.name);
+		const count = title.createEl('button', {
+			text: String(holds.count),
+			cls: 'oof-badge oof-badge-holds'
+				+ (holds.count === 0 ? ' is-nothing' : '')
+				+ (holds.file ? '' : ' is-pending')
+				+ (holds.readable || !holds.file ? '' : ' is-foreign'),
+			attr: { title: plugin.classBaseHoldsSaid(draft.name, holds) },
+		});
+		/*
+		 * A base that does not exist yet keeps its place, faint — the row's own
+		 * rule, and the number is still true whether or not there is a file to
+		 * show it in. `disabled` rather than a missing button, so the column of
+		 * numbers down the panel stays a column.
+		 */
+		if (!holds.file) count.disabled = true;
+		else {
+			count.onclick = (event) => {
+				event.stopPropagation();
+				this.app.workspace.getLeaf(event.ctrlKey || event.metaKey)
+					.openFile(holds.file);
+			};
+		}
+
+		/*
+		 * *"The difference between classes and components should be made
+		 * explicit."* This is where it is made explicit: the panel is where he
+		 * reads the classes, and the badge is the one place a component says so
+		 * before he goes looking for its template.
+		 *
+		 * A word rather than a colour, and the tooltip carries the derivation,
+		 * because a component is the only kind here the plugin decided on its own.
+		 */
+		if (plugin.isComponent(draft.name)) {
+			title.createSpan({
+				text: 'component',
+				cls: 'oof-badge oof-badge-component',
+				attr: {
+					title: plugin.componentReason(draft.name,
+						plugin.picture().componentClasses)
+						+ ' It has no template and is never instantiated.',
+				},
+			});
+		}
+
 		/* Said, not only coloured: nothing else in the panel explains the pinning. */
 		if (isRoot) title.createSpan({ text: 'root', cls: 'oof-badge oof-badge-root' });
 		if (draft.isNew) title.createSpan({ text: 'new', cls: 'oof-badge' });
+
+		/*
+		 * This class is carrying an edit the vault has not been told about — and
+		 * the tooltip says which rows, because that is the half that matters. An
+		 * emptied row looks exactly like a class that declares nothing, so without
+		 * this the panel shows a pending clearing and an honest empty class in the
+		 * same ink.
+		 *
+		 * The same word and the same chip as the header's, deliberately: *pending*
+		 * there means "work the vault has not been told about yet", which is what
+		 * it means here, one class at a time. A new class is skipped — its `new`
+		 * badge already says the note does not exist, and everything about it is
+		 * pending by definition.
+		 */
+		if (!draft.isNew && plugin.drafts.has(draft.name)) {
+			const stored = objects.get(draft.name);
+			const rows = plugin.pendingRows(draft, stored);
+			const symbolMoved = plugin.settings.symbolProperty
+				&& (draft.symbol || '') !== ((stored && stored.symbol) || '')
+				? plugin.settings.symbolProperty + ': '
+					+ (((stored && stored.symbol) || '') || 'empty') + '  →  '
+					+ ((draft.symbol || '') || 'empty')
+				: '';
+
+			if (rows.length > 0 || symbolMoved) {
+				title.createSpan({
+					text: 'pending',
+					cls: 'oof-badge oof-badge-dirty',
+					attr: { title: plugin.pendingTooltip(draft.name, rows, symbolMoved) },
+				});
+			}
+		}
 		if (isActive && this.selectionMode === 'custom') {
 			/*
 			 * A different word, because it is a different claim. `active` and `is a`
@@ -15209,15 +19226,22 @@ class ClassesView extends ItemView {
 	 * to add one; without it the row is read-only, which is what `inherited` is.
 	 */
 	/*
-	 * Like `setDraftValue`, for the one field on a class that is not a list. The
-	 * values have to be carried across: a draft holding only a symbol would read
-	 * as every base characteristic having been emptied.
+	 * Like `setDraftValue`, for the one field on a class that is not a list.
+	 *
+	 * It used to seed the base characteristics from `draft.values`, on the stated
+	 * grounds that *"a draft holding only a symbol would read as every base
+	 * characteristic having been emptied"*. That was never true of `draftOf`,
+	 * which falls through to the vault for any property a draft does not mention
+	 * — an absent row and an emptied one are different things there, and only an
+	 * explicit `[]` means emptied. The comment described the danger correctly and
+	 * named the wrong shape as the cure: carrying the rows across is what makes a
+	 * symbol change claim all five of them.
 	 */
 	setDraftSymbol(draft, symbol) {
 		const existing = this.plugin.drafts.get(draft.name);
 		const values = existing && existing.values
 			? Object.assign({}, existing.values)
-			: Object.assign({}, draft.values);
+			: {};
 
 		this.plugin.drafts.set(draft.name, {
 			values: values,
@@ -15507,15 +19531,27 @@ class ClassesView extends ItemView {
 	}
 
 	/*
-	 * Seed the draft from everything currently shown, then change the one
-	 * property being edited - so editing `is a` cannot silently drop an
-	 * unsaved edit to `characteristics`.
+	 * Carry across the rows already edited, then change the one being edited now
+	 * - so editing `is a` cannot silently drop an unsaved edit to
+	 * `characteristics`.
+	 *
+	 * **A draft holds only the rows he has actually touched** (2026-09-05). It
+	 * used to be seeded from `draft.values` — everything currently shown — which
+	 * turned a one-row edit into a snapshot of all five, frozen at the moment of
+	 * that edit. Nothing goes wrong while the note sits still; it goes wrong when
+	 * the note changes underneath, because the next Update writes all five rows
+	 * from the snapshot and silently reverts whatever moved. That is what emptied
+	 * `Sub Goal` — see `draftOf`.
+	 *
+	 * `draftOf` already reads a draft this way: a property the draft does not
+	 * mention falls through to the vault. So an untouched row is now genuinely
+	 * absent rather than claimed, and only the rows he edited can win.
 	 */
 	setDraftValue(draft, property, next) {
 		const existing = this.plugin.drafts.get(draft.name);
 		const values = existing && existing.values
 			? Object.assign({}, existing.values)
-			: Object.assign({}, draft.values);
+			: {};
 
 		values[property] = next;
 		this.plugin.drafts.set(draft.name, { values: values });
@@ -17084,9 +21120,10 @@ class OofClassesSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName('A "Class base" button on the base\'s toolbar')
 				.setDesc('Adds Class base beside Filter, Properties and Sort on a base this '
-					+ 'plugin generated. It says what a class base is, it holds the '
-					+ 'exact-matches-only switch, and it is where a base is reset from its '
-					+ 'class — the reset lives there rather than on the class card, so it '
+					+ 'plugin generated. It says what a class base is, it holds the two '
+					+ 'switches that decide which notes it holds — through component fields, '
+					+ 'and exact matches only — and it is where a base is reset from its '
+					+ 'class. The reset lives there rather than on the class card, so it '
 					+ 'is aimed at a file you are looking at. Nothing is written by showing '
 					+ 'it.')
 				.addToggle((toggle) => toggle
@@ -17117,12 +21154,22 @@ class OofClassesSettingTab extends PluginSettingTab {
 		containerEl.createEl('h4', { text: 'Base queries' });
 
 		containerEl.createEl('p', {
-			text: 'file.isA("Person"), file.inheritsFrom("Person"), file.ancestors(), '
-				+ 'file.isADistance("Person"), file.views() and file.classBase() are '
+			text: 'file.isA("Person"), file.hasA("Coding"), file.inheritsFrom("Person"), '
+				+ 'file.ancestors(), file.isADistance("Person"), file.hasADistance("Coding"), '
+				+ 'file.inheritsFromDistance("Person"), file.views() and file.classBase() are '
 				+ 'available in any base formula, filter or sort. '
 				+ 'They read the same properties as the panel, so they can never disagree with it. '
-				+ 'file.isADistance("Person") == 1 is "named Person in its own is a", which is '
-				+ 'what the Class base menu\'s exact-matches switch writes.',
+				+ 'isA follows "is a" and then "type of"; hasA follows a component field '
+				+ 'and then "type of"; inheritsFrom follows "type of" alone — three '
+				+ 'streams, never mixed, and the three a class base can be read through. '
+				+ 'Each carries a distance: file.isADistance("Person") == 1 is "named Person '
+				+ 'in its own is a", file.hasADistance("Coding") == 1 is "named Coding in '
+				+ 'its own component fields", file.inheritsFromDistance("Person") == 1 is '
+				+ '"named Person in its own type of" — those are what exact matches only '
+				+ 'writes. '
+				+ 'file.views() answers from two streams as well: "views" travels down '
+				+ '"is a" to instances, "class views" travels down "type of" to subtypes '
+				+ 'and to the class itself.',
 			cls: 'setting-item-description',
 		});
 
@@ -17141,7 +21188,13 @@ class OofClassesSettingTab extends PluginSettingTab {
 		this.addText(containerEl, 'Instance property', 'Instantiation: a note names its class.', 'isAProperty');
 		this.addText(containerEl, 'Characteristics property', 'Lists what an object\'s instances carry.', 'characteristicsProperty');
 		this.addText(containerEl, 'Views property', 'Names the bases an object\'s instances '
-			+ 'are looked at through. Read by file.views(); emptying it turns that off.', 'viewsProperty');
+			+ 'are looked at through — given through "is a", so the class itself does not '
+			+ 'receive them. Read by file.views(); emptying it turns that half off.', 'viewsProperty');
+		this.addText(containerEl, 'Class views property', 'Names the bases an object\'s '
+			+ 'subtypes are looked at through — given through "type of", and the class '
+			+ 'itself receives them too, so a note with no subtypes pins a view to itself. '
+			+ 'Nothing instantiating the class sees these. Read by file.views(); emptying it '
+			+ 'turns that half off.', 'classViewsProperty');
 		this.addText(containerEl, 'Component fields property', 'Lists the fields that '
 			+ 'instances of a class fill with a class of their own. Filling one hands the '
 			+ 'note every characteristic of the class it names; read by file.hasA(), and '
@@ -17378,3 +21431,15 @@ class OofClassesSettingTab extends PluginSettingTab {
 }
 
 module.exports = OofClassesPlugin;
+
+/*
+ * The two view classes, hung off the export for the suites.
+ *
+ * Obsidian reads `module.exports` as the plugin constructor and looks at nothing
+ * else on it, so these are invisible to the app. They are here because the
+ * alternative is a suite that can only reach the half of the diagram with no DOM
+ * in it — and the drawing is where a typo costs an empty tab rather than a
+ * failing assertion.
+ */
+module.exports.ClassesView = ClassesView;
+module.exports.UmlView = UmlView;

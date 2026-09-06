@@ -5,6 +5,8 @@ symbol: lucide:person-standing
 is a:
 characteristics:
   - "[[∘ relation to me]]"
+class views:
+component fields:
 type of:
   - "[[Person]]"
 views:

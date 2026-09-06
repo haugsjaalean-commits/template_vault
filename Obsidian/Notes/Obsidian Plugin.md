@@ -1,11 +1,13 @@
 ---
 tags:
-  - class
+  - component
 symbol: lucide:puzzle
 is a:
 characteristics:
+class views:
+component fields:
 type of:
-  - "[[Coding Project]]"
+  - "[[Programming]]"
 views:
 created: 2026-08-19 17:36
 ext links:

@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Effort]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-30 09:12
 ext links:
 related:
@@ -13,10 +17,9 @@ rating:
 evolution:
 garden:
 life stage:
+checkpoint: reached
 dead: false
 category:
-project:
-  - "[[Class Manager]]"
 subject:
   - wording and semantics
   - organization
@@ -24,7 +27,10 @@ active priority: 0
 difficulty: 5
 payoff: 1
 activity: sleeping
-checkpoint: reached
+goal type:
+  - "[[Effort]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 ## Ideas for the naming of the different pipelines

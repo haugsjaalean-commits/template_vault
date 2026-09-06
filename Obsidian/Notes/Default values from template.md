@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-21 13:17
 ext links:
 related:
@@ -12,19 +16,21 @@ rating:
 evolution:
 garden:
 life stage: current
+done: true
+urgency:
+what to do:
+checkpoint: seen
 dead: true
 category:
-project:
-  - "[[Class Manager]]"
 subject:
 active priority:
 difficulty:
 payoff:
 activity: sleeping
-done: true
-urgency:
-what to do:
-checkpoint: seen
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 Can you add the option to have specific values for specific characteristics for a given object. I suppose this is already possible. The only thing I have to do is edit the template file to add the specific value. For example, I can say that every visual artist has `domain: visual`. This is quite like the characteristics: editing the file type of one of the characteristic files should automatically update all of the notes having this characteristic. This means that certain things will be like these should be based on the files and not the interface. What do you think? May there be a better way of doing this? The only other way of thinking of it is that the ONLY source of truth should be the panel, in which case we will need to add many more options. We would need to add an entire drop down for characteristics which would allow for editing their type, default values and accepted values. Speaking of this, whenever there is a non accepted value on update, there should be a message explaining this. I think that the panel should be the only source of truth - this is much simpler and easier to understand. 
 

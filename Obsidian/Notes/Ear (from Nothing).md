@@ -4,6 +4,8 @@ tags:
 symbol: lucide:music-3
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Earbud]]"
 views:

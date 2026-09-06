@@ -1,7 +1,9 @@
 ---
 is a:
-  - "[[Todo]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-25 09:43
@@ -12,16 +14,17 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: true
+urgency:
+what to do:
 dead: false
 category:
-project:
 subject:
 active priority:
 difficulty:
 payoff:
 activity:
-done: true
-urgency:
-what to do:
+goal type:
+  - "[[Todo]]"
 ---
 

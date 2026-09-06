@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-09-03 08:44
 ext links:
 related:
@@ -12,19 +16,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint: mapped
 dead: false
 category:
-project:
-  - "[[Class Manager]]"
 subject:
 active priority: 10
 difficulty:
 payoff:
 activity: active
-done: false
-urgency:
-what to do:
-checkpoint: mapped
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 > [!danger] Name change: `"components" -> "component fields"`
@@ -41,7 +47,7 @@ Components will be inherited much like characteristics and views. `components` w
 
 Instead of `isA("...")`, component connections will be queried with `hasA("...")`. This will work the same way as `isA`, just through a different pipeline. 
 
-
+Each component field will actually just be created as a characteristic but treated differently. 
 
 ## Example of how this can be used
 
@@ -52,5 +58,7 @@ The only class inheriting form from `Goal` would be `Sub Goal`. This would add t
 The third and final component field would be `is sub goal` which would allow me to input the `Sub Goal` class. If it is left empty, that simply means that it is not a sub goal. 
 
 
+## Working on it
 
 
+![[Pasted image 20260904185509.png]]

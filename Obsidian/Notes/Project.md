@@ -1,9 +1,11 @@
 ---
 tags:
-  - class
+  - component
 symbol: lucide:mountain
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Effort]]"
   - "[[Todo]]"

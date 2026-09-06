@@ -2,6 +2,8 @@
 is a:
   - "[[Thought]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
@@ -12,18 +14,8 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-dead: false
-category:
-project:
-subject:
-active priority:
-difficulty:
-payoff:
-activity:
-done: false
-urgency:
-what to do:
-checkpoint:
+creator:
+domain:
 ---
 
 <%*

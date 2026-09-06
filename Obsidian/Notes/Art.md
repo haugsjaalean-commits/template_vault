@@ -5,7 +5,9 @@ symbol: lucide:brush
 is a:
 characteristics:
   - "[[∘ creator]]"
-  - "[[∘ creation domain]]"
+class views:
+component fields:
+  - "[[∘ domain]]"
 type of:
 views:
 created: 2026-08-21 17:55
@@ -17,3 +19,9 @@ evolution:
 garden:
 life stage: current
 ---
+
+
+
+
+
+

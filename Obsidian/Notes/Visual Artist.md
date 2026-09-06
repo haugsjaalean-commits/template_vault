@@ -6,6 +6,8 @@ is a:
 characteristics:
   - "[[∘ medium]]"
   - "[[∘ visual domain]]"
+class views:
+component fields:
 type of:
   - "[[Creator]]"
 views:

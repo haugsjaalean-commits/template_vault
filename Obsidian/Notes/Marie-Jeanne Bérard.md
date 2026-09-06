@@ -4,6 +4,8 @@ is a:
   - "[[Creator]]"
   - "[[Acquaintance]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-27 20:52
@@ -16,8 +18,8 @@ garden:
 life stage: current
 relation to me:
   - She taught my french class. She was amazing.
-creation domain:
-  - writing
+domain:
+  - "[[Literature]]"
 masetery:
 birth day:
 death day:

@@ -1,9 +1,11 @@
 ---
 tags:
-  - class
+  - component
 symbol: lucide:palette
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Obsidian Plugin]]"
 views:

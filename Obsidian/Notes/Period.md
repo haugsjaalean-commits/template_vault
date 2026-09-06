@@ -7,6 +7,8 @@ characteristics:
   - "[[∘ start]]"
   - "[[∘ end]]"
   - 
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-31 10:21

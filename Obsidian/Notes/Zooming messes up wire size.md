@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-09-04 11:11
 ext links:
 related:
@@ -12,19 +16,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-dead: false
-category:
-project:
-  - "[[Class Manager]]"
-subject:
-active priority:
-difficulty:
-payoff:
-activity:
 done: false
 urgency:
 what to do:
-checkpoint:
+checkpoint: mapped
+dead: false
+category:
+subject:
+active priority: 1
+difficulty:
+payoff:
+activity: sleeping
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 
@@ -36,3 +42,4 @@ When I zoom in too much, the size of the wires is inconsistent.
 It's almost as if some of the wires are zooming at a different rate, but I cannot diagnose the problem here. 
 
 
+Zooming also seems to show gaps in the wire around the dots. 

@@ -5,6 +5,8 @@ symbol: lucide:school-2
 is a:
 characteristics:
   - "[[∘ level]]"
+class views:
+component fields:
 type of:
   - "[[Place]]"
 views:

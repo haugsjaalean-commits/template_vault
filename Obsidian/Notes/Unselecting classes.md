@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-27 20:39
 ext links:
 related:
@@ -12,15 +16,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint:
 dead: false
 category:
-project:
-  - "[[selecting classes in the view]]"
 subject:
 active priority:
 difficulty:
 payoff:
 activity: sleeping
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[selecting classes in the view]]"
 ---
 
 I think that it would be cool if there was an option (on by default) to unselect all classes. I also think that, if the user manually unselects all classes, there should be an option in the settings (on by default) for the active note to not be selected. It should only be selected if the user clicks on it again.

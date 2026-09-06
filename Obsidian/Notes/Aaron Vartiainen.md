@@ -2,6 +2,8 @@
 is a:
   - "[[Creator]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-24 09:58
@@ -17,6 +19,6 @@ death day:
 children:
 historical importance:
 location:
-creation domain:
+domain:
 masetery:
 ---

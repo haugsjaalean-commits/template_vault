@@ -2,6 +2,8 @@
 is a:
   - "[[Art]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-09-04 18:35
@@ -12,9 +14,9 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-creation domain:
-  - anime
 creator:
+domain:
+  - "[[Anime]]"
 ---
 
 

@@ -4,6 +4,8 @@ tags:
 symbol: lucide:library
 is a:
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-25 20:11

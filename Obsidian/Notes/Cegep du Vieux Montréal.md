@@ -2,6 +2,8 @@
 is a:
   - "[[School]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-24 15:16

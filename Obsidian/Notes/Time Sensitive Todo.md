@@ -1,9 +1,11 @@
 ---
 tags:
-  - class
+  - component
 symbol: lucide:check-circle
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Todo]]"
   - "[[Calendar Event]]"

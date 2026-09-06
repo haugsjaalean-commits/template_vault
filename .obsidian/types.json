@@ -33,7 +33,6 @@
     "lifespan": "text",
     "subject": "multitext",
     "duedate": "date",
-    "urgence": "number",
     "what to do": "text",
     "ext links": "multitext",
     "artist": "multitext",
@@ -73,6 +72,9 @@
     "dead": "checkbox",
     "etymology": "multitext",
     "views": "multitext",
-    "code proj": "multitext"
+    "code proj": "multitext",
+    "component fields": "multitext",
+    "is sub goal": "checkbox",
+    "class views": "multitext"
   }
 }

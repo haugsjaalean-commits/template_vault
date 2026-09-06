@@ -2,6 +2,8 @@
 is a:
   - "[[Visual Artist]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-21 17:38
@@ -17,8 +19,8 @@ death day:
 children:
 historical importance:
 location:
-creation domain:
-  - visual
+domain:
+  - "[[Visual Art]]"
 masetery:
 medium:
   - classic

@@ -1,9 +1,12 @@
 ---
 is a:
-  - "[[Thought]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+done: false
 created: 2026-09-01 17:04
 ext links:
 related:
@@ -12,18 +15,17 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+creator:
+domain:
 dead: false
 category:
-project:
 subject:
 active priority:
 difficulty:
 payoff:
 activity:
-done: false
-urgency:
-what to do:
-checkpoint:
+goal type:
+  - "[[Thought]]"
 ---
 
 I want to give myself the most basic possible definition of organization that will contain all possible variations that I have found. All types of organization come back to the root form of organization. I need to find the most simple possible thing that can be considered *organization*. 

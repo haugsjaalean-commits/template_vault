@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Improvement]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-23 08:27
 ext links:
 related:
@@ -12,15 +16,21 @@ rating:
 evolution:
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint:
 dead: false
 category:
-project:
-  - "[[Tree view for classes]]"
 subject:
 active priority:
 difficulty:
 payoff:
 activity: sleeping
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Tree view for classes]]"
 ---
 
 

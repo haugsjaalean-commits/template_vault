@@ -1,7 +1,9 @@
 ---
 is a:
-  - "[[Todo]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-21 15:47
@@ -12,15 +14,16 @@ rating:
 evolution:
 garden:
 life stage: current
+done: true
+urgency:
+what to do:
 dead: false
 category:
-project:
 subject:
 active priority:
 difficulty:
 payoff:
 activity:
-done: true
-urgency:
-what to do:
+goal type:
+  - "[[Todo]]"
 ---

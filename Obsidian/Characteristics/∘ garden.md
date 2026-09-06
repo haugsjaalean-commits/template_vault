@@ -1,4 +1,6 @@
 ---
+tags:
+  - characteristic
 characteristic meaning: the connectivity of the note in the vault
 property type: text
 is base characteristic: false

@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-09-01 06:01
 ext links:
 related:
@@ -12,19 +16,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint: mapped
 dead: false
 category:
-project:
-  - "[[Class Manager]]"
 subject:
 active priority: 10
 difficulty: 6
 payoff: 10
 activity: active
-done: false
-urgency:
-what to do:
-checkpoint: mapped
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 
@@ -42,6 +48,6 @@ In a relational database, the queries are made on the fly, and they can be chang
 
 
 
-I think that the best way of implementing dynamic bases is by creating a new base characteristic. This characteristic would be called `views`, and it would be a list of links to bases (which will sometimes specify which view in the base). Each class has the chance to add a view, and all of its child classes will also have that view. When I say they will "have" the view, I mean that the plugin will understand that they inherit that view, but it will not be specifically listed anywhere in the frontmatter. The Class Manager plugin will introduce a new function which will return the list of views of a given note. (Views function like characteristics, meaning that a file only recieves a view if the relationship is `is a`. Otherwise, if the connection is `type of` then it simply "stores" the view.) This function introduced by the Class Manager will be supplemented by a new plugin: [[Dynamic Viewer]]
+I think that the best way of implementing dynamic bases is by creating a new base characteristic. This characteristic would be called `views`, and it would be a list of links to bases (which will sometimes specify which view in the base). Each class has the chance to add a view, and all of its child classes will also have that view. When I say they will "have" the view, I mean that the plugin will understand that they inherit that view, but it will not be specifically listed anywhere in the frontmatter. The Class Manager plugin will introduce a new function which will return the list of views of a given note. (Views function like characteristics, meaning that a file only recieves a view if the relationship is `is a`. Otherwise, if the connection is `type of` then it simply "stores" the view.) This function introduced by the Class Manager will be supplemented by a new plugin: [[Dynamic Views]]
 
 

@@ -1,6 +1,8 @@
 ---
 is a:
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-19 08:52

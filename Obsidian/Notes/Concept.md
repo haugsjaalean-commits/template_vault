@@ -4,6 +4,8 @@ tags:
 symbol: lucide:brain
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Thought]]"
 views:

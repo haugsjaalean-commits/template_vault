@@ -4,6 +4,8 @@ tags:
 symbol: lucide:bike
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Object]]"
 views:

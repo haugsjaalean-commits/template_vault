@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-21 15:35
 ext links:
 related:
@@ -12,20 +16,22 @@ rating:
 evolution:
 garden:
 life stage: current
+done: true
+urgency:
+what to do:
+checkpoint: reached
 dead: false
 category:
-project:
-  - "[[Class Manager]]"
 subject:
   - UI
 active priority:
 difficulty:
 payoff:
 activity: sleeping
-done: true
-urgency:
-what to do:
-checkpoint: reached
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 I want have the option to be able to be able to view the list of classes as a tree. The tree should function like a git tree, where no nodes are overlapping on the horizontal axis. When not expanded, the classes will appear as stubs, but, on expansion, they will have the same look as the current view. The tree will only be showing the `type of` connexions. 

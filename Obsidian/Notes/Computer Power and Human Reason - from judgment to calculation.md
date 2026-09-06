@@ -2,6 +2,8 @@
 is a:
   - "[[Art]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-21 15:01
@@ -12,10 +14,10 @@ rating:
 evolution:
 garden:
 life stage: current
-creation domain:
-  - writing
 creator:
   - "[[Joseph Weizenbaum]]"
+domain:
+  - "[[Literature]]"
 ---
 
 

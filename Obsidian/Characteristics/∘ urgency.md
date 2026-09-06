@@ -1,4 +1,6 @@
 ---
+tags:
+  - characteristic
 characteristic meaning:
 property type: number
 is base characteristic: false

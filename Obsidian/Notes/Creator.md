@@ -4,8 +4,10 @@ tags:
 symbol: lucide:person-standing
 is a:
 characteristics:
-  - "[[∘ creation domain]]"
   - "[[∘ masetery]]"
+  - "[[∘ domain]]"
+class views:
+component fields:
 type of:
   - "[[Person]]"
 views:

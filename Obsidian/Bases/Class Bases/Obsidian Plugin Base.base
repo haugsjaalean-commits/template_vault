@@ -1,6 +1,6 @@
 filters:
   and:
-    - file.isA("Obsidian Plugin")
+    - file.hasA("Obsidian Plugin")
     - '!file.inFolder("Obsidian/Templates")'
 formulas:
   word count: file.WordCount()
@@ -21,17 +21,17 @@ properties:
     displayName: link distance
 views:
   - type: table
-    name: Table no dead
+    name: Select view
     filters:
       and:
         - dead != true
+        - '!file.isA("Sub Goal")'
     groupBy:
       property: done
       direction: ASC
     order:
       - active priority
       - file.name
-      - rating
       - formula.value
       - payoff
       - difficulty

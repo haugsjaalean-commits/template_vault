@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-09-04 11:56
 ext links:
 related:
@@ -12,19 +16,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint: mapped
 dead: false
 category:
-project:
-  - "[[Dynamic Sticky Notes]]"
 subject:
 active priority:
 difficulty:
 payoff:
 activity:
-done: false
-urgency:
-what to do:
-checkpoint:
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Dynamic Sticky Notes]]"
 ---
 
 

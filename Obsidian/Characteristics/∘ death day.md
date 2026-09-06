@@ -1,4 +1,6 @@
 ---
+tags:
+  - characteristic
 characteristic meaning:
 property type: date
 is base characteristic: false

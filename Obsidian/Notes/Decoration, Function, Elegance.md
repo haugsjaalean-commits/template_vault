@@ -2,6 +2,8 @@
 is a:
   - "[[Art]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-24 09:58
@@ -13,7 +15,7 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
-creation domain:
 creator:
   - "[[Aaron Vartiainen]]"
+domain:
 ---

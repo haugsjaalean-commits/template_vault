@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-27 11:04
 ext links:
 related:
@@ -12,20 +16,22 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint: mapped
 dead: false
 category:
   - improvement
-project:
-  - "[[Class Manager]]"
 subject:
 active priority: 5
 difficulty: 2
 payoff: 4
 activity: simmering
-done: false
-urgency:
-what to do:
-checkpoint: mapped
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 Because of the root note option, there are no notes which link to the root note in `is a`. This is problematic, because it slightly brakes certain queries or displays. For instance, the `is a` for all notes inheriting from `Obisian Note` is `NONE`. Because of this, the the base for the root note doesn't work, as all notes it would want return NONE. 

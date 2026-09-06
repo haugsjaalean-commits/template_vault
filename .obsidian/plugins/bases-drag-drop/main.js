@@ -2888,6 +2888,41 @@ class BasesTableKanbanPlugin extends Plugin {
 		folderMovesEnabled = this.settings.folderMoves;
 		this.domains = new Domains(this.app);
 		this.layers = new Map();
+
+		/*
+		 * Every base view this plugin has ever met, so one it has let go of can be
+		 * picked up again.
+		 *
+		 * **The reap below has to be recoverable, and it was not.** A layer whose
+		 * `scrollEl` has left the document is destroyed and forgotten — which was
+		 * safe only while the two ways *in* covered everything: `getViewFactory`,
+		 * which fires when a view is **constructed**, and a walk over
+		 * `getLeavesOfType('bases')`, which sees base files open in tabs and can
+		 * never see an embed. So a view that is momentarily out of the document and
+		 * then comes back is dropped for the rest of the session.
+		 *
+		 * A base in a Dynamic Viewer band is out of the document all the time — a
+		 * tab switch, a mode switch, the CodeMirror widget handing its element to
+		 * `.mod-header` and taking it back — and since that plugin stopped
+		 * rebuilding its bands (2026-09-03, the flicker fix) it **keeps** its
+		 * embeds, so no view is ever constructed a second time and the factory
+		 * never fires again. Rebuilding used to repair this by accident; removing
+		 * the churn removed the repair, which is why it looked like a new bug in a
+		 * plugin nobody had touched.
+		 *
+		 * Held as `WeakRef`s, which is the whole reason this can be a registry at
+		 * all: a view is remembered without being **kept**, so a genuinely dead one
+		 * is collected and its entry drops out on the next scan. No heuristic
+		 * decides whether a view is dead, because a heuristic that guessed wrong
+		 * would either leak or bring the permanence back under a longer timer.
+		 */
+		this.seenTypes = new WeakMap();
+		this.seenRefs = new Set();
+
+		/* The coalesced scan’s two handles, cancelled on unload. */
+		this.scanQueued = false;
+		this.scanFrame = 0;
+		this.scanTimer = 0;
 		this.modifierHeld = false;
 		/* The layer holding a note that is waiting to be clicked into place. */
 		this.placing = null;
@@ -2924,7 +2959,13 @@ class BasesTableKanbanPlugin extends Plugin {
 
 		this.hookViewFactory();
 		this.app.workspace.onLayoutReady(() => this.scanOpenViews());
-		this.registerEvent(this.app.workspace.on('layout-change', () => this.scanOpenViews()));
+		this.registerEvent(this.app.workspace.on('layout-change', () => this.queueScan()));
+		/*
+		 * A leaf change is when a band comes back into the document, and it is not
+		 * a layout change — so without this the recovery pass would only run when
+		 * something else happened to move a pane.
+		 */
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.queueScan()));
 
 		this.addSettingTab(new BasesTableKanbanSettingTab(this.app, this));
 	}
@@ -2933,7 +2974,9 @@ class BasesTableKanbanPlugin extends Plugin {
 		this.stopPlacement();
 		document.body.removeClass('bases-dnd-no-new');
 		for (const layer of this.layers.values()) layer.destroy();
+		this.stopScans();
 		this.layers.clear();
+		this.seenRefs.clear();
 		this.unhookViewFactory();
 		this.unhookNewItemMenu();
 	}
@@ -3092,19 +3135,112 @@ class BasesTableKanbanPlugin extends Plugin {
 		this.originalGetViewFactory = null;
 	}
 
-	/* Views that already existed when the plugin was enabled. */
+	/*
+	 * A scan now, and another once the app has settled.
+	 *
+	 * **The event fires before the band is back.** `layout-change` and
+	 * `active-leaf-change` are what tell us something moved, but Dynamic Viewer
+	 * re-mounts its band *in response to* those same events, so a scan that runs
+	 * synchronously inside them looks at a view still out of the document, does
+	 * nothing, and nothing fires again — which is the original bug with an extra
+	 * step. So it runs on the next frame, and once more after a beat, for the
+	 * reason `restoreScroll` runs twice over there: whoever writes last wins, and
+	 * we are not the ones moving the element.
+	 *
+	 * The timers are held and cleared on unload — a bare `setTimeout` outlives
+	 * `onunload`, which is how Dynamic Sticky Notes left a dead instance holding a
+	 * live collector.
+	 */
+	queueScan() {
+		if (this.scanQueued) return;
+		this.scanQueued = true;
+
+		const run = () => {
+			if (this._loaded === false) return;
+			try { this.scanOpenViews(); } catch (e) { console.error(TAG, e); }
+		};
+
+		/*
+		 * Two handles rather than one set: `cancelAnimationFrame` and
+		 * `clearTimeout` are different id spaces, and a set holding both cannot say
+		 * which cancel a number wants.
+		 */
+		this.scanFrame = window.requestAnimationFrame(() => {
+			this.scanFrame = 0;
+			run();
+			this.scanTimer = window.setTimeout(() => {
+				this.scanTimer = 0;
+				this.scanQueued = false;
+				run();
+			}, 250);
+		});
+	}
+
+	stopScans() {
+		if (this.scanFrame) window.cancelAnimationFrame(this.scanFrame);
+		if (this.scanTimer) window.clearTimeout(this.scanTimer);
+		this.scanFrame = 0;
+		this.scanTimer = 0;
+		this.scanQueued = false;
+	}
+
+	/*
+	 * Views that already existed when the plugin was enabled — and, since the
+	 * registry, every view that has come back into the document since the last
+	 * scan.
+	 *
+	 * Three passes, and the order is deliberate: drop what has left, pick up what
+	 * has returned, and only then forget what has been collected. Reaping first
+	 * means the recovery pass never looks at a layer that is about to go, and
+	 * pruning last means a view that was reaped this very scan is still in the
+	 * registry to be found by the next one.
+	 */
 	scanOpenViews() {
 		for (const leaf of this.app.workspace.getLeavesOfType('bases')) {
 			const controller = leaf.view && leaf.view.controller;
 			const view = controller && controller.view;
 			if (view && LAYOUTS[view.type]) this.attach(view, view.type);
 		}
+
 		for (const [view, layer] of this.layers) {
 			if (!view.scrollEl || !view.scrollEl.isConnected) { layer.destroy(); this.layers.delete(view); }
 		}
+
+		for (const ref of Array.from(this.seenRefs)) {
+			const view = ref.deref();
+			/* Collected: the view is gone and so is any reason to hold its entry. */
+			if (!view) { this.seenRefs.delete(ref); continue; }
+			if (this.layers.has(view)) continue;
+			const type = this.seenTypes.get(view);
+			if (!type || !LAYOUTS[type]) continue;
+			/*
+			 * Only while it is really in the document. A view that is still out is
+			 * left alone and tried again next time, which is what makes the reap a
+			 * "not now" rather than a "never".
+			 */
+			if (!view.scrollEl || !view.scrollEl.isConnected) continue;
+			this.attach(view, type);
+		}
+	}
+
+	/*
+	 * Write a view into the registry. Cheap and idempotent, so it can sit at the
+	 * top of `attach` and cover every way in at once.
+	 */
+	remember(view, type) {
+		if (!view || !LAYOUTS[type] || this.seenTypes.has(view)) return;
+		this.seenTypes.set(view, type);
+		this.seenRefs.add(new WeakRef(view));
 	}
 
 	attach(view, type) {
+		/*
+		 * Remembered before anything can decline, so the two ways this returns
+		 * early are both recoverable: a view whose root is not there yet is tried
+		 * again on the next layout change instead of being lost the way a view
+		 * constructed before its container was is lost.
+		 */
+		this.remember(view, type);
 		/* Lazy, because the NewItemMenu class is internal: a live view is the only
 		 * name it has. Installs once and covers every base thereafter. */
 		try { this.hookNewItemMenu(view.queryController); } catch (e) { console.error(TAG, e); }

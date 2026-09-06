@@ -2,6 +2,8 @@
 is a:
   - "[[Meaning]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-09-01 14:26

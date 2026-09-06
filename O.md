@@ -4,12 +4,22 @@ tags:
 ---
 ## Branches
 
-![[Structure Base.base#Base Classes]]
+### Specific 
+
+
+[[Structure Base.base#Base Classes]]
+
+
+
+### General 
+
+[[Structure Base.base#Base Classes]]
 [[My Obsidian workflow]]
 [[README]]
 [[How to organize with the system]]
 [[Thoughts]]
 [[Notes]]
+[[Restructuring OOF Class Plugins]]
 
 
 ### Bookmarks

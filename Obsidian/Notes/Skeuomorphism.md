@@ -2,10 +2,13 @@
 aliases:
   - skeuomorph
 is a:
-  - "[[Concept]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+done: false
 created: 2026-08-24 09:19
 ext links:
   - "[Wiki](https://en.wikipedia.org/wiki/Skeuomorph)"
@@ -15,16 +18,15 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+creator:
+domain:
 dead: false
 category:
-project:
 subject:
 active priority:
 difficulty:
 payoff:
 activity: simmering
-done: false
-urgency:
-what to do:
-checkpoint:
+goal type:
+  - "[[Concept]]"
 ---

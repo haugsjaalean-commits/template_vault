@@ -12,6 +12,8 @@ characteristics:
   - "[[∘ friend]]"
   - "[[∘ family]]"
   - "[[∘ part of speach]]"
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-24 09:20

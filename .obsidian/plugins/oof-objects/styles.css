@@ -602,6 +602,26 @@ button.oof-new-class .svg-icon {
 	color: var(--text-on-accent);
 }
 
+/*
+ * A component: a class that is filled into a field rather than instantiated.
+ *
+ * Outlined rather than filled, and in the muted ink. `root` and `active` are
+ * filled because they are about *this moment* — where you are, what is pinned —
+ * and a filled chip on twenty of forty-six cards is the wallpaper problem the
+ * reset button's red had. This one is a standing fact about the class, true
+ * every time the panel is drawn, so it states itself and stops there.
+ */
+.oof-badge-component {
+	background: transparent;
+	color: var(--text-muted);
+	/*
+	 * `box-shadow` and not `border`: a border would add two pixels to a chip
+	 * standing in a row of chips that have none, and the row's baseline would
+	 * shift on exactly the cards carrying this one.
+	 */
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+}
+
 /* ----- class symbols ----------------------------------------------------- */
 
 /*
@@ -935,6 +955,71 @@ button.oof-new-class .svg-icon {
  * tooltip names them.
  */
 .oof-badge-novelty.has-redeclared {
+	text-decoration: underline dotted var(--text-warning);
+	text-underline-offset: 2px;
+}
+
+/*
+ * How many notes its base holds. Deliberately the novelty badge's twin — same
+ * size, same tabular digits, same narrowness — because the two are read as a
+ * pair: what the class adds, and who it reaches. Anything that made one louder
+ * than the other would make the pair into a number and a decoration.
+ *
+ * It is a real `<button>`, so the three things Obsidian gives one have to come
+ * off: its own background, its shadow, and the padding that would make it twice
+ * the height of the badge beside it.
+ */
+.oof-badge-holds {
+	text-transform: none;
+	letter-spacing: 0;
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+	font-size: var(--font-ui-smaller);
+	font-family: inherit;
+	padding: 1px 5px;
+	height: auto;
+	flex: 0 0 auto;
+	border: none;
+	box-shadow: none;
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.oof-badge-holds:hover:not(:disabled) {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	box-shadow: none;
+}
+
+/*
+ * Reaches nothing. Quieted rather than coloured, exactly as `+0` is: a class
+ * with no notes under it is an ordinary thing on the way to having some, and
+ * the ones that do hold something should carry the eye instead.
+ */
+.oof-badge-holds.is-nothing {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-faint);
+}
+
+/*
+ * No base to open. The number is still true, so it keeps its place and only the
+ * press goes — the row's own rule about a file that does not exist yet.
+ */
+.oof-badge-holds:disabled,
+.oof-badge-holds.is-pending {
+	cursor: default;
+	opacity: 0.55;
+}
+
+/*
+ * Its filter is not one this plugin wrote, so the number is about the plain
+ * reading rather than about what is in the file. Dotted underline and the
+ * tooltip says so — the same mark `has-redeclared` uses next door, for the same
+ * reason: worth noticing, not worth interrupting for.
+ */
+.oof-badge-holds.is-foreign {
 	text-decoration: underline dotted var(--text-warning);
 	text-underline-offset: 2px;
 }
@@ -2614,5 +2699,327 @@ body.oof-hide-add-property .metadata-add-button {
 
 .oof-class-base-explainer-line {
 	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+/* ----- the Class base group on Obsidian's Configure view card ------------- */
+
+/*
+ * Drawn in the card's own `.input-row` markup, so the widths, the label rules
+ * and the theme are Obsidian's. Only three things are ours: the second line
+ * under a row's name, the indentation of a subclass, and the two quick buttons.
+ */
+.oof-view-card .oof-view-card-hint {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.3;
+}
+
+.oof-view-card .oof-view-card-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.oof-view-card .oof-view-card-class .oof-view-card-name {
+	color: var(--text-muted);
+}
+
+.oof-view-card .oof-view-card-actions {
+	display: flex;
+	gap: var(--size-4-1);
+	padding: 0 0 var(--size-2-2) 14px;
+}
+
+.oof-view-card .oof-view-card-actions button {
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-2-1) var(--size-2-2);
+	height: auto;
+	box-shadow: none;
+}
+
+.oof-view-card .oof-view-card-note {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	padding-bottom: var(--size-2-2);
+}
+
+/* ===== the class diagram ================================================= */
+
+/*
+ * A tab rather than a panel, so it fills the leaf: the toolbar is a fixed band
+ * and the stage takes everything under it. `min-height: 0` on the stage is what
+ * lets the SVG shrink inside a flex column rather than pushing the toolbar off
+ * the top — the flex default is `auto`, which means "as tall as your content",
+ * and an SVG's content is however tall you told it to be.
+ */
+.oof-uml {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0;
+	overflow: hidden;
+}
+
+.oof-uml-bar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.oof-uml-count {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.oof-uml-count-number {
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+/* The focused class, named the way the panel names an active one. */
+.oof-uml-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 6px 2px 8px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+}
+
+.oof-uml-chip-clear {
+	cursor: pointer;
+	color: var(--text-faint);
+	line-height: 1;
+}
+
+.oof-uml-chip-clear:hover {
+	color: var(--text-normal);
+}
+
+.oof-uml-search {
+	flex: 1 1 140px;
+	min-width: 120px;
+	max-width: 260px;
+}
+
+.oof-uml-toggles,
+.oof-uml-zoom {
+	display: flex;
+	gap: 4px;
+}
+
+.oof-uml-toggle,
+.oof-uml-zoom-button {
+	padding: 2px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+}
+
+.oof-uml-toggle:hover,
+.oof-uml-zoom-button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.oof-uml-toggle.is-on {
+	border-color: var(--interactive-accent);
+	color: var(--interactive-accent);
+}
+
+.oof-uml-zoom-button {
+	min-width: 26px;
+}
+
+.oof-uml-stage {
+	flex: 1 1 auto;
+	min-height: 0;
+	position: relative;
+}
+
+.oof-uml-empty {
+	padding: 32px;
+	color: var(--text-faint);
+	text-align: center;
+}
+
+.oof-uml-svg {
+	width: 100%;
+	height: 100%;
+	cursor: grab;
+	/* Or a drag that leaves the stage selects the whole toolbar behind it. */
+	user-select: none;
+}
+
+.oof-uml-svg.is-dragging {
+	cursor: grabbing;
+}
+
+/* ----- the boxes ----- */
+
+.oof-uml-box {
+	fill: var(--background-primary);
+	stroke: var(--background-modifier-border);
+	stroke-width: 1;
+}
+
+/*
+ * A class with no note behind it — drafted in the panel, or named by a `type of`
+ * and never written. Dashed rather than coloured: it is not a fault, it is a
+ * thing that does not exist yet, and the panel says the same in the same way.
+ */
+.oof-uml-node.is-draft .oof-uml-box {
+	stroke-dasharray: 4 3;
+}
+
+/*
+ * A class named by a `type of` and by nothing else — the plan's dangling parent,
+ * which `scanClasses` still records as a class. Orange and dashed, because it is
+ * both: a thing that is not there, and a fault rather than a plan.
+ */
+.oof-uml-node.is-missing .oof-uml-box {
+	stroke: var(--color-orange);
+	stroke-dasharray: 4 3;
+}
+
+/* And the class pointing at it, marked at the other end of the same fault. */
+.oof-uml-node.is-faulty .oof-uml-box {
+	stroke: var(--color-orange);
+}
+
+.oof-uml-name {
+	fill: var(--text-normal);
+	font-size: 12.5px;
+	font-weight: 600;
+	font-family: var(--font-interface);
+	cursor: pointer;
+}
+
+.oof-uml-name:hover {
+	fill: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.oof-uml-rule {
+	stroke: var(--background-modifier-border);
+	stroke-width: 1;
+}
+
+.oof-uml-rule.is-soft {
+	stroke: var(--background-modifier-border);
+	opacity: 0.5;
+}
+
+.oof-uml-row {
+	fill: var(--text-normal);
+	font-size: 11.5px;
+	font-family: var(--font-interface);
+}
+
+/* What an ancestor declared, said quietly — it is context, not this class. */
+.oof-uml-row.is-inherited {
+	fill: var(--text-faint);
+}
+
+.oof-uml-row.is-component {
+	fill: var(--text-accent);
+}
+
+.oof-uml-row.is-inherited.is-component {
+	fill: var(--text-faint);
+	font-style: italic;
+}
+
+.oof-uml-footer {
+	fill: var(--text-faint);
+	font-size: 10px;
+	font-family: var(--font-interface);
+}
+
+/* ----- the edges ----- */
+
+.oof-uml-edge {
+	fill: none;
+	stroke: var(--text-muted);
+	stroke-width: 1.25;
+	opacity: 0.75;
+}
+
+.oof-uml-edge.is-implicit {
+	stroke-dasharray: 3 4;
+	opacity: 0.4;
+}
+
+.oof-uml-composition {
+	stroke: var(--text-accent);
+	opacity: 0.55;
+}
+
+.oof-uml-edge-label {
+	fill: var(--text-faint);
+	font-size: 10px;
+	font-family: var(--font-interface);
+}
+
+.oof-uml-arrow-hollow {
+	fill: var(--background-primary);
+	stroke: var(--text-muted);
+	stroke-width: 1.25;
+}
+
+/*
+ * Composition's diamond, and the only mark that end of the line carries. There
+ * was an open arrowhead at the other end until 2026-09-05; in UML that is
+ * navigability, which is a claim this diagram does not make.
+ */
+.oof-uml-arrow-solid {
+	fill: var(--text-accent);
+}
+
+/* ----- hovering, and searching ----- */
+
+/*
+ * Both narrowings dim rather than hide, and both are drawn the same way, so a
+ * search inside a hover reads as one thing getting narrower rather than two
+ * effects fighting. Transitions are on opacity alone: anything touching layout
+ * would animate a diagram that is meant to hold still.
+ */
+.oof-uml-svg.is-lighting .oof-uml-node,
+.oof-uml-svg.is-lighting .oof-uml-edge,
+.oof-uml-svg.is-searching .oof-uml-node.is-miss {
+	opacity: 0.18;
+	transition: opacity 90ms ease-out;
+}
+
+.oof-uml-svg.is-lighting .oof-uml-node.is-lit,
+.oof-uml-svg.is-lighting .oof-uml-edge.is-lit {
+	opacity: 1;
+}
+
+.oof-uml-svg.is-lighting .oof-uml-edge.is-lit {
+	stroke-width: 1.75;
+}
+
+/*
+ * A class's Lucide symbol inside the diagram. `svg-icon` from Obsidian supplies
+ * the stroke width and the `currentColor` fill; this only says what that colour
+ * is, since an SVG inherits `color` like anything else.
+ */
+.oof-uml-icon {
+	color: var(--text-normal);
+}
+
+/* Dimmed and lit with the box it belongs to, not on its own. */
+.oof-uml-node.is-missing .oof-uml-icon,
+.oof-uml-node.is-draft .oof-uml-icon {
 	color: var(--text-muted);
 }

@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-27 18:24
 ext links:
 related:
@@ -13,21 +17,23 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: true
+urgency:
+what to do:
+checkpoint: reached
 dead: false
 category:
   - feature
-project:
-  - "[[Class Manager]]"
 subject:
   - renaming
 active priority:
 difficulty:
 payoff:
 activity: sleeping
-done: true
-urgency:
-what to do:
-checkpoint: reached
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 

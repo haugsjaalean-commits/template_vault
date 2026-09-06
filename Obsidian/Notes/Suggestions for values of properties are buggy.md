@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Bug Fix]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Bug Fix]]"
 created: 2026-08-30 13:19
 ext links:
 related:
@@ -12,20 +16,22 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: true
+urgency:
+what to do:
+checkpoint: reached
 dead: false
 category:
   - fix problem
-project:
-  - "[[Class Manager]]"
 subject:
 active priority: 7
 difficulty: 3
 payoff: 6
 activity: sleeping
-done: true
-urgency:
-what to do:
-checkpoint: reached
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 

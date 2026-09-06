@@ -2,6 +2,8 @@
 is a:
   - "[[Creator]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
@@ -17,7 +19,7 @@ death day:
 children:
 historical importance:
 location:
-creation domain:
+domain:
 masetery:
 ---
 

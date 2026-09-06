@@ -1,6 +1,6 @@
 filters:
   and:
-    - file.isA("bug")
+    - file.isA("Bug Fix")
     - '!file.inFolder("Obsidian/Templates")'
 formulas:
   word count: file.WordCount()

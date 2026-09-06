@@ -1,14 +1,16 @@
 ---
 tags:
-  - class
+  - component
 symbol: lucide:check-circle
 is a:
 characteristics:
   - "[[∘ urgency]]"
   - "[[∘ what to do]]"
   - "[[∘ done]]"
+class views:
+component fields:
 type of:
-  - "[[Improvement]]"
+  - "[[Goal Type]]"
 views:
 created: 2026-08-16 18:29
 ext links:

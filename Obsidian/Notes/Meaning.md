@@ -4,6 +4,8 @@ tags:
 symbol: lucide:infinity
 is a:
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-09-01 14:25

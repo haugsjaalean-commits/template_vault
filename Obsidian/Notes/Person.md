@@ -9,6 +9,8 @@ characteristics:
   - "[[∘ birth day]]"
   - "[[∘ death day]]"
   - "[[∘ historical importance]]"
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-15 12:42

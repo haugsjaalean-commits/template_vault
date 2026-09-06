@@ -4,6 +4,8 @@ tags:
 symbol: lucide:headphones
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Listening device]]"
 views:

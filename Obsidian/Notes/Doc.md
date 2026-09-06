@@ -6,6 +6,8 @@ is a:
 characteristics:
   - "[[∘ code proj]]"
   - 
+class views:
+component fields:
 type of:
 views:
 created: 2026-09-03 08:00

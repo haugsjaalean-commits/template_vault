@@ -366,8 +366,12 @@ just past the text or four thousand pixels into the backlinks. No line number
 names those positions, in either attachment or with no plugin at all.
 
 Two costs. *Above the file name* cannot be expressed this way — the title and the
-properties are not part of the document — so it falls back to *under the
-properties*, which as a widget means the start of the first body line. And
+properties are not part of the document, and a widget's earliest position is the
+start of the first body line, which is already *under the properties*. **So the
+settings tab leaves that answer out of the list while the embed is on** (2026-09-05,
+his ask) rather than offering it and quietly doing something else; the stored value
+is not touched, so switching back to the layout gives it back, and until then the
+dropdown shows what the band is really doing. And
 `registerEditorExtension` must come **after** `this.views` is built in `onload`:
 registering reconfigures every open editor on the spot, the field is created
 immediately and asks for `bandHeightHint()`, which reads them.

@@ -4,8 +4,10 @@ tags:
 symbol: lucide:message-circle
 is a:
 characteristics:
+class views:
+component fields:
 type of:
-  - "[[Project]]"
+  - "[[Art]]"
 views:
 created: 2026-09-01 07:20
 ext links:

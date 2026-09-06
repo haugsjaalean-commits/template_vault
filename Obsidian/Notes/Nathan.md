@@ -2,6 +2,8 @@
 is a:
   - "[[Acquaintance]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-09-04 18:27

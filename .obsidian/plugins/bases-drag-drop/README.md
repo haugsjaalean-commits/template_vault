@@ -1080,3 +1080,31 @@ there — without editing the frontmatter afterwards.
 - `type of` and `is a` are read from OOF Class Manager's settings when it is
   loaded, and default to those names otherwise.
 - Off switch: *Ask which subclass*.
+
+## Views that come back
+
+A base view can leave the document and return — a tab switch, a mode switch, a
+Dynamic Viewer band whose element is handed between the editor and the note
+header. While it is out, its drag layer is destroyed: nothing should be listening
+for a drag on something nobody can see.
+
+**It is picked up again when it returns.** The plugin remembers every base view
+it has met, so a layer that was dropped can be rebuilt on the next scan. Without
+that the loss was permanent, because the only two ways a view was ever
+discovered are the moment it is *constructed* and a walk over the base files open
+in tabs — and neither reaches an embed that already exists. A base inside a
+Dynamic Viewer band goes in and out of the document constantly and is never
+rebuilt, so it lost its drag-and-drop on the first switch and did not get it back.
+
+The views are held weakly, so remembering one never keeps it alive; a view that
+has really gone drops out of the registry on its own.
+
+The scan runs a frame after the event that prompted it, and once more after a
+beat, because whatever moved the element is usually still moving it when the
+event fires.
+
+**One limit worth knowing:** reloading this plugin by hand mid-session starts it
+with an empty memory, so bases already embedded somewhere stay without
+drag-and-drop until their container is rebuilt or the window is reloaded. Opening
+Obsidian normally is unaffected — the plugin is loaded before anything embeds a
+base.

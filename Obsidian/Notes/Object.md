@@ -5,6 +5,8 @@ symbol: lucide:box
 is a:
 characteristics:
   - "[[∘ originator]]"
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-30 18:36

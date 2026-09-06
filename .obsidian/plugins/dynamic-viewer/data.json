@@ -1,15 +1,15 @@
 {
   "folder": "Obsidian/Dynamic Views",
-  "activeView": "Obsidian/Dynamic Views/Base.dview",
+  "activeView": "Obsidian/Dynamic Views/Dynamic veiws.dview",
   "state": {
     "Obsidian/Dynamic Views/Dynamic veiws.dview": {
       "collapsed": false,
-      "height": 1136,
+      "height": 371,
       "editing": true
     },
     "Obsidian/Dynamic Views/Base.dview": {
       "collapsed": false,
-      "height": 700,
+      "height": 822,
       "editing": true
     }
   },
@@ -17,7 +17,7 @@
     "Obsidian/Dynamic Views/Dynamic veiws.dview",
     "Obsidian/Dynamic Views/Base.dview"
   ],
-  "editPosition": "properties",
-  "readPosition": "properties",
+  "editPosition": "bottom",
+  "readPosition": "bottom",
   "editAttach": "embed"
 }

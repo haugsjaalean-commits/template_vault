@@ -6,6 +6,8 @@ is a:
 characteristics:
   - "[[∘ typing proficiency]]"
   - "[[∘ typing difficulty]]"
+class views:
+component fields:
 type of:
   - "[[Word]]"
 views:

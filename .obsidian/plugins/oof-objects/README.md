@@ -219,11 +219,56 @@ that class, and when the open note is a class at all — putting one class under
 another is what `type of` is for, and writing `is a` between two classes is the
 mistake the two-relations design exists to prevent.
 
-## `#class`
+## `#class` and `#component`
 
 A class carries the tag `#class`. Update adds it to any class that lacks it,
 keeping the tags you already had. The tag also counts as evidence on its own: a
 note tagged `#class` is a class even if it declares nothing yet.
+
+**A component carries `#component` instead**, and never both. A component is a
+class you *compose with* rather than instantiate: `Project` is what a Goal's
+`goal type` holds, and nothing is ever `is a: "[[Project]]"`. Both tags make a
+note a class note — a component has characteristics, parents and subclasses like
+any other — so the only differences are the ones that follow from never being
+instantiated:
+
+| | class | component |
+|---|---|---|
+| template | generated | **none** — an existing one is trashed |
+| a note that `is a` it | ordinary | a **discrepancy** |
+| its generated base | `file.isA("X")` | `file.hasA("X")` |
+| in the panel | | a *component* badge |
+| *New X*, *Apply to the open note* | offered | refused, with the reason |
+
+### How it decides
+
+**You write `#component` on the class note. That is the whole rule.**
+
+Nothing infers it. A class is not made a component by being named in some
+characteristic's `possible values`, by being used as a component field's value,
+or by anything else the vault happens to contain — only by its own note saying
+so. To make something a component, tag it; to stop, untag it.
+
+**And it travels down `type of`.** A subclass of a component is a component,
+because a subclass is exactly what gets written into a component field, and
+because your fourth rule leaves no alternative: *it is impossible for a class to
+be a type of a component and vice versa*. Update writes `#component` onto those
+subclasses too, so the tag really is on all of them and a search for
+`#component` finds the whole tree. That is one hop of inheritance off a value
+you can read on the parent — the same shape as `symbol:`.
+
+One consequence worth knowing: untagging a root does **not** untag the subtree
+Update already wrote. Those notes now say `#component` themselves, and the tag
+means what it says. Untag them too.
+
+### Where the two trees meet
+
+A class tagged `#component` that is also a `type of` a plain class is the one
+violation of your fourth rule that can actually occur — downward it holds by
+construction. It is reported as an insolvable discrepancy naming both parents,
+and **nothing acts on such a class**: its tag is not changed and its template is
+not removed, because its kind is the thing being argued about and destroying a
+file on the strength of half an answer is the worst way to be wrong.
 
 A card above the classes lists the **base characteristics** — the properties the
 system reasons with, as opposed to the ones that merely describe a subject:
@@ -430,9 +475,9 @@ gets every one of them, empty or not, and nothing is cleared. Generated template
 write them too, so a new note is born in step rather than being corrected the
 moment it exists.
 
-"Base characteristic" means the logic properties — `is a`, `type of`,
-`characteristics` — plus any characteristic note flagged
-`is base characteristic: true`.
+"Base characteristic" means the logic properties — `is a`, `characteristics`,
+`type of`, `views`, `class views` and `component fields` — plus any
+characteristic note flagged `is base characteristic: true`.
 
 `is a` still leads. It and the others are one band and one heading, but within it
 the alphabet would put `characteristics` first, and the line saying what the note
@@ -1213,6 +1258,52 @@ and it moves before Update writes anything.
 
 Turn it off with **Settings → Rate each class by what it adds**.
 
+### And the number beside it
+
+The badge after `+N` is **how many notes that class's base holds**, and pressing
+it opens the base.
+
+```
+▸ Goal            +3  151
+▸ Goal Subject    +1    0
+▸ Style           +0    4
+```
+
+The two are read as a pair, and they are the pair the card is for: `+N` is what
+the class **says**, and the count beside it is who is **listening**. A class that
+adds three characteristics to nothing at all is a different thing from one that
+adds three to a hundred and fifty notes, and nothing on the card used to say
+which.
+
+**It counts what the base actually reads, not what the generator would write.**
+The stream switch, the exactness switch and the exclusions live as a clause in
+the `.base` file and nowhere else — that is the design of the Class base menu —
+so a base switched to *Through component fields* is counted through component
+fields, an exact base counts only what names the class directly, and an excluded
+branch is left out. Otherwise the card would say one number and the base it opens
+would show another, which is worse than saying nothing.
+
+The tooltip names the stream whenever that matters:
+
+```
+Holds 151 notes — is a Goal. Click to open it.
+Holds 113 notes — has a Obsidian Plugin. Click to open it.
+Holds nothing yet — is a Goal Subject, named directly only. Click to open it.
+```
+
+**`0` is worth seeing for the same reason `+0` is.** It is what a class looks like
+when nothing has been filed under it yet — and what one looks like when its base
+is reading the wrong stream, which is the mistake the stream rows on the Class
+base menu exist to prevent. The number on the card is that warning arriving one
+step earlier, before you have gone looking for the base at all.
+
+Two states are drawn rather than hidden. A class whose base does not exist yet
+keeps its number and loses only the press — the row's rule about a missing file,
+so the column of numbers stays a column. And a base whose filter you have
+rewritten into something this plugin cannot read gets a dotted underline: the
+count is about the plain `is a` reading, because that is the only honest thing to
+count when the clause in the file is not one of ours.
+
 ### The icons on the row
 
 Everything a class has or does, on the one line — these used to be a row of words
@@ -1490,9 +1581,13 @@ it is where the base is reset.
 It opens onto:
 
 - **What a class base is** — which class it was generated for, that it lists one
-  row per note that is one, one column per characteristic that class carries,
-  which notes it is currently showing, and which columns those are.
-- **Exact matches only** — the switch below.
+  column per characteristic that class carries, which notes it is currently
+  showing, and which columns those are.
+- **is a**, **has a** and **type of** — the three streams the class can be
+  reached through, each with a submenu holding its own switch and the classes it
+  can be asked to drop. (For **one view**, the same controls are a group on
+  Obsidian's own Configure view card.)
+- **Exact matches only** — how far every stream that is on travels.
 - **Open `<Class>`** — the class note behind it.
 - **Reset from the class** — rebuild it, shown in red.
 
@@ -1505,30 +1600,206 @@ placement exists to avoid.
 
 Turn the whole thing off with *A "Class base" button on the base's toolbar*.
 
+### Three streams, or-ed
+
+A generated base starts as `file.isA("Person")` — notes that *instantiate* the
+class, subclasses included. There are two other ways a note can reach a class,
+and each is a switch of its own:
+
+| | | |
+|---|---|---|
+| **is a** | `file.isA("Person")` | notes that instantiate Person or a class below it |
+| **has a** | `file.hasA("Person")` | notes naming Person in one of their component fields |
+| **type of** | `file.inheritsFrom("Person")` | Person itself and every class below it |
+
+Any of them, all of them, none of them but one. **They are `or`-ed, never
+`and`-ed** — a note reached through a component field is not also an instance, so
+anding two streams would empty every base that had both on. The streams are
+alternative routes to one class.
+
+```yaml
+filters:
+  and:
+    - or:
+        - file.isA("Goal")
+        - file.hasA("Goal")
+    - '!file.inFolder("Obsidian/Templates")'
+```
+
+**At least one stream stays on.** Turning off the last one is refused and says
+why: a base with no stream is not a base about nothing, it is a filter this
+plugin can no longer read, and the only way back would be the reset.
+
+Turn **One stream at a time** on in the settings and picking one turns the others
+off, so the three read as a choice of one rather than as three switches.
+
+*Why the streams are switches at all*: a class reached only as a component target
+has no instances — nothing carries `is a: [[Coding]]`, notes carry
+`subject: [[Coding]]` — so its generated base was permanently empty, and
+resetting it did not help, because the generator writes `isA` too.
+
+### Excluding classes
+
+Each stream's submenu lists **every class below** the one the base is about, and
+any of them can be dropped:
+
+```yaml
+filters:
+  and:
+    - and:
+        - file.isA("Goal")
+        - '!file.isA("Effort")'
+    - '!file.inFolder("Obsidian/Templates")'
+```
+
+An exclusion is written **without a distance**, always. `!file.isA("Effort")`
+removes the notes under Effort as well as Effort's own — the relation already
+says it, which is why only the topmost class of an excluded branch is ever
+written, and a subclass you add tomorrow is excluded the day it appears rather
+than the day you next open the list. In the menu the classes under an excluded
+one are drawn ticked-off and disabled, naming the class that took them.
+
+Two quick answers sit above the list: **Include every class**, which clears the
+stream's exclusions, and **Exclude every subclass**, which drops each direct
+child and so leaves only what the class's own notes reach.
+
+The class itself is **not** in the list. Excluding it would empty the stream
+outright, which is what turning the stream off already says.
+
 ### Exact matches only
 
-A generated base filters on `file.isA("Person")`, which follows inheritance: an
-Artist is a Person, so the Person base holds every artist too. **Exact matches
-only** narrows it to notes whose own `is a` names Person, with subclasses left
-out:
+`file.isA("Person")` follows inheritance: an Artist is a Person, so the Person
+base holds every artist too. **Exact matches only** narrows every stream that is
+on to notes whose own property names the class:
 
 ```yaml
 # off                            # on
 - file.isA("Person")             - file.isADistance("Person") == 1
+- file.hasA("Coding")            - file.hasADistance("Coding") == 1
+- file.inheritsFrom("Person")    - file.inheritsFromDistance("Person") == 1
 ```
 
-There is no setting behind it and nothing is remembered anywhere: **that line in
-the file is the switch**, so what the menu shows and what the base does cannot
-drift apart. Distance 1 is exactly "named in its own `is a`" — `file.isADistance`
-counts one hop for the class a note names and one more for each step above it —
-so no new function was needed for this.
+One sentence about three relations — *the note's own `is a` / component field /
+`type of` names the class* — because `climb()` seeds a direct mention at 1 and
+every hop above adds one. Only `inheritsFromDistance` had to be added, and it is
+that definition applied to the third relation rather than a new idea.
 
-Flipping it changes **that one line** and nothing else. Your views, sorts,
-group-bys and other filter clauses come out byte-identical.
+There is no setting behind any of this and nothing is remembered anywhere:
+**the clause in the file is the switch**, so what the menu shows and what the
+base does cannot drift apart.
 
-If the line is not there — because you rewrote the filter yourself — the switch
-says so and changes nothing, rather than guessing at which of your clauses it
-meant.
+### One clause changes, and only one
+
+However many lines a reading takes, it is **one entry of the list it sits in** —
+one line when a single stream has nothing excluded, a block when it does not.
+It is found as one entry and replaced as one entry, so your own clauses beside
+it, your views, your sorts and your formulas come out byte-identical. A base
+with one stream and no exclusions is written exactly as every base on disk
+already says it, which is why none of them needed migrating.
+
+Nothing here is matched by pattern. The expressions are compared as **exact
+text** against what this plugin generates, so a clause you wrote can never be
+mistaken for one of ours. If the reading is not there — because you rewrote the
+filter yourself — the menu says so and changes nothing.
+
+**A group this cannot read takes its children with it.** If the top-level filter
+holds an `or:` that is not one of ours, its branches are not offered up
+individually: they are pieces of an expression you wrote, and claiming one would
+mean rewriting a line out of the middle of it.
+
+### One view at a time, on Obsidian's own view card
+
+A base with a Table and a *Smart Goals* is two readings of one set of notes, and
+there is no reason both have to travel the same distance up the hierarchy. So
+every one of these controls exists for a single view as well — as a **Class base**
+group on Obsidian's own **Configure view** card, under View name, Layout and the
+layout's own options.
+
+Get there by right-clicking the views button in the base's toolbar, or by
+clicking the chevron beside a view in the views list.
+
+```
+View name        Table
+Layout           Table
+Row height       Short
+─────────────────────────────
+▾ Class base
+    is a Goal            151 notes                       [on]
+      Include every class · Exclude every subclass
+      Sub Goal                                           [on]
+    has a Goal           nothing reaches Goal this way   [off]
+    type of Goal         1 note                          [off]
+    Exact matches only                                   [off]
+```
+
+It is drawn in the card's own `.input-row` markup, so the widths, the label
+rules and the theme are Obsidian's. A class dropped by something above it is
+shown greyed in place, with the class that took it named beside it.
+
+**Each row names the class and says how many notes that stream reaches.** Both
+halves exist because of one mistake that is very easy to make: `has a` on its own
+reads as "has a *the note I am looking at*", which is a different question
+entirely, and a stream with nothing down it looks exactly like a stream that is
+broken. `has a Goal — nothing reaches Goal this way` says both at once, before
+the switch is thrown rather than after.
+
+The count is what the *base* would hold through that stream — exclusions are
+deliberately not applied, because the question a row answers is *is there
+anything down this road*. On `Obsidian Plugin Base` it reads the other way round:
+`is a — nothing`, `has a — 113 notes`, which is the whole reason the streams
+exist, said in one line.
+
+> It began behind that card's ⋮ and moved onto the card the same day. A menu is
+> the right shape for a list of *actions* — set as default, duplicate, delete —
+> and the wrong shape for a set of switches you read off against each other.
+
+A view is narrowed by giving it a clause of its own, which Bases ands together
+with the base's filter:
+
+```yaml
+views:
+  - type: table
+    name: Smart Goals
+    filters:
+      and:
+        - file.isADistance("Goal") == 1   # ← the reading
+        - dead != true                    # ← yours, untouched
+```
+
+The clause is written **first**, where the base's own reading sits in the
+top-level block: what a view is *about* reads before what it then keeps out. A
+view with no `filters:` of its own gets one, written under its `name:` — the
+position Obsidian's own writer uses. Setting a view back to what the base says
+takes the clause away and, if it was the only one, the `and:` and the `filters:`
+with it, so the file comes out byte-identical to one no switch was ever thrown
+on.
+
+**A view can only narrow.** Bases ands the top-level `filters:` with the view's
+own, so a stream the base has turned off can never be turned on here — those
+rows are drawn disabled with the reason beside them. Widening lives on the Class
+base button because that is the only place it can live.
+
+Three more things follow:
+
+- **With the whole base exact, a view has nothing left to narrow.** That row is
+  shown on and disabled, with *the whole base is exact* beside it.
+- **A filter it cannot reach is reported rather than guessed at.** A view
+  filtered with `or`/`not`, or with a single written-out expression instead of a
+  list of clauses, has no place a clause can be added without changing what your
+  filter means, so the group says so and is left alone.
+- **Changing the base's streams carries the views with it.** A view narrowed
+  with `file.isADistance(…)` says nothing once the base is about `hasA` alone,
+  and a clause no note can satisfy empties a view silently — which is the exact
+  failure the streams exist to cure. So a view whose stream has gone is rewritten
+  into one the base still holds, and the notice says how many moved.
+
+The card is **repainted from the file** after every change rather than from what
+was asked for, so a refusal leaves it showing what the view really holds. It is
+rebuilt whenever Obsidian rebuilds the form under it — which is every time the
+layout dropdown changes — and never drawn twice.
+
+A per-view narrowing does **not** survive *Reset from the class*, because the
+view it was written on does not; the modal says so, and names the views.
 
 ### Reset from the class
 
@@ -1546,8 +1817,11 @@ appear in it.
 
 Two things survive the reset, and both are said in the modal:
 
-- **Exact matches only stays as it was.** Which notes the base is about is the
-  one thing a reset is not being asked to change.
+- **The reading stays as it was** — which streams are on, which classes each
+  one drops, and whether it is exact. Which notes the base is about is the one
+  thing a reset is not being asked to change. That is the *base-wide* reading; a
+  narrowing set on one **view** goes with that view, and the modal names the
+  views it is about to take with it.
 - **Unapplied panel edits count.** If the class has drafts Update has not
   written yet, the base is built from those — so it shows what the class is
   about to become. The modal says so before you confirm.
@@ -1826,6 +2100,22 @@ when no class has one, and the only vault-wide default there is.
 
 Only the classes that **carry** the characteristic are reached. A row naming a
 class that never declares `domain` does nothing.
+
+### Both streams
+
+A note carries a characteristic because one of its classes declares it, or
+because it **filled a component field** with a class that does — and a defaults
+table applies either way. `goal type: [[Project]]` hands a Goal the `done` that
+`Todo` declares, so `done`'s *None replacement* fills it exactly as it would on a
+note saying `is a: [[Todo]]`.
+
+The class that answers is the one the characteristic came **from**: the first of
+the note's own classes to declare it, or the component class that brought it. So
+a row naming `Project` is found through `goal type: [[Project]]`, and beats the
+*All notes* row the same way it would through `is a`.
+
+Nothing is claimed about a field that has not been filled in. An empty
+`goal type` brings no class, so it brings no rows.
 
 ### What is written
 
@@ -2178,17 +2468,27 @@ reported as itself, naming the note. Two or more is a shape.
 
 ## In base queries
 
-The same hierarchy answers questions inside any base. Six functions are added
+The same hierarchy answers questions inside any base. Nine functions are added
 to the Bases formula language:
 
+Any of them can be asked about a **file** as well as a name, so
+`file.hasA(this.file)` in a base read against a note means "reaches the note I am
+looking at through a component field".
+
 ```
-file.isA("Person")           an instance of Person, through its class's chain
-file.inheritsFrom("Person")  a subclass of Person, following `type of` only
-file.ancestors()             everything above it by either relation, nearest first
-file.isADistance("Person")   how many hops along the chain, or null
-file.views()                 the bases this note is looked at through
-file.classBase()             the generated base this note is seen through
+file.isA("Person")                    an instance of Person, through its class's chain
+file.hasA("Coding")                   reaches Coding through a component field
+file.inheritsFrom("Person")           a subclass of Person, following `type of` only
+file.ancestors()                      everything above it by either relation, nearest first
+file.isADistance("Person")            how many hops along the `is a` chain, or null
+file.hasADistance("Coding")           the same, through component fields
+file.inheritsFromDistance("Person")   the same, through `type of`
+file.views()                          the bases this note is looked at through
+file.classBase()                      the generated base this note is seen through
 ```
+
+Three streams, never mixed — and each carries a distance, so
+`<fn>Distance(X) == 1` is "names X in its own property" in all three.
 
 ```yaml
 filters:
@@ -2228,46 +2528,75 @@ instances. **Bases → A class is its own instance** turns that on, at distance 
 > step. `file.views()` joined them 2026-09-01, `file.classBase()` 2026-09-03.
 
 
-## `views` — what a note is looked at through
+## `views` and `class views` — what a note is looked at through
 
-A class's `views:` names the bases — and, past a `#`, the view inside one — that
-its instances are seen through:
+A class names the bases — and, past a `#`, the view inside one — that its notes
+are seen through. There are **two lists, because there are two audiences**:
 
 ```yaml
 # Project.md
-views:
+views:                                      # for the instances of Project
   - "[[Improvement Base.base#dynamic project]]"
+class views:                                # for the subtypes of Project
+  - "[[Project Base.base#the subtypes]]"
 ```
 
-`file.views()` answers that for any note, and **nothing is ever written into an
-instance to say so**. Every note carries an empty `views:` the way it carries an
-empty `characteristics:`; what it inherits is not copied into it.
+`file.views()` answers with both, and **nothing is ever written into a note to
+say so**. Every note carries both keys empty the way it carries an empty
+`characteristics:`; what it inherits is not copied into it.
 
-**A view travels by `is a`, not by `type of`.** The walk is the one
-[`file.isA()`](#in-base-queries) does — instantiate once, then climb the subclass
-chain — so with the line above on `Project`:
+### The two streams differ by one edge
 
-| note | gets it | why |
+| | starts by crossing | then climbs | reaches the declaring note |
+|---|---|---|---|
+| `views` | `is a` | `type of` | **no** |
+| `class views` | — | `type of` | **yes** |
+
+`class views` is not a hidden `is a` being added — it is the ordinary `is a`
+being **dropped**. Both exclusions then fall out of the vault's own shape, with
+no rule stating either:
+
+- a class note has an empty `is a:`, so it never receives the views it declares
+  for its instances;
+- an instance has an empty `type of:`, so it never receives the ones declared for
+  subtypes.
+
+The asymmetry in that last column is not a choice either. `type of` is reflexive
+by nature — a class is a kind of itself — where `is a` is not, since a class is
+not an instance of itself.
+
+With both lines above on `Project`:
+
+| note | `views` | `class views` |
 |---|---|---|
-| a note that **is a** Project | yes | instantiation |
-| a note that is an Obsidian Plugin, a **type of** Project | yes | the chain above its class |
-| `Project` itself | yes | its own `views:` |
-| `Improvement`, a class that is a **type of** Project | **no** | it *stores* the view for its instances; it does not receive it |
+| a note that **is a** Project | yes | no |
+| a note that is an Obsidian Plugin, a **type of** Project | yes | no |
+| `Project` itself | **no** | yes |
+| `Improvement`, a class that is a **type of** Project | no | yes |
+| a generated `Project Template.md` | yes | no |
 
-That last row is the whole distinction. A subclass carries a view onward without
-being shown it.
+The template really does carry `is a: [[Project]]`, so it is an instance by the
+walk — which is right: a template should show what the notes made from it will
+show.
 
-A note's own `views:` counts, which is what lets a dashboard be pinned to one
-note. Entries are deduplicated on the link as written, nearest class first, and
-returned as links — so a base can display them, and
+### Pinning a dashboard to one note
+
+Put it in **`class views`**. A plain note has no subtypes, so a `class views` on
+it reaches exactly itself.
+
+### The rest
+
+Entries are deduplicated on the link as written and placed by the **nearest**
+naming across both streams, so one view named twice is one view. They are
+returned as links — a base can display them, and
 [Dynamic Viewer](../dynamic-viewer/README.md) draws them as tabs.
 
 Both spellings resolve: `[[Improvement Base.base#dynamic project]]` and
 `[[Improvement Base]]`. Obsidian resolves a bare wikilink to `.md`, so the
 extension is tried as a fallback — a note of that name never wins over a base.
 
-The property is named by **Settings → Views property**; emptying it turns
-`file.views()` off.
+The properties are named by **Settings → Views property** and **Settings → Class
+views property**; emptying either turns that half of `file.views()` off.
 
 ## `component fields` — the other stream
 
@@ -2302,6 +2631,34 @@ The point is what it replaces. Without it, "an effort about coding" has to be a
 class — `Coding Effort` — and every combination of two axes is a class, so the
 tree grows by multiplication. With it there is one `Goal`, and the axes are
 fields.
+
+### The tag is the only difference
+
+A characteristic note carries **`#characteristic`**, or **`#componentfield`**
+where some class lists it under `component fields` — one of the two, never both,
+and Update enforces it on every characteristic note in the folder.
+
+**Which one is derived, not read.** A characteristic is a component field because
+a *class* says so; the tag reports that. Reading the tag instead would make it a
+second declaration, free to disagree with the class that declares it — so moving
+a characteristic between a class's two lists swaps the tag on the next Update,
+without touching the note.
+
+Everything else about the two is identical, which is the point: same folder, same
+`∘ ` prefix, same five frontmatter fields, same defaults table, created by the
+same action. The tag is what a search, a base or a graph filter can see.
+
+The tag leads the frontmatter, the way `tags: [class]` leads a class note.
+Removing one takes only that tag off — your own tags on the note are untouched,
+and only frontmatter is read, never a `#characteristic` written in prose.
+
+### A class a field permits is usually one you should tag
+
+The classes a component field holds are the obvious candidates for
+[`#component`](#class-and-component) — you are composing with them, which is
+what the tag means. **The plugin will not tag them for you**, because being
+*allowed* in a field is not the same claim as never being instantiated, and only
+you know which classes that is true of.
 
 ### What is inherited, and what is not
 
@@ -2411,12 +2768,27 @@ memory — close Obsidian mid-thought and it is all still there.
 
 - a header badge reads *pending* whenever there are edits the vault has not been
   told about
+- **each class carrying one wears the same badge**, and hovering it lists the
+  rows and what each would become — `type of: Goal → empty`
 - **Discard** throws those edits away — again, no note is touched
 - an edit that ends up matching your notes again stops being an edit, so the
   badge clears on its own
 
 *Pending* is deliberately not *unsaved*: your edits are always saved. What they
 are not yet is **applied**.
+
+### A draft holds only the rows you touched
+
+Edit `views` on a class and the draft records `views` — nothing else. Every
+other row keeps reading from the note, so a change made to that note somewhere
+else is still there when Update runs.
+
+This matters because **an emptied row and a row that was never filled in look
+identical**. A draft that claimed all five rows would quietly put its own idea
+of the other four back, and the one shape that idea can take is *empty*.
+
+Clearing a row on purpose still works and is a different thing: removing the
+last chip records that row as explicitly empty, and Update writes it.
 
 ## Update is a preview, not a button that fires
 
@@ -2532,6 +2904,106 @@ and silently taking one would be worse than asking. Because of that, hiding the
 button without binding the key would leave you with **neither** — so the settings
 tab says which key it is bound to, and warns in orange when it is bound to
 nothing.
+
+## The class diagram
+
+**Open the class diagram** — command palette, or the ribbon's *Class diagram* —
+opens a second tab beside your notes: every class in the vault, drawn as a UML
+class diagram. It is a *view*, not a note. Nothing is written by opening it, and
+there is no file behind it.
+
+It reads the same `picture()` the panel does, so the two can never disagree. What
+the diagram adds is a **reading** — which of the vault's relations is which UML
+shape:
+
+| the vault | the diagram |
+|---|---|
+| a class note | a box |
+| `type of` | **generalization** — a hollow triangle at the parent |
+| `component fields` | **composition** — a filled diamond at the class that has the field |
+| `characteristics` | the attributes compartment |
+| what an ancestor declared | the second, greyed compartment |
+| `is a` | a **count** under the box, not an edge |
+| the class symbol | drawn before the name — a Lucide symbol as an icon, a character as a character |
+
+**`is a` is deliberately not an edge.** In UML it is instantiation, not
+generalization, and 151 objects hanging off `Goal` is not a class diagram — it is
+`Goal`'s backlinks with boxes round them. So the number of instances is written
+under the class, next to the number of subtypes, and the diagram stays about
+classes. `type of` is the only relation this vault has *between two classes*, and
+it is the one drawn as descent.
+
+**A component field points at the class its characteristic permits.** A field is
+a characteristic like any other; what says which class may fill it is that
+characteristic note's own `possible values`. So `∘ effort` with
+`possible values: [[Effort]]` draws an edge from every class carrying the field
+to `Effort`, labelled `effort`. A field with no `possible values` is still a row
+in the box, marked with the same diamond — but it draws no edge, because nothing
+in the vault says where it would point.
+
+### What the boxes say
+
+A class with a note behind it is drawn plainly. The other two states are drawn as
+what they are:
+
+- **dashed** — no note yet, but the panel is holding a draft. Update will write
+  it.
+- **dashed and orange** — no note and no draft: a class named by someone's
+  `type of` and by nothing else. That is the plan's dangling parent, and the
+  class pointing at it is outlined too, so both ends of the fault are visible.
+
+Neither is hidden. `scanClasses` records a named parent as a class whether a note
+exists or not, and a diagram that quietly dropped the box would be the one place
+in the system that tidies a fault away in the act of reading it.
+
+### The five toggles
+
+| | |
+|---|---|
+| **inherited** | the greyed compartment. Off, a box says only what its own note declares |
+| **components** | the composition edges. Off, the fields stay as rows |
+| **counts** | instances and subtypes, under each box |
+| **root** | the implicit edge every class has to the root class |
+| **follow** | draw only what the note you are reading is about |
+
+**root** is off by default because it is true of every class at once: drawn, it
+turns the diagram into a star about `Obsidian Note` and says nothing a single
+sentence does not say better. Turned on it is a real edge — dashed, so it is not
+mistaken for one you wrote — and it moves every class one layer down, which is
+the honest picture of a vault that has a root.
+
+**follow** is the diagram's version of the panel's *Follow the active note*, and
+it uses the same five readings: open a class and you get that class, its
+ancestors, its descendants, and whatever its component fields point at, one hop.
+Everything else is left out. Clearing the chip beside the count turns following
+off, since keeping it on would put the chip straight back.
+
+### Getting around
+
+Drag to pan, scroll to zoom towards the pointer, **fit** to see everything again.
+**Find a class…** dims everything that does not match — a class matches on its
+own name or on any characteristic it **declares**, so typing `location` lights
+the classes that introduce it rather than the nineteen that inherit it. That is
+the panel's rule for a characteristic note, kept here for the same reason: the
+inherited half is a consequence, and a search that returned every consequence
+would return most of the vault. It dims rather than redraws, so what you were
+looking at does not move while you type.
+
+Hovering a class lights it and everything it is joined to. **Clicking its name**
+opens the note; ctrl-click opens it in a new tab. The box itself is not a link —
+you land on one at the end of every drag, and opening from it would make panning
+a way to lose your place.
+
+### The layout
+
+Classes are laid out in layers by descent: a class sits one layer below its
+**furthest** parent, so an edge always points upwards and multiple inheritance
+cannot leave a child level with one of its parents. Within a layer they are
+ordered to sit near what they are joined to.
+
+A `type of` cycle is survived rather than fixed — it is the discrepancy panel's
+business to report it, so both classes are still drawn and both edges are still
+there.
 
 ## Settings
 

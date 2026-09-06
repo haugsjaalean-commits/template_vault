@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[App]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[App]]"
 created: 2026-09-01 15:33
 ext links:
 related:
@@ -12,18 +16,19 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint:
 dead: false
 category:
-project:
 subject:
 active priority:
 difficulty:
 payoff:
 activity:
-done: false
-urgency:
-what to do:
-checkpoint:
+goal type:
+  - "[[Project]]"
 ---
 
 

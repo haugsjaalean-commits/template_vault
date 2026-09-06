@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Project]]"
+  - "[[Sub Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-25 10:26
 ext links:
 related:
@@ -12,19 +16,21 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint: seen
 dead: false
 category:
-project:
-  - "[[Class Manager]]"
 subject:
 active priority: 1.5
 difficulty: 10
 payoff: 8
 activity: sleeping
-done: false
-urgency:
-what to do:
-checkpoint: seen
+goal type:
+  - "[[Project]]"
+working towards:
+  - "[[Class Manager]]"
 ---
 
 Cédric showed me Notion, and it was lowkey hot. The properties can be of type `button`, and this is really cool. This brings me back to my idea [[introduce variables]] and automation. Having buttons is heavily related to the automation of the app. Notion does a lot of things that Obsidian doesn't by default. This is making me think about 

@@ -1,7 +1,7 @@
 filters:
   and:
-    - file.isA("Note")
     - '!file.inFolder("Obsidian/Templates")'
+    - file.inFolder("Obsidian/Notes")
 formulas:
   word count: file.WordCount()
   link distance: file.linkDistance()
@@ -24,6 +24,7 @@ views:
     name: Table
     order:
       - file.name
-      - related
-      - note rating
-      - rating
+      - formula.word count
+    sort:
+      - property: formula.word count
+        direction: DESC

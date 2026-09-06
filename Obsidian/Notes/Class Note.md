@@ -7,6 +7,8 @@ characteristics:
   - "[[∘ cours]]"
   - "[[∘ class date]]"
   - "[[∘ class number]]"
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-24 12:20

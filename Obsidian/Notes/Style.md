@@ -4,6 +4,8 @@ tags:
 symbol: lucide:sparkles
 is a:
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-23 17:03

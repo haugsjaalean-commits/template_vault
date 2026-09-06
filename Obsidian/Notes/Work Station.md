@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Obsidian Theme]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Theme]]"
 created: 2026-08-21 13:57
 ext links:
 related:
@@ -12,18 +16,19 @@ rating:
 evolution:
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint: started
 dead: false
 category:
-project:
 subject:
 active priority: 0
 difficulty:
 payoff:
 activity: sleeping
-done: false
-urgency:
-what to do:
-checkpoint: started
+goal type:
+  - "[[Project]]"
 ---
 
 This is my idea for an Obsidian theme. I want it to be awesome. 

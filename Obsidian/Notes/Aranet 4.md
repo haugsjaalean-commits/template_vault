@@ -3,6 +3,8 @@ cover image: Pasted image 20260830184239.png
 is a:
   - "[[Air Monitor]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-30 18:42

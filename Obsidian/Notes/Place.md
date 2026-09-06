@@ -5,6 +5,8 @@ symbol: lucide:map-pin
 is a:
 characteristics:
   - "[[∘ map link]]"
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-17 12:22

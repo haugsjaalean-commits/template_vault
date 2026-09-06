@@ -3,6 +3,8 @@ cover image: Pasted image 20260830210854.png
 is a:
   - "[[Ear (from Nothing)]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: 2026-08-30 21:08

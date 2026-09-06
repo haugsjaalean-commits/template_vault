@@ -3324,14 +3324,27 @@ class DynamicViewerSettingTab extends PluginSettingTab {
 			properties: 'Under the properties',
 			bottom: 'After the body text',
 		};
-		const positionSetting = (name, desc, key) => {
+		/*
+		 * An embed cannot say *above the file name* - the title and the properties
+		 * are not in the document - so that answer is left out of the list while it
+		 * is on, rather than being offered and quietly ignored. The stored value is
+		 * not touched, so switching back to the layout gives him his choice back;
+		 * until then the dropdown shows what the band is really doing.
+		 */
+		const positionSetting = (name, desc, key, without) => {
+			const gone = without || [];
+			const chosen = gone.includes(this.plugin.settings[key])
+				? 'properties'
+				: this.plugin.settings[key];
 			new Setting(containerEl)
 				.setName(name)
 				.setDesc(desc)
 				.addDropdown((drop) => {
-					for (const value of Object.keys(places)) drop.addOption(value, places[value]);
+					for (const value of Object.keys(places)) {
+						if (!gone.includes(value)) drop.addOption(value, places[value]);
+					}
 					drop
-						.setValue(this.plugin.settings[key])
+						.setValue(chosen)
 						.onChange(async (value) => {
 							this.plugin.settings[key] = value;
 							await this.plugin.saveSettings();
@@ -3342,12 +3355,19 @@ class DynamicViewerSettingTab extends PluginSettingTab {
 				});
 		};
 
+		const embedded = this.plugin.settings.editAttach === 'embed';
+
 		positionSetting('Editing and live preview',
-			'After the body text is the only one of the three that leaves Obsidian’s own '
-			+ 'scroll restoring alone. Above the text, a band the height of a screen puts the '
-			+ 'start of the note somewhere Obsidian cannot scroll back to, so switching modes '
-			+ 'lands you elsewhere in the file.',
-			'editPosition');
+			embedded
+				? 'An embed is a block in the document, so it can only sit where the text '
+					+ 'does. Above the file name is not one of its answers, because the '
+					+ 'title and the properties are not part of the document at all.'
+				: 'After the body text is the only one of the three that leaves Obsidian’s '
+					+ 'own scroll restoring alone. Above the text, a band the height of a '
+					+ 'screen puts the start of the note somewhere Obsidian cannot scroll '
+					+ 'back to, so switching modes lands you elsewhere in the file.',
+			'editPosition',
+			embedded ? ['title'] : []);
 
 		new Setting(containerEl)
 			.setName('How a band is attached in editing mode')
@@ -3357,8 +3377,7 @@ class DynamicViewerSettingTab extends PluginSettingTab {
 				+ 'the tidier of the two: the band’s height belongs to the editor rather '
 				+ 'than sitting above it, so scrolling and mode switches need no correcting. '
 				+ 'It cannot offer Above the file name, because the title and the properties '
-				+ 'are not part of the document — that choice falls back to Under the '
-				+ 'properties. Reading mode is unaffected either way.')
+				+ 'are not part of the document. Reading mode is unaffected either way.')
 			.addDropdown((drop) => {
 				drop.addOption('layout', 'In the note’s layout');
 				drop.addOption('embed', 'As an embed in the document');
@@ -3371,6 +3390,9 @@ class DynamicViewerSettingTab extends PluginSettingTab {
 						 * before the bands are told where they now live. */
 						this.plugin.reclaimBands();
 						this.plugin.syncBands(true);
+						/* Which positions exist depends on this answer, and the
+						 * dropdown that offers them is drawn above this one. */
+						this.display();
 					});
 			});
 

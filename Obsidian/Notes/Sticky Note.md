@@ -5,7 +5,9 @@ symbol: lucide:sticky-note
 is a:
 characteristics:
   - "[[∘ color]]"
-  - "[[∘ file]]"
+  - "[[∘ attached to]]"
+class views:
+component fields:
 type of:
 views:
 created: 2026-09-01 18:44

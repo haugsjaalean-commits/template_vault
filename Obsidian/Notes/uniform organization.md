@@ -1,9 +1,12 @@
 ---
 is a:
-  - "[[Concept]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+done: false
 created: 2026-09-01 16:49
 ext links:
 related:
@@ -12,18 +15,17 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+creator:
+domain:
 dead: false
 category:
-project:
 subject:
 active priority:
 difficulty:
 payoff:
 activity:
-done: false
-urgency:
-what to do:
-checkpoint:
+goal type:
+  - "[[Concept]]"
 ---
 
 

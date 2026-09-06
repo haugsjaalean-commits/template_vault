@@ -2,6 +2,8 @@
 is a:
   - "[[Teacher]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
 created: <% tp.date.now("YYYY-MM-DD HH:mm") %>

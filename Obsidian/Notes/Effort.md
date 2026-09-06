@@ -1,12 +1,14 @@
 ---
 tags:
-  - class
+  - component
 symbol: lucide:flame
 is a:
 characteristics:
   - "[[∘ checkpoint]]"
+class views:
+component fields:
 type of:
-  - "[[Improvement]]"
+  - "[[Goal Type]]"
 views:
 created: 2026-08-30 11:56
 ext links:

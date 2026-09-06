@@ -4,6 +4,8 @@ tags:
 symbol: lucide:air-vent
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Object]]"
 views:

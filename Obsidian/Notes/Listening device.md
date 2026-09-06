@@ -4,6 +4,8 @@ tags:
 symbol: lucide:audio-waveform
 is a:
 characteristics:
+class views:
+component fields:
 type of:
   - "[[Object]]"
 views:

@@ -1,9 +1,13 @@
 ---
 is a:
-  - "[[Obsidian Plugin]]"
+  - "[[Goal]]"
 characteristics:
+class views:
+component fields:
 type of:
 views:
+goal subject:
+  - "[[Obsidian Plugin]]"
 created: 2026-08-31 16:53
 ext links:
 related:
@@ -12,18 +16,19 @@ rating:
 evolution: Charmander
 garden:
 life stage: current
+done: false
+urgency:
+what to do:
+checkpoint: mapped
 dead: false
 category:
-project:
 subject:
 active priority: 6
 difficulty:
 payoff:
 activity: sleeping
-done: false
-urgency:
-what to do:
-checkpoint: mapped
+goal type:
+  - "[[Project]]"
 ---
 
 
@@ -34,4 +39,4 @@ I think that this feature should work quite similarly to the graph feature I jus
 
 ## Cool thing
 
-The cool thing about adding this feature is that it would allow me to highlight the active file in its own base. Since [[Dynamic Viewer]] allows me to open every files base automatically then it would be really cool to be able to see the active file highlighted in the base. 
+The cool thing about adding this feature is that it would allow me to highlight the active file in its own base. Since [[Dynamic Views]] allows me to open every files base automatically then it would be really cool to be able to see the active file highlighted in the base. 

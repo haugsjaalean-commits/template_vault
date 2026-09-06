@@ -1,11 +1,13 @@
 ---
 tags:
-  - class
+  - component
 symbol: lucide:monitor
 is a:
 characteristics:
+class views:
+component fields:
 type of:
-  - "[[Coding Project]]"
+  - "[[Programming]]"
 views:
 created: 2026-09-01 15:31
 ext links:
